@@ -1,0 +1,25 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+auth.json
+*.pem
+*.key
+
+# Dependencies and generated output
+node_modules/
+vendor/
+dist/
+artifacts/
+*.tsbuildinfo
+*.sqlite
+*.sqlite3
+*.log
+.phpunit.result.cache
+.phpunit.cache/
+
+# Local editor and generated assistant files
+.DS_Store
+.idea/
+.vscode/
+.claude/skills/
