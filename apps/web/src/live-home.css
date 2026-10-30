@@ -1,0 +1,707 @@
+/* Compact public homepage, using the established ArewaVanta palette and artwork. */
+.home-live {
+  --home-bg: #0c100b;
+  --home-panel: #151d14;
+  --home-line: #34402f;
+  --home-text: #f4f1e7;
+  --home-dim: #b2beaa;
+  --home-coral: #f04a33;
+}
+.home-wrap {
+  width: min(100%, 1160px);
+  margin: auto;
+  padding-inline: clamp(18px, 4vw, 40px);
+}
+.home-live #competition,
+.home-live #schedule,
+.home-live #standings {
+  scroll-margin-top: 90px;
+}
+.home-hero {
+  position: relative;
+  isolation: isolate;
+  background: #141a12;
+  overflow: hidden;
+}
+.home-hero-art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(
+      90deg,
+      #0d120ce8 0%,
+      #0e130de0 39%,
+      #10150f72 75%,
+      #10150f40
+    ),
+    url("/images/northern-force.webp") center 24% / cover;
+}
+.home-hero-content {
+  padding-top: 62px;
+  padding-bottom: 62px;
+}
+.home-eyebrow,
+.home-label,
+.home-event-type {
+  color: #c7d2bd;
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 800;
+  letter-spacing: 1.35px;
+}
+.home-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.home-eyebrow span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--home-coral);
+}
+.home-hero h1 {
+  color: var(--home-text);
+  font: 700 clamp(58px, 7.7vw, 100px)/0.93 var(--display);
+  letter-spacing: -1px;
+  text-transform: uppercase;
+  margin: 18px 0 16px;
+}
+.home-hero h1 em {
+  color: #fa6a50;
+  font-style: normal;
+}
+.home-hero-description {
+  color: #e2e7d9;
+  font-size: 15px;
+  line-height: 1.6;
+  max-width: 39ch;
+}
+.home-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+.home-button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 0 18px;
+  font-size: 12px;
+  font-weight: 800;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.home-button .icon,
+.home-link .icon {
+  width: 17px;
+  height: 17px;
+}
+.home-button-primary {
+  color: #fff;
+  background: #d84330;
+}
+.home-button-primary:hover {
+  background: #ed5b43;
+}
+.home-button-outline {
+  border: 1px solid #93a087;
+  color: #f5f3e9;
+  background: #131a13b3;
+}
+.home-button-outline:hover {
+  background: #34402f;
+}
+.home-event,
+.home-section {
+  padding-top: 40px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid var(--home-line);
+}
+.home-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.home-label {
+  color: #e78365;
+}
+.home-live .home-section-heading h2,
+.home-live .home-community h2 {
+  color: var(--home-text);
+  font: 700 clamp(36px, 4.3vw, 56px)/1 var(--display);
+  letter-spacing: -0.3px;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+.home-live .home-section-heading h2 span,
+.home-live .home-community h2 span {
+  color: var(--home-coral);
+}
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  gap: 8px;
+  color: #f4f2e8;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.home-link .icon {
+  color: #f18567;
+  transition: transform 0.2s;
+}
+.home-link:hover .icon {
+  transform: translateX(4px);
+}
+.home-event-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px;
+  background: linear-gradient(100deg, #293024, #192119);
+  border: 1px solid #45523b;
+  border-left: 3px solid var(--home-coral);
+}
+.home-event-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  border: 1px solid #766349;
+  color: #ebbf85;
+  background: #39372b;
+}
+.home-event-mark .icon {
+  width: 24px;
+  height: 24px;
+}
+.home-event-main {
+  flex: 1;
+  min-width: 0;
+}
+.home-event-main h3 {
+  margin: 4px 0 7px;
+  color: #fff;
+  font-size: 19px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.home-event-main p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #c8d2c1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.home-event-main p .icon {
+  width: 15px;
+  height: 15px;
+  color: #d1a57a;
+}
+.home-event-count {
+  display: flex;
+  align-items: end;
+  flex-direction: column;
+  padding-left: 20px;
+  border-left: 1px solid #59624e;
+}
+.home-event-count strong {
+  font: 700 36px/1 var(--display);
+  color: #f1e7cc;
+}
+.home-event-count span {
+  margin-top: 4px;
+  color: #c2cdb8;
+  font-size: 9px;
+  letter-spacing: 0.8px;
+}
+.home-context {
+  color: #c2cdb7;
+  font-size: 12px;
+  text-align: right;
+}
+.home-state {
+  min-height: 90px;
+  padding: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  border: 1px solid #384332;
+  background: #151c13;
+}
+.home-state p {
+  color: #c1ccb6;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.home-state button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 8px;
+  padding: 0 12px;
+  background: #293627;
+  color: #f1f0e8;
+  font-size: 12px;
+  font-weight: 700;
+}
+.home-state button .icon {
+  width: 16px;
+}
+.home-schedule {
+  border: 1px solid #3b4834;
+  background: #151d14;
+}
+.home-days {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px;
+  border-bottom: 1px solid #384531;
+}
+.home-days button {
+  min-width: 155px;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 13px;
+  border: 1px solid #40503a;
+  background: #1d271a;
+  color: #becbb3;
+  text-align: left;
+}
+.home-days button[aria-pressed="true"] {
+  border-color: #e76b4b;
+  background: #3e3024;
+  color: #fff2e3;
+}
+.home-days button span {
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+.home-days button strong {
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 750;
+}
+.home-games {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.home-games li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 70px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #35412f;
+}
+.home-games li:last-child {
+  border-bottom: 0;
+}
+.home-game-number {
+  min-width: 34px;
+  color: #e3a16e;
+  font: 700 27px/1 var(--display);
+}
+.home-game-map {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.home-game-map small {
+  color: #a8b79c;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.home-game-map strong {
+  color: #f2f3e9;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.home-game-status {
+  color: #becbb6;
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+.home-schedule-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 18px;
+  border-top: 1px solid #35412f;
+}
+.home-schedule-foot > span {
+  color: #aebda2;
+  font-size: 11px;
+}
+.home-result-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 15px 17px;
+  border: 1px solid #48533e;
+  border-left: 3px solid var(--home-coral);
+  background: #242e20;
+}
+.home-result-context > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  min-width: 0;
+}
+.home-result-context strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.home-result-context span {
+  font-size: 11px;
+  color: #c4cfbc;
+}
+.home-result-context .home-rules-note {
+  color: #f2c58e;
+}
+.home-table-wrap {
+  overflow-x: auto;
+  background: #151d14;
+  border: 1px solid #3b4834;
+  border-top: 0;
+}
+.home-table {
+  width: 100%;
+  min-width: 300px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.home-table th,
+.home-table td {
+  padding: 0 9px;
+}
+.home-table thead th {
+  height: 38px;
+  color: #b6c3ac;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.home-table thead th:nth-child(1) {
+  width: 12%;
+}
+.home-table thead th:nth-child(2) {
+  width: 50%;
+}
+.home-table thead th:nth-child(3) {
+  width: 17%;
+  text-align: right;
+}
+.home-table thead th:nth-child(4) {
+  width: 21%;
+  text-align: right;
+}
+.home-table tbody tr {
+  border-top: 1px solid #35412f;
+}
+.home-table tbody tr:first-child {
+  background: #293323;
+  box-shadow: inset 3px 0 var(--home-coral);
+}
+.home-table tbody td,
+.home-table tbody th {
+  height: 61px;
+}
+.home-table tbody th {
+  font-size: 13px;
+  line-height: 1.35;
+}
+.home-table tbody td:nth-child(3) {
+  text-align: right;
+  font-size: 13px;
+  color: #dbe3d4;
+}
+.home-rank {
+  font: 700 21px/1 var(--display);
+  color: #bcc9b1;
+}
+.home-squad-tag {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  margin-right: 9px;
+  border: 1px solid #69775c;
+  color: #efae7e;
+  font: 700 13px/1 var(--display);
+  vertical-align: middle;
+}
+.home-squad-name {
+  display: inline;
+  overflow-wrap: anywhere;
+}
+.home-table .home-points {
+  text-align: right;
+  font: 700 27px/1 var(--display);
+  color: #f2e9d7;
+}
+.home-table tbody tr:first-child .home-points {
+  color: #f3a27a;
+}
+.home-standings-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+}
+.home-standings-foot > span {
+  color: #aebda3;
+  font-size: 11px;
+}
+.home-community {
+  background: #1b2619;
+  border-bottom: 1px solid #45513b;
+  padding: 42px 0;
+}
+.home-community p:not(.home-label) {
+  margin-top: 11px;
+  max-width: 48ch;
+  color: #c5d0bd;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.home-community .home-link {
+  margin-top: 10px;
+}
+.home-footer {
+  background: #090d08;
+  padding: 28px 0;
+}
+.home-footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.home-footer .brand > span {
+  font-size: 21px;
+}
+.home-footer .brand > svg {
+  width: 29px;
+  height: 27px;
+}
+.home-footer p,
+.home-footer small {
+  color: #a5b29b;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.home-footer p {
+  margin-top: 5px;
+}
+.home-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.home-footer nav a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: #dbe3d4;
+  font-size: 11px;
+}
+.home-footer small {
+  width: 100%;
+  border-top: 1px solid #303a2a;
+  padding-top: 15px;
+}
+@media (max-width: 760px) {
+  .home-hero-art {
+    background:
+      linear-gradient(90deg, #0c110ce8 0%, #0d120cdd 50%, #11170eb0 100%),
+      url("/images/northern-force.webp") 69% 20% / cover;
+  }
+  .home-hero-content {
+    padding-top: 32px;
+    padding-bottom: 34px;
+  }
+  .home-hero h1 {
+    font-size: clamp(44px, 12vw, 61px);
+    margin: 13px 0 12px;
+    letter-spacing: -0.4px;
+  }
+  .home-hero-description {
+    font-size: 13px;
+    max-width: 32ch;
+  }
+  .home-hero-actions {
+    margin-top: 18px;
+    gap: 8px;
+  }
+  .home-button {
+    min-height: 46px;
+    gap: 8px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  .home-event,
+  .home-section {
+    padding-top: 28px;
+    padding-bottom: 28px;
+  }
+  .home-section-heading {
+    margin-bottom: 14px;
+    align-items: center;
+  }
+  .home-live .home-section-heading h2,
+  .home-live .home-community h2 {
+    font-size: 36px;
+  }
+  .home-label,
+  .home-eyebrow {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .home-event-card {
+    gap: 11px;
+    padding: 14px 12px;
+  }
+  .home-event-mark {
+    width: 39px;
+    height: 39px;
+  }
+  .home-event-mark .icon {
+    width: 19px;
+    height: 19px;
+  }
+  .home-event-type {
+    font-size: 9px;
+    letter-spacing: 0.8px;
+  }
+  .home-event-main h3 {
+    font-size: 15px;
+  }
+  .home-event-main p {
+    font-size: 11px;
+  }
+  .home-event-count {
+    padding-left: 10px;
+  }
+  .home-event-count strong {
+    font-size: 29px;
+  }
+  .home-event-count span {
+    font-size: 8px;
+  }
+  .home-context {
+    max-width: 45%;
+    font-size: 10px;
+  }
+  .home-days {
+    padding: 9px;
+    gap: 6px;
+  }
+  .home-days button {
+    min-width: 132px;
+    min-height: 48px;
+    padding: 7px 10px;
+  }
+  .home-games li {
+    min-height: 62px;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .home-game-number {
+    min-width: 29px;
+    font-size: 23px;
+  }
+  .home-game-map strong {
+    font-size: 14px;
+  }
+  .home-game-status {
+    font-size: 10px;
+  }
+  .home-schedule-foot {
+    padding: 5px 12px;
+    flex-wrap: wrap;
+  }
+  .home-schedule-foot > span {
+    font-size: 10px;
+  }
+  .home-table th,
+  .home-table td {
+    padding: 0 5px;
+  }
+  .home-table tbody th {
+    font-size: 12px;
+  }
+  .home-table tbody td,
+  .home-table tbody th {
+    height: 58px;
+  }
+  .home-table .home-points {
+    font-size: 24px;
+  }
+  .home-squad-tag {
+    width: 25px;
+    height: 25px;
+    margin-right: 5px;
+    font-size: 11px;
+  }
+  .home-community {
+    padding: 30px 0;
+  }
+  .home-footer-inner {
+    align-items: flex-start;
+  }
+}
+@media (max-width: 380px) {
+  .home-hero h1 {
+    font-size: clamp(40px, 11.8vw, 45px);
+  }
+  .home-button {
+    font-size: 11px;
+    padding: 0 10px;
+  }
+  .home-link {
+    font-size: 11px;
+  }
+  .home-event-mark {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-button,
+  .home-link .icon {
+    transition: none;
+  }
+}

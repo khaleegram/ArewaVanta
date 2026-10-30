@@ -1,0 +1,238 @@
+.directory-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.directory-tabs button,
+.directory-search button,
+.directory-pager button {
+  min-height: 44px;
+  padding: 0 15px;
+  color: #dce4d5;
+  font-size: 12px;
+  font-weight: 800;
+  background: #202b1e;
+  border: 1px solid #40513a;
+}
+.directory-tabs button[aria-pressed="true"] {
+  background: #bb4431;
+  border-color: #d9573e;
+  color: white;
+}
+.directory-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.directory-search label {
+  flex: 1;
+  min-width: 0;
+}
+.directory-search label input {
+  margin-top: 0;
+}
+.directory-clans {
+  display: grid;
+  gap: 10px;
+}
+.directory-clan {
+  background: #182017;
+  border: 1px solid #35432e;
+  border-left: 3px solid #d9553e;
+}
+.directory-clan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 17px 19px;
+}
+.directory-clan-head h2 {
+  font: 700 24px var(--display);
+  text-transform: uppercase;
+  margin: 4px 0;
+}
+.directory-clan-head span {
+  font-size: 11px;
+  color: #b8c6af;
+}
+.directory-clan-head button,
+.directory-squad button,
+.directory-player-row button,
+.directory-player-row a {
+  background: none;
+  color: #f39b82;
+  min-height: 44px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.directory-squads {
+  border-top: 1px solid #35432e;
+}
+.directory-squad,
+.directory-player-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 60px;
+  padding: 8px 18px;
+  border-bottom: 1px solid #35432e;
+}
+.directory-squad > div {
+  flex: 1;
+  min-width: 0;
+}
+.directory-squad strong,
+.directory-squad span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.directory-squad strong,
+.directory-player-row strong {
+  font-size: 13px;
+}
+.directory-squad span {
+  font-size: 11px;
+  color: #a9b8a1;
+  margin-top: 4px;
+}
+.directory-add {
+  margin: 4px 18px;
+  min-height: 44px;
+  background: none;
+  color: #f39b82;
+  font-size: 12px;
+  font-weight: 800;
+}
+.directory-player-list {
+  border: 1px solid #35432e;
+  background: #182017;
+}
+.directory-player-row:last-child {
+  border-bottom: 0;
+}
+.directory-player-row strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.directory-player-row a {
+  color: #c7d3bf;
+  display: flex;
+  align-items: center;
+}
+.directory-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: #2c3928;
+  color: #ef9a80;
+  width: 38px;
+  height: 38px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.directory-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 15px;
+  color: #b8c7b1;
+  font-size: 12px;
+}
+.directory-pager button:disabled {
+  opacity: 0.4;
+}
+.directory-editor {
+  max-width: 720px;
+  display: grid;
+  gap: 18px;
+}
+.directory-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.directory-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 12px;
+}
+.directory-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #e35a43;
+}
+.directory-find {
+  margin-top: 14px;
+}
+.directory-find .directory-player-list {
+  margin-top: 14px;
+}
+.directory-squad button:disabled,
+.directory-player-row button:disabled {
+  opacity: 0.5;
+}
+@media (max-width: 430px) {
+  .directory-clan-head,
+  .directory-squad,
+  .directory-player-row {
+    padding-inline: 13px;
+  }
+  .directory-squad,
+  .directory-player-row {
+    gap: 10px;
+  }
+  .directory-actions .manage-primary {
+    flex: 1;
+  }
+}
+.directory-clan-actions {
+  display: flex;
+  gap: 14px;
+}
+.directory-person {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 60px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #35432e;
+}
+.directory-person:last-child {
+  border: 0;
+}
+.directory-person > div {
+  flex: 1;
+  min-width: 0;
+}
+.directory-person strong,
+.directory-person small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.directory-person strong {
+  font-size: 12px;
+}
+.directory-person small {
+  color: #b8c6af;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.directory-person button {
+  min-height: 44px;
+  background: none;
+  color: #f39b82;
+  font-size: 12px;
+  font-weight: 800;
+}
+.directory-person button:disabled {
+  opacity: 0.5;
+}
+.directory-clan-head h2 {
+  overflow-wrap: anywhere;
+}
