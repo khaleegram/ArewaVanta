@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aga
+      POSTGRES_USER: aga
+      POSTGRES_PASSWORD: aga_local_only
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - aga-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aga -d aga"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    restart: unless-stopped
+    user: "${AGA_UID:-1000}:${AGA_GID:-1000}"
+    working_dir: /app
+    entrypoint: ["/bin/sh", "-lc"]
+    command:
+      - |
+        composer install --no-interaction &&
+        if ! grep -q '^APP_KEY=base64:' .env; then php artisan key:generate --force; fi &&
+        php artisan config:clear &&
+        php artisan migrate --seed --force &&
+        php artisan serve --host=0.0.0.0 --port=8000 --no-reload
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      APP_NAME: ArewaVanta
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: aga
+      DB_USERNAME: aga
+      DB_PASSWORD: aga_local_only
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  aga-postgres-data:

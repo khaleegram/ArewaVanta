@@ -1,0 +1,7 @@
+.env
+.git
+.phpunit.result.cache
+bootstrap/cache/*.php
+database/*.sqlite
+storage/logs/*.log
+vendor

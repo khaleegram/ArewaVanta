@@ -22,4 +22,4 @@ artifacts/
 .DS_Store
 .idea/
 .vscode/
-.claude/skills/
+**/.claude/skills/
