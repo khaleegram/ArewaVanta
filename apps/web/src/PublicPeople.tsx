@@ -4,6 +4,7 @@ import type { SquadHistoryEntry } from "./api/types";
 import { Shell, Notice, dateText, useLoad } from "./PublicCompetitions";
 import { countLabel, squadIdentity } from "./presentation";
 import { Icon } from "./ui";
+import { pageMetadata, SITE_ORIGIN, usePageSeo } from "./seo";
 
 const clanUrl = (slug: string) => `/clans/${encodeURIComponent(slug)}`;
 const squadUrl = (slug: string) => `/squads/${encodeURIComponent(slug)}`;
@@ -68,6 +69,7 @@ export function ClanListing() {
     (signal) => api.clans(page, search, signal),
     `${page}:${search}`,
   );
+  usePageSeo(pageMetadata.clans);
   return (
     <Shell>
       <div className="public-clans-index">
@@ -96,6 +98,25 @@ export function ClanPage({ slug }: { slug: string }) {
     (signal) => api.clan(slug, signal).then((response) => response.data),
     slug,
   );
+  const clanName = clan.status === "ready" ? clan.data.name : "Arewa CODM Clan";
+  const clanDescription = clan.status === "ready"
+    ? `${clan.data.name}${clan.data.tag ? ` (${clan.data.tag})` : ""} is an Arewa CODM clan in Nigeria. View its ${clan.data.squads.length} squads and their players on ArewaVanta.`
+    : "View an Arewa CODM clan’s squads, players and competition history in Nigeria.";
+  usePageSeo({
+    title: `${clanName} — Arewa CODM Clan & Squads | ArewaVanta`,
+    description: clanDescription,
+    path: clan.status === "ready" ? clanUrl(clan.data.slug) : `/clans/${encodeURIComponent(slug)}`,
+    schema: clan.status === "ready" ? {
+      "@context": "https://schema.org",
+      "@type": "SportsOrganization",
+      name: clan.data.name,
+      alternateName: clan.data.tag || undefined,
+      description: clan.data.bio || clanDescription,
+      sport: "Call of Duty: Mobile Battle Royale",
+      url: `${SITE_ORIGIN}${clanUrl(clan.data.slug)}`,
+      member: clan.data.squads.map((squad) => ({ "@type": "SportsTeam", name: squad.name, url: `${SITE_ORIGIN}${squadUrl(squad.slug)}` })),
+    } : undefined,
+  });
   return (
     <Shell>
       <div className="public-clan-profile">
@@ -197,6 +218,26 @@ export function SquadPage({ slug }: { slug: string }) {
     (signal) => api.squad(slug, signal).then((response) => response.data),
     slug,
   );
+  const squadName = squad.status === "ready"
+    ? squadIdentity({ name: squad.data.name, squadNumber: squad.data.squad_number, clanTag: squad.data.clan.tag, clanName: squad.data.clan.name, clanSquadCount: squad.data.clan.squad_count })
+    : "Arewa CODM Squad";
+  const squadDescription = squad.status === "ready"
+    ? `${squadName} represents ${squad.data.clan.name} (${squad.data.clan.tag || "Arewa CODM clan"}) in Call of Duty: Mobile Battle Royale competitions. View its players and results.`
+    : "View this Arewa CODM Battle Royale squad’s players and competition history.";
+  usePageSeo({
+    title: `${squadName} — CODM Squad & Players | ArewaVanta`,
+    description: squadDescription,
+    path: squad.status === "ready" ? squadUrl(squad.data.slug) : `/squads/${encodeURIComponent(slug)}`,
+    schema: squad.status === "ready" ? {
+      "@context": "https://schema.org",
+      "@type": "SportsTeam",
+      name: squadName,
+      sport: "Call of Duty: Mobile Battle Royale",
+      url: `${SITE_ORIGIN}${squadUrl(squad.data.slug)}`,
+      member: squad.data.roster.map((player) => ({ "@type": "Person", name: player.ign })),
+      parentOrganization: { "@type": "SportsOrganization", name: squad.data.clan.name, url: `${SITE_ORIGIN}${clanUrl(squad.data.clan.slug)}` },
+    } : undefined,
+  });
   return (
     <Shell>
       <div className="public-squad-profile">
@@ -235,6 +276,7 @@ export function PlayerListing() {
     (signal) => api.players(page, search, signal),
     `${page}:${search}`,
   );
+  usePageSeo(pageMetadata.players);
   return (
     <Shell>
       <div className="public-player-directory">
@@ -261,6 +303,23 @@ export function PlayerPage({ id }: { id: string }) {
     (signal) => api.player(id, page, signal).then((response) => response.data),
     `${id}:${page}`,
   );
+  const playerName = player.status === "ready" ? player.data.current_ign : "Arewa CODM Player";
+  const playerDescription = player.status === "ready"
+    ? `${playerName} is a Call of Duty: Mobile Battle Royale player in the Arewa community. View squad affiliations, match appearances, kills and competition history.`
+    : "View an Arewa CODM player’s squad affiliations, match appearances and competition statistics.";
+  usePageSeo({
+    title: `${playerName} — Arewa CODM Player Profile | ArewaVanta`,
+    description: playerDescription,
+    path: player.status === "ready" ? playerUrl(player.data.id) : `/players/${encodeURIComponent(id)}`,
+    schema: player.status === "ready" ? {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      name: player.data.current_ign,
+      url: `${SITE_ORIGIN}${playerUrl(player.data.id)}`,
+      description: playerDescription,
+      memberOf: player.data.current_squads?.map((squad) => ({ "@type": "SportsTeam", name: squad.name, url: `${SITE_ORIGIN}${squadUrl(squad.slug)}` })),
+    } : undefined,
+  });
   return (
     <Shell>
       <div className="public-player-profile">

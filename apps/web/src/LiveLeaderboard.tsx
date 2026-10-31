@@ -17,6 +17,7 @@ import {
   squadIdentity,
 } from "./presentation";
 import { Brand, Icon } from "./ui";
+import { pageMetadata, usePageSeo } from "./seo";
 import "./leaderboard.css";
 
 type Kind = "squads" | "players";
@@ -393,7 +394,6 @@ export default function LiveLeaderboard() {
     if (kind === "players" && playerPage > 1) p.set("page", String(playerPage));
     if (kind === "squads" && query.trim()) p.set("q", query.trim());
     window.history.replaceState(null, "", `/leaderboard?${p}`);
-    document.title = `${kind === "squads" ? "Squad" : "Player"} leaderboard — ArewaVanta`;
   }, [kind, event, seasonId, playerPage, query]);
   const currentEvent =
     events.status === "ready"
@@ -413,6 +413,15 @@ export default function LiveLeaderboard() {
   const activeContext = seasonId
     ? currentSeason && { title: currentSeason.name }
     : currentEvent;
+  usePageSeo({
+    ...pageMetadata.leaderboard,
+    title: kind === "players"
+      ? "Arewa CODM Player Rankings & Kills Leaderboard | ArewaVanta"
+      : "Arewa CODM Squad Standings & Leaderboard | ArewaVanta",
+    description: activeContext
+      ? `See ${kind === "players" ? "player rankings" : "squad standings"} for ${activeContext.title} in the Arewa CODM Battle Royale community. Follow kills, wins and points.`
+      : pageMetadata.leaderboard.description,
+  });
   const rows =
     standings.status === "ready"
       ? standings.data.standings.filter((row) =>

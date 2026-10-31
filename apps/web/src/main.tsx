@@ -33,6 +33,7 @@ import "./competition-listing.css";
 import "./public-match.css";
 import "./rankings-page.css";
 import "./public-people-pages.css";
+import { applyPageSeo } from "./seo";
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 
@@ -84,6 +85,33 @@ function renderRoute() {
       <a href="/">Back to homepage</a>
     </main>
   );
+
+  const privateRoute = path.startsWith("/manage/") || [
+    "/captain-invite",
+    "/forgot-password",
+    "/reset-password",
+  ].includes(path);
+  if (privateRoute) {
+    applyPageSeo({
+      title: "Account access | ArewaVanta",
+      description: "Private ArewaVanta account and competition management.",
+      path,
+      noIndex: true,
+    });
+  } else if (![
+    "/",
+    "/leaderboard",
+    "/competitions",
+    "/clans",
+    "/players",
+  ].includes(path) && !eventMatch && !personMatch) {
+    applyPageSeo({
+      title: "Page not found | ArewaVanta",
+      description: "This ArewaVanta page could not be found.",
+      path,
+      noIndex: true,
+    });
+  }
 
   root.render(
     <React.StrictMode>

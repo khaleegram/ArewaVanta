@@ -11,6 +11,7 @@ import {
   timezoneLabel,
 } from "./presentation";
 import { Brand, Icon } from "./ui";
+import { pageMetadata, usePageSeo } from "./seo";
 
 type Load<T> =
   | { status: "loading" }
@@ -140,6 +141,19 @@ function Header() {
   );
 }
 export default function LiveHome() {
+  usePageSeo({
+    ...pageMetadata.home,
+    schema: {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "@id": "https://arewavanta.com/#webpage",
+      url: "https://arewavanta.com/",
+      name: pageMetadata.home.title,
+      description: pageMetadata.home.description,
+      inLanguage: "en-NG",
+      about: { "@id": "https://arewavanta.com/#organization" },
+    },
+  });
   const [events, setEvents] = useState<Load<EventSummary[]>>({
     status: "loading",
   });
@@ -233,7 +247,8 @@ export default function LiveHome() {
                 <em>Northern pride.</em>
               </h1>
               <p className="home-hero-description">
-                Your home for Arewa CODM scrims, leagues and tournaments.
+                Your home for Arewa Call of Duty: Mobile (CODM) Battle Royale
+                scrims, leagues and tournaments across Nigeria.
               </p>
               <div className="home-hero-actions">
                 <a href="#schedule" className="home-button home-button-primary">
@@ -603,7 +618,7 @@ export default function LiveHome() {
                 </h2>
                 <p>
                   One place for the squads, players and competitions bringing
-                  Arewa CODM together.
+                  Nigerian Arewa CODM Battle Royale together.
                 </p>
                 <a
                   href="/leaderboard?type=players"

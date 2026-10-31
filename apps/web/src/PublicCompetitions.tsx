@@ -8,6 +8,7 @@ import type {
   PublicMatchResult,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
+import { pageMetadata, SITE_ORIGIN, usePageSeo } from "./seo";
 import {
   competitionLabel as displayCompetitionLabel,
   countLabel,
@@ -167,27 +168,31 @@ export function CompetitionListing() {
   const [filter, setFilter] = useState<
     "upcoming" | "results" | "previous" | "all"
   >("all");
-  const filtered =
-    events.status === "ready"
-      ? events.data
-          .filter((event) => {
-            const end = event.end_date ?? event.start_date;
-            const isPrevious = !!end && end < today(event.timezone);
-            if (filter === "upcoming")
-              return (
-                !event.skipped_at && !!event.start_date &&
-                (event.end_date ?? event.start_date) >= today(event.timezone)
-              );
-            if (filter === "previous") return isPrevious;
-            if (filter === "results") return event.scored_match_count > 0;
-            return true;
-          })
-          .sort((a, b) =>
-            filter === "upcoming"
-              ? (a.start_date ?? "").localeCompare(b.start_date ?? "")
-              : (b.start_date ?? "").localeCompare(a.start_date ?? ""),
-          )
-      : [];
+  usePageSeo(pageMetadata.competitions);
+  const filtered = events.status === "ready"
+    ? [...new Set(events.data.map((event) => event.series_id ?? event.id))]
+        .map((seriesKey) => {
+          const weeks = events.data.filter((event) => (event.series_id ?? event.id) === seriesKey);
+          const firstDate = (event: EventSummary) => event.start_date ?? "";
+          const isUpcoming = (event: EventSummary) => !event.skipped_at && !!event.start_date && (event.end_date ?? event.start_date) >= today(event.timezone);
+          const eligible = filter === "upcoming"
+            ? weeks.filter(isUpcoming)
+            : filter === "previous"
+              ? weeks.filter((event) => !!(event.end_date ?? event.start_date) && (event.end_date ?? event.start_date)! < today(event.timezone))
+              : filter === "results"
+                ? weeks.filter((event) => event.scored_match_count > 0)
+                : weeks;
+          if (!eligible.length) return undefined;
+          const ordered = [...eligible].sort((a, b) => firstDate(a).localeCompare(firstDate(b)));
+          if (filter === "upcoming") return ordered[0];
+          if (filter === "all") return ordered.find(isUpcoming) ?? ordered.at(-1);
+          return ordered.at(-1);
+        })
+        .filter((event): event is EventSummary => !!event)
+        .sort((a, b) => filter === "upcoming"
+          ? (a.start_date ?? "").localeCompare(b.start_date ?? "")
+          : (b.start_date ?? "").localeCompare(a.start_date ?? ""))
+    : [];
   return (
     <Shell>
       <div className="competition-listing">
@@ -221,7 +226,8 @@ export function CompetitionListing() {
               <span className="competition-listing-date"><Icon name="calendar" /><span>{dates(event)}</span></span>
               <span className="competition-listing-copy">
                 <span className="competition-listing-type">
-                  <span>{competitionLabel(event)}</span>
+                  <span>{event.series_id ? "Weekly CODM scrims" : competitionLabel(event)}</span>
+                  {event.series_id && <span>Every week</span>}
                   {event.skipped_at && <span className="competition-listing-paused">Not playing</span>}
                 </span>
                 <strong className="competition-listing-name">{event.title}</strong>
@@ -325,6 +331,26 @@ export function CompetitionDetail({ slug }: { slug: string }) {
     ? [...data.days].sort((a, b) => a.sort_order - b.sort_order)
     : [];
   const day = days.find((item) => item.id === dayId) ?? days[0];
+  const detailDescription = data?.description?.trim() || (data
+    ? `${data.title} is an Arewa CODM Battle Royale competition in Nigeria. ${data.series_id ? "This weekly scrim series brings squads back every weekend. " : ""}See the ${dates(data)} schedule, participating squads, standings and match results.`
+    : "View Arewa CODM Battle Royale competition schedules, participating squads, standings and match results.");
+  const detailTitle = data
+    ? `${data.series_id ? "Weekly Arewa CODM Scrims" : data.title} — ${dates(data)} | ArewaVanta`
+    : "Arewa CODM Competition Schedule & Results | ArewaVanta";
+  usePageSeo({
+    title: detailTitle,
+    description: detailDescription,
+    path: `/competitions/${encodeURIComponent(slug)}`,
+    schema: data ? {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_ORIGIN}/` },
+        { "@type": "ListItem", position: 2, name: "Competitions", item: `${SITE_ORIGIN}/competitions` },
+        { "@type": "ListItem", position: 3, name: data.title, item: `${SITE_ORIGIN}/competitions/${encodeURIComponent(slug)}` },
+      ],
+    } : undefined,
+  });
   return (
     <Shell>
       <div className="public-event-detail">
@@ -547,6 +573,26 @@ export function MatchPage({
     result.data.match.id === matchId
       ? result.data
       : undefined;
+  const matchDescription = match && day && data
+    ? `${match.map_label} Game ${match.match_index} in ${data.title}, played ${dateText(day.date)}. ${match.has_results ? "See squad placements, kills and player match statistics." : "The match schedule and results status are available here."}`
+    : "View Arewa CODM Battle Royale game schedules, squad placements, kills and match results.";
+  usePageSeo({
+    title: match && data
+      ? `${data.title} Game ${match.match_index} on ${match.map_label} | ArewaVanta`
+      : "Arewa CODM Game Results | ArewaVanta",
+    description: matchDescription,
+    path: `/competitions/${encodeURIComponent(slug)}/games/${encodeURIComponent(matchId)}`,
+    schema: data && match ? {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_ORIGIN}/` },
+        { "@type": "ListItem", position: 2, name: "Competitions", item: `${SITE_ORIGIN}/competitions` },
+        { "@type": "ListItem", position: 3, name: data.title, item: `${SITE_ORIGIN}/competitions/${encodeURIComponent(slug)}` },
+        { "@type": "ListItem", position: 4, name: `Game ${match.match_index}`, item: `${SITE_ORIGIN}/competitions/${encodeURIComponent(slug)}/games/${encodeURIComponent(matchId)}` },
+      ],
+    } : undefined,
+  });
   return (
     <Shell>
       <div className="public-match-page">
