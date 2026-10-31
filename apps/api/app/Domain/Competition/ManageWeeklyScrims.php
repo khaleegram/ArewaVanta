@@ -139,6 +139,17 @@ final class ManageWeeklyScrims
                             $match->save();
                         }
                     }
+                    $seriesEventIds = $series->events()->pluck('id');
+                    DB::table('role_assignments')->where('role', Role::Organizer->value)
+                        ->where('scope_type', RoleScope::Event->value)->whereIn('scope_id', $seriesEventIds)
+                        ->get(['user_id', 'assigned_by'])->each(function (object $assignment) use ($week): void {
+                            DB::table('role_assignments')->insertOrIgnore([
+                                'id' => (string) Str::ulid(), 'user_id' => $assignment->user_id,
+                                'role' => Role::Organizer->value, 'scope_type' => RoleScope::Event->value,
+                                'scope_id' => $week->id, 'assigned_by' => $assignment->assigned_by,
+                                'created_at' => now(), 'updated_at' => now(),
+                            ]);
+                        });
                     $created++;
                 }
                 $next = $next->addWeek();
