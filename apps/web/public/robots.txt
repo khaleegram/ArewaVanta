@@ -1,8 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /manage/
-Disallow: /captain-invite
-Disallow: /forgot-password
-Disallow: /reset-password
 
 Sitemap: https://arewavanta.com/sitemap.xml
