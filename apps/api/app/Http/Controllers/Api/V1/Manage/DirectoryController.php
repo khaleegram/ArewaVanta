@@ -43,25 +43,22 @@ final class DirectoryController extends Controller
     {
         $squad->load('clan');
         abort_unless($permissions->canManageClan($request->user(), $squad->clan), 403);
-        if (is_string($request->input('name'))) {
-            $request->merge(['name' => trim($request->input('name'))]);
-        }
         if (is_string($request->input('tag'))) {
             $tag = Str::upper(trim($request->input('tag')));
             $request->merge(['tag' => $tag === '' ? null : $tag]);
         }
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:120', function (string $attribute, mixed $value, \Closure $fail) use ($squad): void {
-                if (Squad::query()->where('clan_id', $squad->clan_id)->whereKeyNot($squad->id)->whereRaw('LOWER(name) = ?', [Str::lower($value)])->exists()) {
-                    $fail('This clan already has a squad with this name.');
-                }
-            }],
+            'name' => ['prohibited'],
+            'squad_number' => ['prohibited'],
             'tag' => ['nullable', 'string', 'max:16'],
         ]);
         $squad->fill($data)->save();
         app(AdminActivity::class)->record($request->user(), $request->user()->name.' updated '.$squad->name.'.');
 
-        return response()->json(['data' => ['id' => $squad->id, 'clan_id' => $squad->clan_id, 'name' => $squad->name, 'slug' => $squad->slug, 'tag' => $squad->tag]]);
+        return response()->json(['data' => [
+            'id' => $squad->id, 'clan_id' => $squad->clan_id, 'name' => $squad->name,
+            'squad_number' => $squad->squad_number, 'slug' => $squad->slug, 'tag' => $squad->tag,
+        ]]);
     }
 
     public function showPlayer(Request $request, Player $player, OrganizationPermissions $permissions): JsonResponse

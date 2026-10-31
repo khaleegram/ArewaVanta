@@ -38,6 +38,24 @@ final class MatchResultWorkflowTest extends TestCase
         $this->getJson("/api/v1/events/{$event['slug']}/standings")->assertOk()->assertJsonPath('data.standings.0.total_kills', 7);
     }
 
+    public function test_public_squad_history_returns_scored_competitions_from_one_endpoint(): void
+    {
+        [$organizer, $event, $squads, $players] = $this->competition();
+        $match = $event['days'][0]['matches'][0]['id'];
+        $this->actingAs($organizer, 'sanctum')->putJson("/api/v1/manage/matches/{$match}/results", [
+            'results' => [$this->row($squads[0], $players[0], 1, 8), $this->row($squads[1], $players[1], 2, 4)],
+        ])->assertOk();
+
+        $this->getJson("/api/v1/squads/{$squads[0]->slug}/history")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.event.title', 'Weekend One')
+            ->assertJsonPath('data.0.rank', 1)
+            ->assertJsonPath('data.0.matches_played', 1)
+            ->assertJsonPath('data.0.total_kills', 8)
+            ->assertJsonPath('data.0.scored_match_count', 1);
+    }
+
     public function test_direct_save_edit_scoring_change_and_deletion_update_all_rankings(): void
     {
         [$organizer, $event, $squads, $players, $seasonId] = $this->competition();
@@ -288,6 +306,43 @@ final class MatchResultWorkflowTest extends TestCase
         $this->assertDatabaseHas('matches', ['id' => $matchId, 'current_published_revision_id' => $legacy->id]);
         $this->assertDatabaseCount('match_result_revisions', 1);
         $this->getJson("/api/v1/events/{$event['slug']}/standings")->assertOk()->assertJsonPath('data.standings.0.total_points', '19');
+    }
+
+    public function test_stale_result_sheet_cannot_overwrite_a_newer_save(): void
+    {
+        [$organizer, $event, $squads, $players] = $this->competition();
+        $matchId = $event['days'][0]['matches'][0]['id'];
+        $this->actingAs($organizer, 'sanctum');
+        $sheet = $this->getJson("/api/v1/manage/matches/{$matchId}/result-sheet")->assertOk()->json('data');
+        $opened = $sheet['result']['lock_version'] ?? null;
+        $scoringVersion = $sheet['match']['scoring']['version_id'];
+        $this->assertNull($opened);
+
+        $freshSave = $this->putJson("/api/v1/manage/matches/{$matchId}/results", [
+            'expected_lock_version' => null,
+            'expected_scoring_version_id' => $scoringVersion,
+            'results' => [$this->row($squads[0], $players[0], 2, 10)],
+        ])->assertOk();
+        $newVersion = $freshSave->json('data.lock_version');
+        $this->assertSame(1, $newVersion);
+
+        $this->putJson("/api/v1/manage/matches/{$matchId}/results", [
+            'expected_lock_version' => $opened,
+            'expected_scoring_version_id' => $scoringVersion,
+            'results' => [$this->row($squads[1], $players[1], 1, 99)],
+        ])->assertStatus(409)->assertJsonPath('message', 'These results changed after you opened this sheet. Reload the latest results before saving.');
+
+        $this->getJson("/api/v1/matches/{$matchId}/results")->assertOk()
+            ->assertJsonFragment(['squad_id' => $squads[0]->id, 'team_kills' => 10]);
+
+        $warzone = ScoringPreset::query()->where('slug', 'warzone-style-multiplier')->firstOrFail()->versions()->firstOrFail();
+        $this->patchJson("/api/v1/manage/matches/{$matchId}/scoring", ['scoring_rule_version_id' => $warzone->id])->assertOk();
+        $this->putJson("/api/v1/manage/matches/{$matchId}/results", [
+            'expected_lock_version' => 2,
+            'expected_scoring_version_id' => $scoringVersion,
+            'results' => [$this->row($squads[1], $players[1], 1, 99)],
+        ])->assertStatus(409)->assertJsonPath('message', 'Scoring changed after you opened this sheet. Reload the latest results before saving.');
+        $this->assertDatabaseCount('match_result_revisions', 1);
     }
 
     /** @return array{User, array, array<Squad>, array<Player>, string} */

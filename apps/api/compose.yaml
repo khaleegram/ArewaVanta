@@ -33,7 +33,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - .:/app
-    environment:
+    environment: &api-environment
       APP_NAME: ArewaVanta
       APP_ENV: local
       APP_DEBUG: "true"
@@ -46,6 +46,21 @@ services:
       DB_USERNAME: aga
       DB_PASSWORD: aga_local_only
     depends_on:
+      db:
+        condition: service_healthy
+
+  scheduler:
+    build: .
+    restart: unless-stopped
+    user: "${AGA_UID:-1000}:${AGA_GID:-1000}"
+    working_dir: /app
+    command: ["php", "artisan", "schedule:work"]
+    volumes:
+      - .:/app
+    environment: *api-environment
+    depends_on:
+      api:
+        condition: service_started
       db:
         condition: service_healthy
 

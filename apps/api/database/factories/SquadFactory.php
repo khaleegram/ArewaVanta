@@ -19,9 +19,12 @@ class SquadFactory extends Factory
      */
     public function definition(): array
     {
+        $number = fake()->unique()->numberBetween(1, 65000);
+
         return [
             'clan_id' => Clan::factory(),
-            'name' => fake()->unique()->words(2, true),
+            'name' => 'Squad '.$number,
+            'squad_number' => $number,
             'tag' => Str::upper(fake()->unique()->lexify('????')),
             'slug' => fake()->unique()->slug(),
             'status' => 'pending',

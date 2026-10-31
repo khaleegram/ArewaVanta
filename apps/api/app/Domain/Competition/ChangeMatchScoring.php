@@ -59,7 +59,7 @@ final class ChangeMatchScoring
                         'placement_multiplier' => $score?->placementMultiplier, 'total_points' => $score?->totalPoints ?? '0',
                     ])->save();
                 }
-                $current->forceFill(['rules_snapshot' => $snapshot, 'authored_by' => $actor->id, 'published_at' => now()])->save();
+                $current->forceFill(['lock_version' => $current->lock_version + 1, 'rules_snapshot' => $snapshot, 'authored_by' => $actor->id, 'published_at' => now()])->save();
             }
             $match->forceFill([
                 'scoring_rule_version_id' => $version->id,

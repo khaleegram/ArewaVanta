@@ -21,7 +21,13 @@ final class StoreCompetitionEventRequest extends FormRequest
     /** @return array<string, array<mixed>|string|ValidationRule> */
     public function rules(): array
     {
+        $scheduleRules = (new UpdateEventScheduleRequest)->rules();
+        $scheduleRules['days'] = ['sometimes', 'required', 'array', 'list', 'min:1', 'max:14'];
+        $scheduleRules['days.*.id'] = ['prohibited'];
+        $scheduleRules['days.*.games.*.id'] = ['prohibited'];
+
         return [
+            ...$scheduleRules,
             'title' => ['required', 'string', 'max:180'],
             'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'competition_type' => ['sometimes', 'nullable', Rule::in(['scrim', 'league', 'tournament'])],
@@ -30,11 +36,11 @@ final class StoreCompetitionEventRequest extends FormRequest
             'scoring_rule_version_id' => ['sometimes', 'nullable', 'ulid', Rule::exists('scoring_rule_versions', 'id')],
             'dates' => ['sometimes', 'required', 'array', 'list', 'min:1', 'max:14'],
             'dates.*' => ['required', 'date_format:Y-m-d', 'distinct:strict'],
-            'squad_ids' => ['sometimes', 'array', 'list', 'max:100'],
-            'squad_ids.*' => ['required', 'ulid', 'distinct:strict', Rule::exists('squads', 'id')],
+            'squad_ids' => ['prohibited'],
             'timezone' => ['sometimes', 'required', 'timezone'],
             'maximum_position' => ['sometimes', 'required', 'integer', 'min:1', 'max:100'],
             'squad_size' => ['sometimes', 'required', 'integer', 'min:1', 'max:10'],
+            'squad_capacity' => ['sometimes', 'required', 'integer', 'min:1', 'max:25'],
             'visibility' => ['sometimes', 'required', Rule::in(['public', 'private'])],
         ];
     }

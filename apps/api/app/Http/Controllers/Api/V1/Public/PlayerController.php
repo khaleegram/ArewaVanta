@@ -29,10 +29,12 @@ final class PlayerController extends Controller
 
     public function show(Player $player): JsonResponse
     {
-        $player->load(['squadMemberships' => fn ($query) => $query->whereNull('left_at')->with('squad.clan')]);
+        $player->load(['squadMemberships' => fn ($query) => $query->whereNull('left_at')->with('squad.clan.squads:id,clan_id')]);
         $publishedResults = DB::table('revision_player_results as player_results')
             ->join('match_result_revisions as revisions', 'revisions.id', '=', 'player_results.revision_id')
             ->join('match_squad_results as squad_results', 'squad_results.id', '=', 'player_results.match_squad_result_id')
+            ->join('squads as history_squads', 'history_squads.id', '=', 'squad_results.squad_id')
+            ->join('clans as history_clans', 'history_clans.id', '=', 'history_squads.clan_id')
             ->join('matches', 'matches.id', '=', 'revisions.match_id')
             ->join('event_days', 'event_days.id', '=', 'matches.event_day_id')
             ->join('events', 'events.id', '=', 'event_days.event_id')
@@ -56,6 +58,9 @@ final class PlayerController extends Controller
                 'matches.match_index', 'matches.map_label', 'event_days.event_date',
                 'events.title as event_title', 'events.slug as event_slug',
                 'squad_results.squad_id', 'squad_results.squad_name_snapshot',
+                'history_squads.name as squad_name', 'history_squads.slug as squad_slug',
+                'history_squads.squad_number', 'history_clans.name as clan_name', 'history_clans.tag as clan_tag',
+                DB::raw('(select count(*) from squads as clan_squads where clan_squads.clan_id = history_squads.clan_id) as clan_squad_count'),
             ])
             ->orderByDesc('event_days.event_date')->orderByDesc('matches.match_index')
             ->paginate(20);
@@ -66,8 +71,14 @@ final class PlayerController extends Controller
             'current_squads' => $player->squadMemberships->map(static fn ($membership): array => [
                 'id' => $membership->squad->id,
                 'name' => $membership->squad->name,
+                'squad_number' => $membership->squad->squad_number,
                 'slug' => $membership->squad->slug,
-                'clan' => ['name' => $membership->squad->clan->name, 'slug' => $membership->squad->clan->slug],
+                'clan' => [
+                    'name' => $membership->squad->clan->name,
+                    'slug' => $membership->squad->clan->slug,
+                    'tag' => $membership->squad->clan->tag,
+                    'squad_count' => $membership->squad->clan->squads->count(),
+                ],
             ])->values(),
             'uid' => $player->uid_public ? $player->normalized_uid : null,
             'appearances' => $appearances,

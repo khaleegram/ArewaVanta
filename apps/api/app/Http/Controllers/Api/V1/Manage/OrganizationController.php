@@ -39,8 +39,10 @@ final class OrganizationController extends Controller
                 'name' => $clan->name,
                 'slug' => $clan->slug,
                 'tag' => $clan->tag,
+                'squad_count' => $clan->squads->count(),
                 'squads' => $clan->squads->map(static fn (Squad $squad): array => [
-                    'id' => $squad->id, 'name' => $squad->name, 'slug' => $squad->slug, 'tag' => $squad->tag,
+                    'id' => $squad->id, 'name' => $squad->name, 'squad_number' => $squad->squad_number,
+                    'slug' => $squad->slug, 'tag' => $squad->tag,
                 ])->values(),
             ])->values(),
             'meta' => ['current_page' => $clans->currentPage(), 'last_page' => $clans->lastPage(), 'total' => $clans->total()],
@@ -95,35 +97,39 @@ final class OrganizationController extends Controller
     public function createSquad(Request $request, Clan $clan, OrganizationPermissions $permissions): JsonResponse
     {
         abort_unless($permissions->canManageClan($request->user(), $clan), 403);
-        if (is_string($request->input('name'))) {
-            $request->merge(['name' => trim($request->input('name'))]);
-        }
         $data = $request->validate([
-            'name' => ['bail', 'required', 'string', 'max:120', function (string $attribute, mixed $value, \Closure $fail) use ($clan): void {
-                if (Squad::query()->where('clan_id', $clan->id)->whereRaw('LOWER(name) = ?', [Str::lower($value)])->exists()) {
-                    $fail('This clan already has a squad with this name.');
-                }
-            }],
+            'name' => ['prohibited'],
+            'squad_number' => ['prohibited'],
             'tag' => ['sometimes', 'nullable', 'string', 'max:16'],
         ]);
         $squad = DB::transaction(function () use ($request, $clan, $data): Squad {
+            $clan = Clan::query()->lockForUpdate()->findOrFail($clan->id);
+            $number = ((int) $clan->squads()->max('squad_number')) + 1;
+            $name = 'Squad '.$number;
             $id = (string) Str::ulid();
             $squad = new Squad([
                 'clan_id' => $clan->id,
-                'name' => $data['name'],
-                'slug' => $this->slug($data['name'], $id),
+                'name' => $name,
+                'squad_number' => $number,
+                'slug' => $this->slug($name, $id),
                 'tag' => isset($data['tag']) ? Str::upper(trim($data['tag'])) : null,
                 'status' => 'active',
                 'captain_user_id' => $request->user()->id,
             ]);
             $squad->id = $id;
             $squad->save();
-            $this->audit($request->user()->id, 'squad_registered', 'squad', $squad->id, null, ['clan_id' => $clan->id, 'name' => $squad->name, 'status' => 'active']);
+            $this->audit($request->user()->id, 'squad_registered', 'squad', $squad->id, null, [
+                'clan_id' => $clan->id, 'clan_tag' => $clan->tag, 'name' => $squad->name,
+                'squad_number' => $squad->squad_number, 'status' => 'active',
+            ]);
 
             return $squad;
         });
 
-        return response()->json(['data' => ['id' => $squad->id, 'clan_id' => $clan->id, 'name' => $squad->name, 'slug' => $squad->slug, 'tag' => $squad->tag]], 201);
+        return response()->json(['data' => [
+            'id' => $squad->id, 'clan_id' => $clan->id, 'name' => $squad->name,
+            'squad_number' => $squad->squad_number, 'slug' => $squad->slug, 'tag' => $squad->tag,
+        ]], 201);
     }
 
     public function roster(Request $request, Squad $squad, OrganizationPermissions $permissions): JsonResponse
@@ -170,7 +176,7 @@ final class OrganizationController extends Controller
             }
 
             if ($squad->memberships()->where('player_id', $player->id)->whereNull('left_at')->exists()) {
-                throw ValidationException::withMessages(['player_id' => 'This player is already on the squad roster.']);
+                throw ValidationException::withMessages(['player_id' => 'This player is already in the squad.']);
             }
             $membership = SquadMembership::query()->create([
                 'squad_id' => $squad->id,
@@ -232,8 +238,8 @@ final class OrganizationController extends Controller
             $description = match ($action) {
                 'clan_registered' => 'created clan '.($after['name'] ?? ''),
                 'squad_registered' => 'created squad '.($after['name'] ?? ''),
-                'roster_player_added' => 'added '.($after['ign'] ?? 'a player').' to '.(Squad::query()->find($entityId)?->name ?? 'a roster'),
-                'roster_player_removed' => 'removed a player from '.(Squad::query()->find($entityId)?->name ?? 'a roster'),
+                'roster_player_added' => 'added '.($after['ign'] ?? 'a player').' to '.(Squad::query()->find($entityId)?->name ?? 'a squad'),
+                'roster_player_removed' => 'removed a player from '.(Squad::query()->find($entityId)?->name ?? 'a squad'),
             };
             app(AdminActivity::class)->record($actor, $actor->name.' '.$description.'.');
         }

@@ -28,6 +28,12 @@ Creating an event makes it available immediately and automatically creates its g
 
 A clan may have multiple independent squads. Roster members can be reused, and the actual players for each match may differ through substitutions. Organizers can add or remove event or game participants and can delete an event without an approval chain or a reason. Removed events and games must not contribute to current standings; their underlying records are retained.
 
+### Weekly scrims
+
+Scrims are recurring weekly competitions by default and continue until the organizer ends the series. Each occurrence keeps separate squad submissions, game-day slots, games, and standings. The organizer form defaults to Scrim. Creation saves the schedule and prepares future weeks automatically in one transaction; there is no repeat checkbox or weekly activation button. Existing scrims are adopted automatically without replacing their current games, results or slot assignments. The schedule and scoring carry forward from the most recent configured week, while squad selections and results do not.
+
+Organizers can skip and restore an individual unplayed week, pause and resume the series, or end it. Reasons are optional and visible to players. Pausing marks upcoming weeks without results as not playing and stops generation; resuming restores upcoming weeks paused by the series, while preserving individual skips and elapsed breaks. Ending is final and preserves all saved results. Weeks containing saved results cannot be skipped. Weekly generation uses the series timezone, prepares at most fourteen days ahead, and never fills missed past weeks with new games.
+
 ## Manual results
 
 An organizer opens a game, enters a unique finishing placement and individual kills for each participating squad, and saves. Omitted squads are absent and score zero. Each present squad needs at least one participant; fewer than the usual squad size needs no special approval. Kills are non-negative integers, and a player cannot score for two squads in the same game. Team kills are always derived from player kills.

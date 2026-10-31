@@ -35,11 +35,15 @@ final class OrganizationController extends Controller
 
     public function squad(string $squad): JsonResponse
     {
-        $model = Squad::query()->with(['clan', 'memberships.player'])->where('slug', $squad)->firstOrFail();
+        $model = Squad::query()->with(['clan.squads:id,clan_id', 'memberships.player'])->where('slug', $squad)->firstOrFail();
 
         return response()->json(['data' => [
-            'id' => $model->id, 'name' => $model->name, 'slug' => $model->slug, 'tag' => $model->tag,
-            'clan' => ['id' => $model->clan->id, 'name' => $model->clan->name, 'slug' => $model->clan->slug, 'tag' => $model->clan->tag],
+            'id' => $model->id, 'name' => $model->name, 'squad_number' => $model->squad_number,
+            'slug' => $model->slug, 'tag' => $model->tag,
+            'clan' => [
+                'id' => $model->clan->id, 'name' => $model->clan->name, 'slug' => $model->clan->slug,
+                'tag' => $model->clan->tag, 'squad_count' => $model->clan->squads->count(),
+            ],
             'roster' => $model->memberships->whereNull('left_at')->filter(fn ($membership) => $membership->player->status === 'active')
                 ->map(static fn ($membership): array => ['id' => $membership->player->id, 'ign' => $membership->player->current_ign])->values(),
         ]]);
@@ -49,8 +53,10 @@ final class OrganizationController extends Controller
     {
         return [
             'id' => $clan->id, 'name' => $clan->name, 'slug' => $clan->slug, 'tag' => $clan->tag, 'bio' => $clan->bio,
+            'squad_count' => $clan->squads->count(),
             'squads' => $clan->squads->map(static fn (Squad $squad): array => [
-                'id' => $squad->id, 'name' => $squad->name, 'slug' => $squad->slug, 'tag' => $squad->tag,
+                'id' => $squad->id, 'name' => $squad->name, 'squad_number' => $squad->squad_number,
+                'slug' => $squad->slug, 'tag' => $squad->tag,
             ])->values(),
         ];
     }

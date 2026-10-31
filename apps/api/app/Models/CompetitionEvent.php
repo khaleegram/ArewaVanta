@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['season_id', 'competition_template_id', 'scoring_rule_version_id', 'title', 'description', 'competition_type', 'slug', 'status', 'visibility', 'timezone', 'squad_size', 'maximum_position', 'created_by'])]
+#[Fillable(['season_id', 'competition_template_id', 'scoring_rule_version_id', 'title', 'description', 'competition_type', 'slug', 'status', 'visibility', 'timezone', 'squad_size', 'squad_capacity', 'maximum_position', 'created_by'])]
 class CompetitionEvent extends Model
 {
     use HasUlids, SoftDeletes;
@@ -20,8 +20,16 @@ class CompetitionEvent extends Model
     {
         return [
             'squad_size' => 'integer',
+            'squad_capacity' => 'integer',
             'maximum_position' => 'integer',
+            'series_week_date' => 'immutable_date',
+            'skipped_at' => 'immutable_datetime',
         ];
+    }
+
+    public function series(): BelongsTo
+    {
+        return $this->belongsTo(CompetitionSeries::class, 'series_id');
     }
 
     public function season(): BelongsTo
@@ -47,6 +55,11 @@ class CompetitionEvent extends Model
     public function squadEntries(): HasMany
     {
         return $this->hasMany(EventSquad::class, 'event_id');
+    }
+
+    public function submissions(): HasMany
+    {
+        return $this->hasMany(EventSquadSubmission::class, 'event_id');
     }
 
     public function creator(): BelongsTo

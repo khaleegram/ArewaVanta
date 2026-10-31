@@ -14,11 +14,15 @@ final class MatchResultResource extends JsonResource
     {
         return [
             'saved_at' => $this->published_at,
+            'lock_version' => $this->lock_version,
             'results' => $this->whenLoaded('squadResults', fn () => $this->squadResults->map(static fn ($result): array => [
                 'squad_id' => $result->squad_id,
                 'squad_name' => $result->squad_name_snapshot,
+                'squad_number' => $result->squad?->squad_number,
                 'squad_slug' => $result->squad?->slug,
                 'clan_name' => $result->squad?->clan?->name,
+                'clan_tag' => $result->squad?->clan?->tag,
+                'clan_squad_count' => $result->squad?->clan?->squads?->count(),
                 'participation_status' => $result->participation_status,
                 'placement' => $result->placement,
                 'team_kills' => $result->team_kills,

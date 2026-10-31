@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
 auth.json
 *.pem
 *.key
@@ -23,3 +24,4 @@ artifacts/
 .idea/
 .vscode/
 **/.claude/skills/
+apps/api/backups/

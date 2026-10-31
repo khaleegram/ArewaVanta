@@ -25,6 +25,7 @@ final class UpdateCompetitionEventRequest extends FormRequest
             'scoring_rule_version_id' => ['sometimes', 'required', 'ulid', Rule::exists('scoring_rule_versions', 'id')],
             'timezone' => ['sometimes', 'required', 'timezone'],
             'squad_size' => ['sometimes', 'required', 'integer', 'min:1', 'max:10'],
+            'squad_capacity' => ['sometimes', 'required', 'integer', 'min:1', 'max:25'],
             'maximum_position' => ['sometimes', 'required', 'integer', 'min:1', 'max:100'],
         ];
     }

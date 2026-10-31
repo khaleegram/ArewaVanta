@@ -20,31 +20,90 @@ final class SyncCompetitionSquads
     ) {}
 
     /** @param list<string> $squadIds */
-    public function forEvent(User $actor, CompetitionEvent $event, array $squadIds): CompetitionEvent
+    public function forEvent(User $actor, CompetitionEvent $event, array $squadIds, array $slotAssignments = []): CompetitionEvent
     {
-        return DB::transaction(function () use ($actor, $event, $squadIds): CompetitionEvent {
+        return DB::transaction(function () use ($actor, $event, $squadIds, $slotAssignments): CompetitionEvent {
             $event = CompetitionEvent::query()->lockForUpdate()->findOrFail($event->id);
             abort_unless($this->permissions->canManage($actor, $event), 403);
             if (Squad::query()->whereIn('id', $squadIds)->count() !== count($squadIds)) {
                 throw ValidationException::withMessages(['squad_ids' => 'Choose existing squads.']);
+            }
+            if (count($squadIds) > $event->squad_capacity) {
+                throw ValidationException::withMessages(['squad_ids' => 'The competition has no more squad slots available.']);
+            }
+            if (count($squadIds) > 25) {
+                throw ValidationException::withMessages(['squad_ids' => 'A four-player CODM Battle Royale lobby has a maximum of 25 squads.']);
+            }
+            foreach ($slotAssignments as $squadId => $slotNumber) {
+                if (! in_array($squadId, $squadIds, true) || $slotNumber < 1 || $slotNumber > $event->squad_capacity || $slotNumber > 25) {
+                    throw ValidationException::withMessages(['slot_number' => 'Choose an available slot within this competition capacity.']);
+                }
+            }
+            $activeIds = $event->squadEntries()->where('status', 'active')->pluck('squad_id')->all();
+            $newIds = array_values(array_diff($squadIds, $activeIds));
+            if ($newIds !== [] && $event->submissions()->whereIn('squad_id', $newIds)->where('status', 'selected')->count() !== count($newIds)) {
+                throw ValidationException::withMessages(['squad_ids' => 'Only squads selected from captain submissions can be assigned.']);
+            }
+            foreach ($slotAssignments as $squadId => $slotNumber) {
+                $isTaken = $event->squadEntries()->where('status', 'active')->where('slot_number', $slotNumber)
+                    ->where('squad_id', '!=', $squadId)->exists();
+                if ($isTaken) {
+                    throw ValidationException::withMessages(['slot_number' => 'That game-day slot is already assigned to another squad.']);
+                }
+            }
+            $removedIds = array_values(array_diff($activeIds, $squadIds));
+            $hasPublishedResults = CompetitionMatch::query()
+                ->whereHas('day', fn ($query) => $query->where('event_id', $event->id))
+                ->whereNotNull('current_published_revision_id')->exists();
+            if ($newIds !== [] || $removedIds !== []) {
+                if ($hasPublishedResults) {
+                    throw ValidationException::withMessages(['squad_ids' => 'Competition slots cannot change after match results have been saved.']);
+                }
             }
             if (count($squadIds) > $event->maximum_position) {
                 $event = $this->updateEvent->handle($actor, $event, ['maximum_position' => count($squadIds)]);
             }
             $matches = CompetitionMatch::query()->whereHas('day', fn ($query) => $query->where('event_id', $event->id))
                 ->orderBy('id')->lockForUpdate()->get();
-            $event->squadEntries()->whereNotIn('squad_id', $squadIds)->update(['status' => 'inactive']);
+            $event->squadEntries()->whereNotIn('squad_id', $squadIds)->update(['status' => 'inactive', 'slot_number' => null]);
+            $existingSlots = $event->squadEntries()->where('status', 'active')->pluck('slot_number', 'squad_id')->all();
+            $takenSlots = [];
             foreach ($squadIds as $squadId) {
+                $slot = $slotAssignments[$squadId] ?? $existingSlots[$squadId] ?? null;
+                if ($slot !== null) {
+                    $takenSlots[(int) $slot] = true;
+                }
+            }
+            foreach ($squadIds as $squadId) {
+                $slotNumber = $slotAssignments[$squadId] ?? $existingSlots[$squadId] ?? null;
+                if ($slotNumber === null) {
+                    for ($candidate = 1; $candidate <= $event->squad_capacity; $candidate++) {
+                        if (! isset($takenSlots[$candidate])) {
+                            $slotNumber = $candidate;
+                            $takenSlots[$candidate] = true;
+                            break;
+                        }
+                    }
+                }
                 EventSquad::query()->updateOrCreate(
                     ['event_id' => $event->id, 'squad_id' => $squadId],
-                    ['status' => 'active', 'added_by' => $actor->id],
+                    ['status' => 'active', 'slot_number' => $slotNumber, 'added_by' => $actor->id],
                 );
             }
             foreach ($matches as $match) {
                 $this->syncMatch($actor, $match, $squadIds);
             }
+            if ($removedIds !== []) {
+                $event->submissions()->whereIn('squad_id', $removedIds)->where('status', 'selected')->update([
+                    'status' => 'pending', 'decided_by' => null, 'decided_at' => null, 'updated_at' => now(),
+                ]);
+            }
 
-            return $event->load(['season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers', 'days.matches.squadEntries.squad.clan', 'squadEntries.squad.clan']);
+            return $event->load([
+                'season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers',
+                'days.matches.squadEntries.squad.clan.squads:id,clan_id',
+                'squadEntries.squad.clan.squads:id,clan_id',
+            ]);
         });
     }
 
@@ -61,7 +120,7 @@ final class SyncCompetitionSquads
             }
             $this->syncMatch($actor, $match, $squadIds);
 
-            return $match->load('squadEntries.squad.clan');
+            return $match->load('squadEntries.squad.clan.squads:id,clan_id');
         });
     }
 

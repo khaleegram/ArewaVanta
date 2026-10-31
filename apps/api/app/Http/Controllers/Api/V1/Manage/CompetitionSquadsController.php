@@ -26,8 +26,11 @@ final class CompetitionSquadsController extends Controller
             'squads' => $match->squadEntries->where('entry_status', 'expected')->map(static fn ($entry): array => [
                 'id' => $entry->squad->id,
                 'name' => $entry->squad->name,
+                'squad_number' => $entry->squad->squad_number,
                 'tag' => $entry->squad->tag,
                 'clan' => $entry->squad->clan->name,
+                'clan_tag' => $entry->squad->clan->tag,
+                'clan_squad_count' => $entry->squad->clan->squads->count(),
             ])->values(),
         ]]);
     }

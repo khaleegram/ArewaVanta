@@ -10,7 +10,9 @@ use App\Http\Controllers\Api\V1\Manage\CompetitionTemplateController;
 use App\Http\Controllers\Api\V1\Manage\DirectoryController;
 use App\Http\Controllers\Api\V1\Manage\EventExportController;
 use App\Http\Controllers\Api\V1\Manage\EventQueriesController;
+use App\Http\Controllers\Api\V1\Manage\EventRecurrenceController;
 use App\Http\Controllers\Api\V1\Manage\EventScheduleController;
+use App\Http\Controllers\Api\V1\Manage\EventSquadSubmissionController;
 use App\Http\Controllers\Api\V1\Manage\MatchResultController;
 use App\Http\Controllers\Api\V1\Manage\MatchResultSheetController;
 use App\Http\Controllers\Api\V1\Manage\MatchScoringController;
@@ -20,6 +22,7 @@ use App\Http\Controllers\Api\V1\Manage\ScoringPresetController as ManageScoringP
 use App\Http\Controllers\Api\V1\Manage\SeasonController;
 use App\Http\Controllers\Api\V1\Manage\StoreCompetitionTemplateController;
 use App\Http\Controllers\Api\V1\Manage\UpdateEventController;
+use App\Http\Controllers\Api\V1\PasswordRecoveryController;
 use App\Http\Controllers\Api\V1\Public\EventController as PublicEventController;
 use App\Http\Controllers\Api\V1\Public\EventStandingsController;
 use App\Http\Controllers\Api\V1\Public\MatchResultsController;
@@ -28,6 +31,7 @@ use App\Http\Controllers\Api\V1\Public\PlayerController;
 use App\Http\Controllers\Api\V1\Public\PlayerRankingsController;
 use App\Http\Controllers\Api\V1\Public\ScoringPresetController;
 use App\Http\Controllers\Api\V1\Public\SeasonStandingsController;
+use App\Http\Controllers\Api\V1\Public\SquadHistoryController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -37,6 +41,12 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/auth/login', [AuthController::class, 'login'])
         ->middleware('throttle:5,1')
         ->name('api.v1.auth.login');
+    Route::post('/auth/forgot-password', [PasswordRecoveryController::class, 'sendLink'])
+        ->middleware('throttle:5,1')
+        ->name('api.v1.auth.password.email');
+    Route::post('/auth/reset-password', [PasswordRecoveryController::class, 'reset'])
+        ->middleware('throttle:10,1')
+        ->name('api.v1.auth.password.reset');
     Route::post('/captain-invitations/inspect', [CaptainInvitationController::class, 'inspect'])->middleware('throttle:30,1');
     Route::post('/captain-invitations/accept', [CaptainInvitationController::class, 'accept'])->middleware('throttle:5,1');
     Route::middleware('auth:sanctum')->group(function (): void {
@@ -44,25 +54,32 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/auth/me', [AuthController::class, 'me'])->name('api.v1.auth.me');
     });
 
-    Route::get('/scoring-presets', ScoringPresetController::class)
-        ->name('api.v1.scoring-presets.index');
-    Route::get('/events', [PublicEventController::class, 'index'])
-        ->name('api.v1.events.index');
-    Route::get('/events/{event}', [PublicEventController::class, 'show'])
-        ->name('api.v1.events.show');
-    Route::get('/events/{event}/standings', EventStandingsController::class)
-        ->name('api.v1.events.standings');
-    Route::get('/matches/{match}/results', MatchResultsController::class)
-        ->name('api.v1.matches.results');
-    Route::get('/matches/{match}/standings', [MatchResultsController::class, 'standings'])->name('api.v1.matches.standings');
-    Route::get('/clans', [PublicOrganizationController::class, 'clans'])->name('api.v1.clans.index');
-    Route::get('/clans/{clan}', [PublicOrganizationController::class, 'clan'])->name('api.v1.clans.show');
-    Route::get('/squads/{squad}', [PublicOrganizationController::class, 'squad'])->name('api.v1.squads.show');
-    Route::get('/players', [PlayerController::class, 'index'])->name('api.v1.players.index');
-    Route::get('/players/{player}', [PlayerController::class, 'show'])
-        ->name('api.v1.players.show');
-    Route::get('/rankings/players', PlayerRankingsController::class)->name('api.v1.players.rankings');
-    Route::get('/seasons/{season}/standings', SeasonStandingsController::class)->name('api.v1.seasons.standings');
+    Route::middleware('throttle:public-read')->group(function (): void {
+        Route::get('/scoring-presets', ScoringPresetController::class)
+            ->name('api.v1.scoring-presets.index');
+        Route::get('/events', [PublicEventController::class, 'index'])
+            ->name('api.v1.events.index');
+        Route::get('/events/{event}', [PublicEventController::class, 'show'])
+            ->name('api.v1.events.show');
+        Route::get('/events/{event}/standings', EventStandingsController::class)
+            ->name('api.v1.events.standings');
+        Route::get('/matches/{match}/results', MatchResultsController::class)
+            ->name('api.v1.matches.results');
+        Route::get('/matches/{match}/standings', [MatchResultsController::class, 'standings'])->name('api.v1.matches.standings');
+        Route::get('/clans/{clan}', [PublicOrganizationController::class, 'clan'])->name('api.v1.clans.show');
+        Route::get('/squads/{squad}/history', SquadHistoryController::class)->name('api.v1.squads.history');
+        Route::get('/squads/{squad}', [PublicOrganizationController::class, 'squad'])->name('api.v1.squads.show');
+        Route::get('/players/{player}', [PlayerController::class, 'show'])
+            ->name('api.v1.players.show');
+        Route::get('/rankings/players', PlayerRankingsController::class)->name('api.v1.players.rankings');
+        Route::get('/seasons/{season}/standings', SeasonStandingsController::class)->name('api.v1.seasons.standings');
+    });
+    Route::get('/clans', [PublicOrganizationController::class, 'clans'])
+        ->middleware('throttle:public-search')
+        ->name('api.v1.clans.index');
+    Route::get('/players', [PlayerController::class, 'index'])
+        ->middleware('throttle:public-search')
+        ->name('api.v1.players.index');
 
     Route::middleware('auth:sanctum')->prefix('manage')->name('api.v1.manage.')->group(function (): void {
         Route::get('/activity', [AdminActivityController::class, 'index']);
@@ -88,6 +105,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/squads/{squad}/roster', [OrganizationController::class, 'roster'])->name('rosters.show');
         Route::post('/squads/{squad}/roster', [OrganizationController::class, 'addRosterPlayer'])->name('rosters.store');
         Route::delete('/squads/{squad}/roster/{player}', [OrganizationController::class, 'removeRosterPlayer'])->name('rosters.destroy');
+        Route::get('/squads/{squad}/event-submissions', [EventSquadSubmissionController::class, 'forSquad'])->name('squad-submissions.index');
+        Route::post('/squads/{squad}/event-submissions', [EventSquadSubmissionController::class, 'storeForSquad'])->name('squad-submissions.store');
+        Route::delete('/squads/{squad}/event-submissions/{submission}', [EventSquadSubmissionController::class, 'withdraw'])->name('squad-submissions.destroy');
         Route::get('/competition-templates', CompetitionTemplateController::class)
             ->name('competition-templates.index');
         Route::post('/competition-templates', StoreCompetitionTemplateController::class)
@@ -101,10 +121,13 @@ Route::prefix('v1')->group(function (): void {
             ->name('events.index');
         Route::get('/events/{event}', [EventQueriesController::class, 'show'])
             ->name('events.show');
+        Route::get('/events/{event}/submissions', [EventSquadSubmissionController::class, 'forEvent'])->name('events.submissions.index');
+        Route::patch('/events/{event}/submissions/{submission}', [EventSquadSubmissionController::class, 'decide'])->name('events.submissions.update');
         Route::get('/events/{event}/export/results', [EventExportController::class, 'results'])->name('events.export.results');
         Route::get('/events/{event}/export/standings', [EventExportController::class, 'standings'])->name('events.export.standings');
         Route::post('/events', CompetitionEventController::class)
             ->name('events.store');
+        Route::patch('/events/{event}/recurrence', EventRecurrenceController::class)->name('events.recurrence.update');
         Route::patch('/events/{event}', UpdateEventController::class)
             ->name('events.update');
         Route::delete('/events/{event}', [UpdateEventController::class, 'destroy'])->name('events.destroy');

@@ -1,0 +1,35 @@
+FROM composer:2.8 AS build
+
+RUN apk add --no-cache libpq \
+    && apk add --no-cache --virtual .aga-pg-build-deps $PHPIZE_DEPS postgresql-dev \
+    && docker-php-ext-install pdo_pgsql \
+    && apk del .aga-pg-build-deps
+
+WORKDIR /var/www/html
+COPY . .
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --prefer-dist \
+    --no-progress \
+    --optimize-autoloader
+
+FROM php:8.4-fpm-alpine AS runtime
+
+RUN apk add --no-cache libpq postgresql16-client \
+    && apk add --no-cache --virtual .aga-php-build-deps $PHPIZE_DEPS postgresql-dev \
+    && docker-php-ext-install pdo_pgsql opcache \
+    && apk del .aga-php-build-deps
+
+WORKDIR /var/www/html
+COPY --from=build /var/www/html /var/www/html
+COPY php-production.ini /usr/local/etc/php/conf.d/99-arewavanta.ini
+COPY php-fpm-production.conf /usr/local/etc/php-fpm.d/zz-arewavanta.conf
+COPY entrypoint.production.sh /usr/local/bin/arewavanta-entrypoint
+RUN chmod +x /usr/local/bin/arewavanta-entrypoint \
+    && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache
+
+EXPOSE 9000
+ENTRYPOINT ["arewavanta-entrypoint"]
+CMD ["php-fpm", "-F"]

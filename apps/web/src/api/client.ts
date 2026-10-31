@@ -198,6 +198,19 @@ export const api = {
         body: { role: "clan_captain", scope_type: "clan", scope_id: clanId },
       },
     ),
+  assignCompetitionOrganizer: (
+    token: string,
+    userId: string | number,
+    eventId: string,
+  ) =>
+    request<ApiData<{ id: Id }>>(
+      `/manage/people/${key(String(userId))}/roles`,
+      {
+        token,
+        method: "POST",
+        body: { role: "organizer", scope_type: "event", scope_id: eventId },
+      },
+    ),
   revokeCaptain: (token: string, userId: string | number, roleId: string) =>
     request<void>(
       `/manage/people/${key(String(userId))}/roles/${key(roleId)}`,

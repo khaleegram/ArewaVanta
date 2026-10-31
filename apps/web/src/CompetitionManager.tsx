@@ -7,6 +7,7 @@ import type {
   EventSubmissionReview,
   ScheduleInput,
   ScoringPreset,
+  ManagePerson,
   User,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
@@ -467,6 +468,7 @@ export default function CompetitionManager({
           entries.data.find((entry) => entry.summary.id === view.eventId)?.detail ? (
             <EventWorkspace
               token={session.token}
+              user={session.user}
               event={entries.data.find((entry) => entry.summary.id === view.eventId)!.detail!}
               onEdit={(event) => setView({ kind: "form", event })}
             />
@@ -599,10 +601,12 @@ export default function CompetitionManager({
 }
 function EventWorkspace({
   token,
+  user,
   event: initialEvent,
   onEdit,
 }: {
   token: string;
+  user: User;
   event: ManageEvent;
   onEdit: (event: ManageEvent) => void;
 }) {
@@ -648,8 +652,60 @@ function EventWorkspace({
         <div><span className="studio-scoring-icon"><Icon name="target" /></span><span><small>Scoring</small><strong>{scoringLabel(event.scoring.preset_name)}</strong></span></div>
         {event.visibility === "public" && <a href={`/competitions/${encodeURIComponent(event.slug)}`}>Public competition <Icon name="diagonal" /></a>}
       </footer>
+      {user.roles.some((role) => role.role === "platform_admin") && <EventOrganizerAccess token={token} event={event} />}
     </div>
   );
+}
+function EventOrganizerAccess({ token, event }: { token: string; event: ManageEvent }) {
+  const [query, setQuery] = useState("");
+  const [people, setPeople] = useState<Load<ManagePerson[]>>({ status: "loading" });
+  const [refresh, setRefresh] = useState(0);
+  const [busy, setBusy] = useState<string | number>("");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    setPeople({ status: "loading" });
+    api.managePeople(token, 1, query.trim(), controller.signal)
+      .then((response) => setPeople({ status: "ready", data: response.data }))
+      .catch((reason) => {
+        if (!controller.signal.aborted) setPeople({ status: "error", message: errorMessage(reason) });
+      });
+    return () => controller.abort();
+  }, [token, query, refresh]);
+  async function add(person: ManagePerson) {
+    setBusy(person.id);
+    setError("");
+    setNotice("");
+    try {
+      await api.assignCompetitionOrganizer(token, person.id, event.id);
+      setNotice(`${person.name} can now manage this competition.`);
+      setRefresh((value) => value + 1);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy("");
+    }
+  }
+  return <details className="studio-organizer-access">
+    <summary>Competition organizers <span>Give another account access to this competition</span><Icon name="chevron" /></summary>
+    <div className="studio-organizer-access-body">
+      <p>Each assigned organizer can edit this competition, manage squad slots, enter results and control its weekly schedule. Add as many as needed.</p>
+      <form onSubmit={(e) => { e.preventDefault(); setRefresh((value) => value + 1); }}>
+        <label htmlFor="competition-organizer-search">Find an existing account</label>
+        <div><input id="competition-organizer-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name or email" /><button type="submit">Search</button></div>
+      </form>
+      {notice && <p className="studio-organizer-notice" role="status">{notice}</p>}
+      {error && <p className="studio-organizer-error" role="alert">{error}</p>}
+      {people.status === "loading" ? <p role="status">Loading accounts…</p> : people.status === "error" ? <p role="alert">{people.message}</p> : people.data.length ? <ul>
+        {people.data.map((person) => {
+          const assigned = person.roles.some((role) => role.role === "organizer" && role.scope_type === "event" && role.scope_id === event.id);
+          const global = person.roles.some((role) => (role.role === "organizer" && role.scope_type === "global") || role.role === "platform_admin");
+          return <li key={person.id}><span><strong>{person.name}</strong><small>{person.email}</small></span>{assigned ? <b>Added</b> : global ? <b>Already has full access</b> : <button type="button" disabled={busy === person.id} onClick={() => void add(person)}>{busy === person.id ? "Adding…" : "Add organizer"}</button>}</li>;
+        })}
+      </ul> : <p>No accounts found. Organizers must already have an ArewaVanta account.</p>}
+    </div>
+  </details>;
 }
 function StudioSchedule({ event }: { event: ManageEvent }) {
   const [dayId, setDayId] = useState<string | null>(null);

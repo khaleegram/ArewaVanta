@@ -26,15 +26,21 @@ final class BuildEventStandings
     }
 
     /** @param Collection<int, CompetitionEvent> $events @return array<string, mixed> */
+    public function forEvents(Collection $events): array
+    {
+        return $this->calculate($events);
+    }
+
+    /** @param Collection<int, CompetitionEvent> $events @return array<string, mixed> */
     private function calculate(Collection $events): array
     {
-        $events->loadMissing(['squadEntries.squad.clan']);
+        $events->loadMissing(['squadEntries.squad.clan.squads:id,clan_id']);
         $matches = CompetitionMatch::query()
             ->whereHas('day', static fn ($query) => $query->whereIn('event_id', $events->pluck('id')))
             ->whereNotNull('current_published_revision_id')
             ->with([
                 'day',
-                'currentResult.squadResults.squad.clan',
+                'currentResult.squadResults.squad.clan.squads:id,clan_id',
             ])
             ->orderBy('event_day_id')
             ->orderBy('match_index')
@@ -114,11 +120,13 @@ final class BuildEventStandings
                 'squad' => [
                     'id' => $aggregate['squad']->id,
                     'name' => $aggregate['squad']->name,
+                    'squad_number' => $aggregate['squad']->squad_number,
                     'slug' => $aggregate['squad']->slug,
                     'tag' => $aggregate['squad']->tag,
                     'clan' => [
                         'name' => $aggregate['squad']->clan->name,
                         'tag' => $aggregate['squad']->clan->tag,
+                        'squad_count' => $aggregate['squad']->clan->squads->count(),
                     ],
                 ],
                 'matches_played' => $aggregate['matches_played'],

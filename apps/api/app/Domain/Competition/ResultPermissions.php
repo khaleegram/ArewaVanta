@@ -12,6 +12,7 @@ final class ResultPermissions
     public function canManage(User $user, CompetitionEvent $event): bool
     {
         return $user->isPlatformAdmin()
+            || $user->hasRole(Role::Organizer, RoleScope::Global, '*')
             || $user->hasRole(Role::Organizer, RoleScope::Event, $event->id);
     }
 }

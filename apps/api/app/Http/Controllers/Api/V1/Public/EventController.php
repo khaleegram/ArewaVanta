@@ -41,9 +41,9 @@ final class EventController extends Controller
             ->with([
                 'season',
                 'scoringRuleVersion.preset',
-                'squadEntries.squad.clan',
-                'days.matches.squadEntries.squad.clan',
-                'days.matches.currentResult.squadResults.squad.clan',
+                'squadEntries.squad.clan.squads:id,clan_id',
+                'days.matches.squadEntries.squad.clan.squads:id,clan_id',
+                'days.matches.currentResult.squadResults.squad.clan.squads:id,clan_id',
             ])
             ->withCount(['squadEntries as squad_count' => fn ($query) => $query->where('status', 'active')])
             ->firstOrFail();
@@ -61,12 +61,18 @@ final class EventController extends Controller
                 'preset_name' => $competitionEvent->scoringRuleVersion?->preset?->name,
                 'mode' => $competitionEvent->scoringRuleVersion?->mode,
             ],
-            'squads' => $competitionEvent->squadEntries->where('status', 'active')->map(static fn ($entry): array => [
+            'squads' => $competitionEvent->squadEntries->where('status', 'active')->sortBy('slot_number')->map(static fn ($entry): array => [
                 'id' => $entry->squad->id,
                 'name' => $entry->squad->name,
+                'squad_number' => $entry->squad->squad_number,
                 'slug' => $entry->squad->slug,
                 'tag' => $entry->squad->tag,
-                'clan' => ['name' => $entry->squad->clan->name, 'tag' => $entry->squad->clan->tag],
+                'clan' => [
+                    'name' => $entry->squad->clan->name,
+                    'tag' => $entry->squad->clan->tag,
+                    'squad_count' => $entry->squad->clan->squads->count(),
+                ],
+                'slot_number' => $entry->slot_number,
             ])->values(),
             'days' => $competitionEvent->days->map(static fn ($day): array => [
                 'id' => $day->id,
@@ -87,8 +93,11 @@ final class EventController extends Controller
                         'results' => $revision?->squadResults->map(static fn ($result): array => [
                             'squad_id' => $result->squad_id,
                             'squad_name' => $result->squad_name_snapshot,
+                            'squad_number' => $result->squad?->squad_number,
                             'squad_slug' => $result->squad?->slug,
                             'clan_name' => $result->squad?->clan?->name,
+                            'clan_tag' => $result->squad?->clan?->tag,
+                            'clan_squad_count' => $result->squad?->clan?->squads?->count(),
                             'participation_status' => $result->participation_status,
                             'placement' => $result->placement,
                             'team_kills' => $result->team_kills,
@@ -109,8 +118,12 @@ final class EventController extends Controller
         return [
             'id' => $event->id,
             'title' => $event->title,
+            'series_id' => $event->series_id,
+            'skipped_at' => $event->skipped_at?->toIso8601String(),
+            'skip_reason' => $event->skip_reason,
             'competition_type' => $event->competition_type,
             'squad_count' => $event->squad_count,
+            'squad_capacity' => $event->squad_capacity,
             'slug' => $event->slug,
             'timezone' => $event->timezone,
             'season' => $event->season === null ? null : ['id' => $event->season->id, 'name' => $event->season->name],

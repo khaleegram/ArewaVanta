@@ -47,7 +47,10 @@ final class MatchResultsController extends Controller
 
             return [
                 'rank' => $rank, 'squad_id' => $row->squad_id, 'squad_name' => $row->squad_name_snapshot,
+                'squad_number' => $row->squad?->squad_number,
                 'squad_slug' => $row->squad?->slug, 'clan_name' => $row->squad?->clan?->name,
+                'clan_tag' => $row->squad?->clan?->tag,
+                'clan_squad_count' => $row->squad?->clan?->squads?->count(),
                 'placement' => $row->placement, 'team_kills' => $row->team_kills,
                 'kill_points' => $row->kill_points, 'placement_points' => $row->placement_points,
                 'placement_multiplier' => $row->placement_multiplier, 'total_points' => $row->total_points,
@@ -59,7 +62,7 @@ final class MatchResultsController extends Controller
 
     private function loadPublicResult(CompetitionMatch $match): void
     {
-        $match->load(['day.event', 'currentResult.squadResults.squad.clan', 'currentResult.squadResults.playerResults']);
+        $match->load(['day.event', 'currentResult.squadResults.squad.clan.squads:id,clan_id', 'currentResult.squadResults.playerResults']);
         abort_if($match->day?->event === null, 404);
         abort_unless($match->day->event->visibility === 'public' && $match->currentResult !== null, 404);
     }

@@ -15,6 +15,8 @@ final class SaveMatchResultsRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'expected_lock_version' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            'expected_scoring_version_id' => ['sometimes', 'nullable', 'ulid'],
             'results' => ['required', 'array', 'list', 'min:1', 'max:100'],
             'results.*.squad_id' => ['required', 'ulid', 'distinct:strict', Rule::exists('squads', 'id')],
             'results.*.status' => ['sometimes', Rule::in(['present', 'absent'])],

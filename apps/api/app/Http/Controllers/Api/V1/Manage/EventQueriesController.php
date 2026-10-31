@@ -26,7 +26,11 @@ final class EventQueriesController extends Controller
         abort_unless($globalAccess || $assignedEventIds->isNotEmpty(), 403);
 
         $events = CompetitionEvent::query()
-            ->with(['season', 'days.matches'])
+            ->with(['season', 'days.matches', 'series'])
+            ->withCount([
+                'squadEntries as squad_count' => fn ($query) => $query->where('status', 'active'),
+                'submissions as pending_submission_count' => fn ($query) => $query->where('status', 'pending'),
+            ])
             ->when(! $globalAccess, fn ($query) => $query->whereIn('id', $assignedEventIds))
             ->orderByDesc('created_at')
             ->paginate(20);
@@ -38,12 +42,17 @@ final class EventQueriesController extends Controller
                 return [
                     'id' => $event->id,
                     'title' => $event->title,
+                    'skipped_at' => $event->skipped_at?->toIso8601String(),
+                    'series_id' => $event->series_id,
                     'slug' => $event->slug,
                     'visibility' => $event->visibility,
                     'season' => $event->season === null ? null : ['id' => $event->season->id, 'name' => $event->season->name],
                     'start_date' => $event->days->first()?->event_date->toDateString(),
                     'match_count' => $matches->count(),
                     'scored_match_count' => $matches->whereNotNull('current_published_revision_id')->count(),
+                    'squad_count' => $event->squad_count,
+                    'squad_capacity' => $event->squad_capacity,
+                    'pending_submission_count' => $event->pending_submission_count,
                 ];
             })->values(),
             'meta' => ['current_page' => $events->currentPage(), 'last_page' => $events->lastPage(), 'total' => $events->total()],
@@ -56,10 +65,11 @@ final class EventQueriesController extends Controller
 
         return new CompetitionEventResource($event->load([
             'season',
+            'series.events.days',
             'scoringRuleVersion.preset',
             'scoringRuleVersion.tiers',
-            'days.matches.squadEntries.squad.clan',
-            'squadEntries.squad.clan',
+            'days.matches.squadEntries.squad.clan.squads:id,clan_id',
+            'squadEntries.squad.clan.squads:id,clan_id',
         ]));
     }
 }

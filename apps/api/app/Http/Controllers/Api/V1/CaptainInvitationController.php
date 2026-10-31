@@ -6,6 +6,7 @@ use App\Domain\Notifications\AdminActivity;
 use App\Enums\Role;
 use App\Enums\RoleScope;
 use App\Http\Controllers\Controller;
+use App\Mail\CaptainInvitation;
 use App\Models\Clan;
 use App\Models\RoleAssignment;
 use App\Models\User;
@@ -34,9 +35,7 @@ final class CaptainInvitationController extends Controller
             DB::transaction(function () use ($clan, $request, $email, $token, $url): void {
                 DB::table('clan_captain_invitations')->where('clan_id', $clan->id)->where('email', $email)->whereNull('accepted_at')->delete();
                 DB::table('clan_captain_invitations')->insert(['clan_id' => $clan->id, 'email' => $email, 'token_hash' => hash('sha256', $token), 'invited_by' => $request->user()->id, 'expires_at' => now()->addDays(7), 'created_at' => now(), 'updated_at' => now()]);
-                Mail::raw("You have been invited to manage {$clan->name} on ArewaVanta.\n\nOpen this link to accept the invitation:\n{$url}\n\nThe link expires in 7 days.", function ($message) use ($email): void {
-                    $message->to($email)->subject('Your ArewaVanta clan captain invitation');
-                });
+                Mail::to($email)->send(new CaptainInvitation($clan->name, $url));
             });
         } catch (\Throwable $error) {
             report($error);

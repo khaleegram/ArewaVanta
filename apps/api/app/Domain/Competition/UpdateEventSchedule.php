@@ -9,6 +9,7 @@ use App\Models\EventDay;
 use App\Models\MatchSquad;
 use App\Models\ScoringRuleVersion;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +23,12 @@ final class UpdateEventSchedule
         return DB::transaction(function () use ($actor, $event, $days): CompetitionEvent {
             $event = CompetitionEvent::query()->lockForUpdate()->findOrFail($event->id);
             abort_unless($this->permissions->canManage($actor, $event), 403);
+            if ($event->series_id !== null) {
+                $dates = collect($days)->pluck('date')->sort()->values();
+                if (CarbonImmutable::parse($dates->first())->diffInDays(CarbonImmutable::parse($dates->last())) >= 7) {
+                    throw ValidationException::withMessages(['days' => 'Keep recurring scrim games within one seven-day week.']);
+                }
+            }
             $oldDays = $event->days()->with('matches')->lockForUpdate()->get();
             $oldMatches = CompetitionMatch::query()->whereHas('day', fn ($query) => $query->where('event_id', $event->id))
                 ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
@@ -101,7 +108,11 @@ final class UpdateEventSchedule
                 }
             }
 
-            return $event->load(['season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers', 'days.matches.squadEntries.squad.clan', 'squadEntries.squad.clan']);
+            return $event->load([
+                'season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers',
+                'days.matches.squadEntries.squad.clan.squads:id,clan_id',
+                'squadEntries.squad.clan.squads:id,clan_id',
+            ]);
         });
     }
 }

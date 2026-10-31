@@ -7,10 +7,15 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['event_id', 'squad_id', 'status', 'seed', 'added_by'])]
+#[Fillable(['event_id', 'squad_id', 'status', 'slot_number', 'seed', 'added_by'])]
 class EventSquad extends Model
 {
     use HasUlids;
+
+    protected function casts(): array
+    {
+        return ['slot_number' => 'integer'];
+    }
 
     public function event(): BelongsTo
     {

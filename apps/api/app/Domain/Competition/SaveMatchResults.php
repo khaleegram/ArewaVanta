@@ -4,6 +4,7 @@ namespace App\Domain\Competition;
 
 use App\Domain\Scoring\ScoringEngine;
 use App\Domain\Scoring\ScoringRules;
+use App\Models\CompetitionEvent;
 use App\Models\CompetitionMatch;
 use App\Models\MatchPlayerResult;
 use App\Models\MatchResult;
@@ -22,13 +23,17 @@ final class SaveMatchResults
     ) {}
 
     /** @param list<array<string, mixed>> $rows */
-    public function handle(User $actor, CompetitionMatch $match, array $rows): MatchResult
+    public function handle(User $actor, CompetitionMatch $match, array $rows, bool $checkVersion = false, ?int $expectedLockVersion = null, bool $checkScoringVersion = false, ?string $expectedScoringVersionId = null): MatchResult
     {
-        return DB::transaction(function () use ($actor, $match, $rows): MatchResult {
+        return DB::transaction(function () use ($actor, $match, $rows, $checkVersion, $expectedLockVersion, $checkScoringVersion, $expectedScoringVersionId): MatchResult {
+            CompetitionEvent::query()->lockForUpdate()->findOrFail($match->day()->value('event_id'));
             $match = CompetitionMatch::query()->with(['day.event', 'squadEntries.squad', 'currentResult.squadResults.playerResults.player'])
                 ->lockForUpdate()->findOrFail($match->id);
             $event = $match->day->event;
             abort_unless($this->permissions->canManage($actor, $event), 403);
+            if ($event->skipped_at !== null) {
+                throw ValidationException::withMessages(['results' => 'This week is not playing. Restore it before entering results.']);
+            }
             $entries = $match->squadEntries->where('entry_status', 'expected');
             $input = collect($rows)->keyBy('squad_id');
             if ($input->keys()->diff($entries->pluck('squad_id'))->isNotEmpty()) {
@@ -42,6 +47,17 @@ final class SaveMatchResults
                 ->where('revision_number', '>', $previous?->revision_number ?? 0)
                 ->with('squadResults.playerResults.player')->reorder()->orderByDesc('revision_number')->first();
             $revision = $legacyResult ?? $previous;
+            if ($checkVersion) {
+                $actualLockVersion = $revision?->lock_version;
+                $matchesVersion = $actualLockVersion === null
+                    ? $expectedLockVersion === null
+                    : $expectedLockVersion !== null && $expectedLockVersion === $actualLockVersion;
+
+                abort_unless($matchesVersion, 409, 'These results changed after you opened this sheet. Reload the latest results before saving.');
+            }
+            if ($checkScoringVersion && $expectedScoringVersionId !== ($match->rules_snapshot['version_id'] ?? null)) {
+                abort(409, 'Scoring changed after you opened this sheet. Reload the latest results before saving.');
+            }
             if ($revision === null) {
                 $revision = MatchResult::query()->create([
                     'match_id' => $match->id,
@@ -50,12 +66,13 @@ final class SaveMatchResults
                     'idempotency_key' => (string) Str::ulid(),
                     'authored_by' => $actor->id,
                     'published_at' => now(),
+                    'lock_version' => 1,
                     'rules_snapshot' => $match->rules_snapshot,
                 ]);
             } else {
                 MatchPlayerResult::query()->where('revision_id', $revision->id)->delete();
                 MatchSquadResult::query()->where('revision_id', $revision->id)->delete();
-                $revision->forceFill(['status' => 'published', 'authored_by' => $actor->id, 'published_at' => now(), 'rules_snapshot' => $match->rules_snapshot])->save();
+                $revision->forceFill(['lock_version' => $revision->lock_version + 1, 'status' => 'published', 'authored_by' => $actor->id, 'published_at' => now(), 'rules_snapshot' => $match->rules_snapshot])->save();
             }
             $seenPlayers = [];
             $placements = [];
@@ -89,7 +106,7 @@ final class SaveMatchResults
                 foreach ($players as $playerInput) {
                     $playerId = $playerInput['player_id'];
                     if (isset($seenPlayers[$playerId]) || (! $members->has($playerId) && ! $previousPlayers->has($playerId))) {
-                        throw ValidationException::withMessages(['results' => 'Each player must belong to the squad roster and can play for only one squad in a match.']);
+                        throw ValidationException::withMessages(['results' => 'Each player must be added to their squad before they can play, and can play for only one squad in a match.']);
                     }
                     $seenPlayers[$playerId] = true;
                     $kills += (int) $playerInput['kills'];
@@ -121,7 +138,7 @@ final class SaveMatchResults
             }
             $match->forceFill(['current_published_revision_id' => $revision->id, 'result_status' => 'published'])->save();
 
-            return $revision->load(['squadResults.squad.clan', 'squadResults.playerResults']);
+            return $revision->load(['squadResults.squad.clan.squads:id,clan_id', 'squadResults.playerResults']);
         });
     }
 }

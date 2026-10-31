@@ -13,6 +13,14 @@ final class MatchResultController extends Controller
 {
     public function save(SaveMatchResultsRequest $request, CompetitionMatch $match, SaveMatchResults $saveResults): JsonResponse
     {
-        return (new MatchResultResource($saveResults->handle($request->user(), $match, $request->validated('results'))))->response()->setStatusCode(200);
+        return (new MatchResultResource($saveResults->handle(
+            $request->user(),
+            $match,
+            $request->validated('results'),
+            $request->exists('expected_lock_version'),
+            $request->validated('expected_lock_version'),
+            $request->exists('expected_scoring_version_id'),
+            $request->validated('expected_scoring_version_id'),
+        )))->response()->setStatusCode(200);
     }
 }

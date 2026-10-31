@@ -31,8 +31,23 @@ Events are available immediately after creation. A result save validates squad a
 
 Event and season standings sum current match scores without normalization. Tie-breaks use total kills, wins, then placement sums over games shared by every squad in the tied group; otherwise the tie remains. Player kills and appearances use current results only. Public season standings include public events in that season.
 
+## Weekly scrim recurrence
+
+`competition_series` groups weekly `events` through `series_id` and a unique `series_week_date`. Scrims are recurring by default. Creation accepts the complete `days` schedule and initializes the series after that schedule has been saved, in one transaction. The scheduler adopts legacy scrims without a series automatically, retaining their existing occurrence and slot assignments. Explicit leagues and tournaments remain independent competitions. `ManageWeeklyScrims` serializes recurrence changes and generation under a series row lock. It copies the latest occurrence's schedule, map configuration and scoring snapshots into fresh games, excluding squad entries, submissions and result pointers. Skipped occurrences retain their data and optional public reason. A skip source distinguishes manual skips from series pauses so resuming does not undo an organizer's individual skips or historical breaks.
+
+`competitions:generate-weeks` runs hourly through Laravel's scheduler, preparing the next fourteen days without backfilling past weeks. Both Compose configurations include a scheduler process using the same application and database. Start that service with the API; other hosting setups must run Laravel's scheduler. Recurrence uses one API mutation, `PATCH /api/v1/manage/events/{event}/recurrence`, for start, pause, resume, end, skip and restore. These actions require global organizer or admin access. Captain submissions and result saves reject skipped weeks, which remain visible with a notice on the public competition page.
+
 ## Migration and test safety
 
 The forward migration preserves existing events, result rows, IDs, and rule configuration. It renames the built-in preset and template for display, gives existing scorekeepers equivalent organizer access in their former scope, and retains the old assignment records. The old database slugs and column names are intentionally unchanged.
 
 Tests default to an in-memory SQLite database. PostgreSQL tests explicitly use the separate `aga_test` database. The application and tests do not need background workers or additional services for result calculation.
+
+## Public API and production runtime
+
+Public event, ranking, directory, and squad-history reads are served by the same Laravel API. Player and clan search has a 30-request-per-minute per-IP limit; other public reads have a 120-request-per-minute limit. Authentication and invitation endpoints also have specific limits. These use Laravel's configured cache store; Redis is not required. Password recovery uses Laravel's 60-minute, one-use hashed reset tokens and sends a branded email through the existing mail transport. Unknown and known email addresses receive the same public response, and a successful reset revokes existing Sanctum tokens.
+
+The local Compose file remains development-only. `compose.production.yaml` runs PHP-FPM, PostgreSQL on a non-published private network, an API-only Nginx FastCGI gateway, and Caddy as the public TLS edge for `api.arewavanta.com`. The React frontend is hosted separately on Vercel and is not built or served by this backend stack. PHP-FPM uses a private FastCGI port; Caddy alone publishes HTTP/HTTPS. Release migrations are run explicitly after a backup. Container logs go to stdout/stderr and health checks separately cover PHP-FPM, the API gateway `/up`, and PostgreSQL readiness. No user file uploads currently need persistent object storage.
+
+PostgreSQL backup, archive verification, and guarded restore scripts are under `apps/api/scripts`. The restore tool requires target confirmation and an additional explicit target match for production. The current single-host layout is low-cost but not highly available; off-host encrypted backups and scheduled restore rehearsals remain operational requirements. See the root README for environment v
+alues, launch procedure, cost estimates, DNS, TLS, backup, and rollback guidance.

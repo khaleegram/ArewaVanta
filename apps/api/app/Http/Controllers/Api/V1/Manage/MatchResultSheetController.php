@@ -16,17 +16,18 @@ final class MatchResultSheetController extends Controller
     {
         $match->load([
             'day.event',
-            'squadEntries.squad.clan',
-            'currentResult.squadResults.squad.clan',
+            'squadEntries.squad.clan.squads:id,clan_id',
+            'currentResult.squadResults.squad.clan.squads:id,clan_id',
             'currentResult.squadResults.playerResults.player',
         ]);
         $event = $match->day->event;
         abort_unless($permissions->canManage($request->user(), $event), 403);
 
+        $eventSlots = $event->squadEntries()->where('status', 'active')->pluck('slot_number', 'squad_id');
         $rosters = $eligibleRoster->forMatch($match);
         $legacyResult = $match->resultRecords()->whereIn('status', ['draft', 'revision_draft', 'submitted'])
             ->where('revision_number', '>', $match->currentResult?->revision_number ?? 0)
-            ->with(['squadResults.squad.clan', 'squadResults.playerResults'])->reorder()->orderByDesc('revision_number')->first();
+            ->with(['squadResults.squad.clan.squads:id,clan_id', 'squadResults.playerResults'])->reorder()->orderByDesc('revision_number')->first();
         $editableResult = $legacyResult ?? $match->currentResult;
 
         return response()->json(['data' => [
@@ -45,7 +46,7 @@ final class MatchResultSheetController extends Controller
                 'map_label' => $match->map_label,
                 'scoring' => $match->rules_snapshot,
             ],
-            'squads' => $match->squadEntries->where('entry_status', 'expected')->map(static function ($entry) use ($rosters, $editableResult): array {
+            'squads' => $match->squadEntries->where('entry_status', 'expected')->sortBy(fn ($entry) => $eventSlots->get($entry->squad_id, 999))->map(static function ($entry) use ($rosters, $editableResult, $eventSlots): array {
                 $players = $rosters->get($entry->squad_id, collect())->map(static fn ($membership): array => [
                     'id' => $membership->player->id,
                     'ign' => $membership->player->current_ign,
@@ -58,8 +59,12 @@ final class MatchResultSheetController extends Controller
                 return [
                     'id' => $entry->squad->id,
                     'name' => $entry->squad->name,
+                    'squad_number' => $entry->squad->squad_number,
                     'tag' => $entry->squad->tag,
                     'clan' => $entry->squad->clan->name,
+                    'clan_tag' => $entry->squad->clan->tag,
+                    'clan_squad_count' => $entry->squad->clan->squads->count(),
+                    'slot_number' => $eventSlots->get($entry->squad_id) === null ? null : (int) $eventSlots->get($entry->squad_id),
                     'eligible_players' => $players->values(),
                 ];
             })->values(),

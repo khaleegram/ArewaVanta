@@ -9,10 +9,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['clan_id', 'name', 'tag', 'slug', 'status', 'captain_user_id'])]
+#[Fillable(['clan_id', 'name', 'squad_number', 'tag', 'slug', 'status', 'captain_user_id'])]
 class Squad extends Model
 {
     use HasFactory, HasUlids;
+
+    protected function casts(): array
+    {
+        return ['squad_number' => 'integer'];
+    }
 
     public function clan(): BelongsTo
     {
@@ -32,5 +37,10 @@ class Squad extends Model
     public function eventEntries(): HasMany
     {
         return $this->hasMany(EventSquad::class);
+    }
+
+    public function eventSubmissions(): HasMany
+    {
+        return $this->hasMany(EventSquadSubmission::class);
     }
 }

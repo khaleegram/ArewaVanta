@@ -9,21 +9,19 @@ use App\Models\CompetitionEvent;
 use App\Models\CompetitionMatch;
 use App\Models\CompetitionTemplate;
 use App\Models\EventDay;
-use App\Models\EventSquad;
-use App\Models\MatchSquad;
 use App\Models\ScoringRuleVersion;
-use App\Models\Squad;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class CreateCompetitionEvent
 {
+    public function __construct(private readonly UpdateEventSchedule $updateSchedule, private readonly ManageWeeklyScrims $weeklyScrims) {}
+
     /**
-     * @param  array{title: string, competition_template_id: string, season_id?: string|null, scoring_rule_version_id?: string|null, dates: list<string>, squad_ids?: list<string>, timezone?: string, maximum_position?: int, squad_size?: int, status?: string, visibility?: string}  $data
+     * @param  array{title: string, competition_template_id: string, season_id?: string|null, scoring_rule_version_id?: string|null, dates: list<string>, timezone?: string, maximum_position?: int, squad_size?: int, squad_capacity?: int, status?: string, visibility?: string}  $data
      */
     public function handle(User $actor, array $data): CompetitionEvent
     {
@@ -46,7 +44,7 @@ class CreateCompetitionEvent
                 ]);
             }
 
-            if (count($dates) !== $template->days->count()) {
+            if (! isset($data['days']) && count($dates) !== $template->days->count()) {
                 throw ValidationException::withMessages([
                     'dates' => 'Enter one calendar date for each day in the selected template.',
                 ]);
@@ -72,9 +70,9 @@ class CreateCompetitionEvent
                 ]);
             }
 
+            // Competition entries are submitted by clan captains after the event is created.
             $rules = $ruleVersion->toScoringRules();
-            $squads = $this->eligibleSquads($data);
-            $maximumPosition = $this->maximumPosition($data, $template, $squads->count());
+            $maximumPosition = $this->maximumPosition($data, $template, 0);
 
             if ($maximumPosition > 100) {
                 throw ValidationException::withMessages([
@@ -105,28 +103,20 @@ class CreateCompetitionEvent
                 'scoring_rule_version_id' => $ruleVersion->id,
                 'title' => $data['title'],
                 'description' => $data['description'] ?? null,
-                'competition_type' => $data['competition_type'] ?? null,
+                'competition_type' => $data['competition_type'] ?? 'scrim',
                 'slug' => Str::slug($data['title']).'-'.Str::lower(substr($eventId, -8)),
                 'status' => 'published',
                 'visibility' => $data['visibility'] ?? 'public',
                 'timezone' => $timezone,
                 'squad_size' => $data['squad_size'] ?? $template->squad_size,
+                'squad_capacity' => $data['squad_capacity'] ?? 25,
                 'maximum_position' => $maximumPosition,
                 'created_by' => $actor->getKey(),
             ]);
             $event->id = $eventId;
             $event->save();
 
-            foreach ($squads as $squad) {
-                EventSquad::query()->create([
-                    'event_id' => $event->id,
-                    'squad_id' => $squad->id,
-                    'status' => 'active',
-                    'added_by' => $actor->getKey(),
-                ]);
-            }
-
-            foreach ($template->days as $dayOffset => $templateDay) {
+            foreach (isset($data['days']) ? [] : $template->days as $dayOffset => $templateDay) {
                 $eventDay = EventDay::query()->create([
                     'event_id' => $event->id,
                     'event_date' => $dates[$dayOffset],
@@ -173,51 +163,23 @@ class CreateCompetitionEvent
                         ],
                     ]);
 
-                    foreach ($squads as $squad) {
-                        MatchSquad::query()->create([
-                            'match_id' => $match->id,
-                            'squad_id' => $squad->id,
-                            'entry_status' => 'expected',
-                        ]);
-                    }
                 }
+            }
+
+            if (isset($data['days'])) {
+                $event = $this->updateSchedule->handle($actor, $event, $data['days']);
+            }
+            if ($event->competition_type === 'scrim') {
+                return $this->weeklyScrims->ensureRecurring($event);
             }
 
             return $event->load([
                 'season',
                 'scoringRuleVersion.preset',
-                'days.matches.squadEntries.squad.clan',
-                'squadEntries.squad.clan',
+                'days.matches.squadEntries.squad.clan.squads:id,clan_id',
+                'squadEntries.squad.clan.squads:id,clan_id',
             ]);
         });
-    }
-
-    /** @param array<string, mixed> $data */
-    private function eligibleSquads(array $data): Collection
-    {
-        $query = Squad::query()
-            ->with('clan')
-            ->orderBy('id');
-
-        if (array_key_exists('squad_ids', $data)) {
-            $query->whereIn('id', $data['squad_ids']);
-        }
-
-        $squads = $query->get();
-
-        if (array_key_exists('squad_ids', $data) && $squads->count() !== count($data['squad_ids'])) {
-            throw ValidationException::withMessages([
-                'squad_ids' => 'Every selected squad must exist.',
-            ]);
-        }
-
-        if ($squads->count() > 100) {
-            throw ValidationException::withMessages([
-                'squad_ids' => 'An event can contain up to 100 squads.',
-            ]);
-        }
-
-        return $squads;
     }
 
     /**

@@ -62,6 +62,10 @@ final class UpdateCompetitionEvent
                     }
                 }
             }
+            if (isset($data['squad_capacity'])
+                && $event->squadEntries()->where('status', 'active')->count() > (int) $data['squad_capacity']) {
+                throw ValidationException::withMessages(['squad_capacity' => 'Capacity cannot be lower than the number of squads already assigned.']);
+            }
             $oldVersion = $event->scoring_rule_version_id;
             $event->fill($data)->save();
             if (isset($data['scoring_rule_version_id']) && $oldVersion !== $data['scoring_rule_version_id']) {
@@ -70,7 +74,11 @@ final class UpdateCompetitionEvent
                 }
             }
 
-            return $event->load(['season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers', 'days.matches.squadEntries.squad.clan', 'squadEntries.squad.clan']);
+            return $event->load([
+                'season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers',
+                'days.matches.squadEntries.squad.clan.squads:id,clan_id',
+                'squadEntries.squad.clan.squads:id,clan_id',
+            ]);
         });
     }
 }
