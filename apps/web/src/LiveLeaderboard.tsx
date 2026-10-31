@@ -8,6 +8,14 @@ import type {
   SquadStanding,
   Standings,
 } from "./api/types";
+import {
+  countLabel,
+  formatDate,
+  formatDateRange,
+  gamesWithResults,
+  placementLabel,
+  squadIdentity,
+} from "./presentation";
 import { Brand, Icon } from "./ui";
 import "./leaderboard.css";
 
@@ -20,7 +28,6 @@ const message = (error: unknown) =>
   error instanceof ApiError
     ? error.message
     : "Something went wrong. Please try again.";
-const initialParams = new URLSearchParams(window.location.search);
 function averageKills(kills: number, appearances: number) {
   if (appearances === 0) return "—";
   const hundredths = Math.floor(
@@ -28,15 +35,7 @@ function averageKills(kills: number, appearances: number) {
   );
   return `${Math.floor(hundredths / 100)}.${String(hundredths % 100).padStart(2, "0")}`;
 }
-const dateText = (date: string | null) =>
-  date
-    ? new Intl.DateTimeFormat("en-NG", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      }).format(new Date(`${date}T00:00:00Z`))
-    : "Date to be announced";
+const dateText = (date: string | null) => formatDate(date);
 
 function RankCrest({
   label,
@@ -117,74 +116,72 @@ function Tabs({
 function SquadPodium({ standings }: { standings: SquadStanding[] }) {
   if (!standings.length) return null;
   return (
-    <div className="lb-podium" aria-label="Leading squads">
-      {standings.slice(0, 3).map((row, index) => (
-        <article
-          className={`lb-podium-card lb-place-${index + 1}`}
-          key={row.squad.id}
-        >
-          <span className="lb-podium-rank" aria-hidden="true">
-            {String(row.rank).padStart(2, "0")}
-          </span>
-          <span className="lb-podium-label">
-            <Icon name="trophy" /> RANK {row.rank}
-          </span>
-          <RankCrest label={row.squad.tag || row.squad.name} />
-          <h3>{row.squad.name}</h3>
-          <p>{row.squad.clan.name}</p>
-          <div className="lb-podium-score">
-            <strong>{row.total_points}</strong>
-            <span>POINTS</span>
-          </div>
-          <div className="lb-podium-bottom">
-            {row.total_kills} kills · {row.wins} wins
-          </div>
-        </article>
-      ))}
-    </div>
+    <section className="lb-leaders" aria-label="Top ranked squads">
+      <div className="lb-leaders-heading">
+        <span><Icon name="trophy" /> TOP OF THE TABLE</span>
+        <small>Squad leaders</small>
+      </div>
+      <div className="lb-podium">
+        {standings.slice(0, 3).map((row, index) => (
+          <article className={`lb-podium-card lb-place-${index + 1}`} key={row.squad.id}>
+            <span className="lb-podium-rank">#{row.rank}</span>
+            <RankCrest label={row.squad.clan.tag || row.squad.name} />
+            <div className="lb-podium-identity">
+              <small>{index === 0 ? "CURRENT LEADERS" : `RANK ${row.rank}`}</small>
+              <strong>{squadIdentity({
+                name: row.squad.name,
+                squadNumber: row.squad.squad_number,
+                clanTag: row.squad.clan.tag,
+                clanName: row.squad.clan.name,
+                clanSquadCount: row.squad.clan.squad_count,
+              })}</strong>
+              <span>{countLabel(row.total_kills, "kill")} · {countLabel(row.wins, "win")}</span>
+            </div>
+            <div className="lb-podium-score"><strong>{row.total_points}</strong><span>PTS</span></div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 function PlayerPodium({ players }: { players: PlayerRanking[] }) {
   if (!players.length) return null;
   return (
-    <div className="lb-podium lb-podium-players" aria-label="Leading players">
-      {players.slice(0, 3).map((player, index) => (
-        <article
-          className={`lb-podium-card lb-place-${index + 1}`}
-          key={player.id}
-        >
-          <span className="lb-podium-rank" aria-hidden="true">
-            {String(player.rank).padStart(2, "0")}
-          </span>
-          <span className="lb-podium-label">
-            <Icon name="target" /> RANK {player.rank}
-          </span>
-          <RankCrest label={player.ign} player />
-          <h3>{player.ign}</h3>
-          <p>{player.appearances} games played</p>
-          <div className="lb-podium-score">
-            <strong>{player.total_kills}</strong>
-            <span>KILLS</span>
-          </div>
-          <div className="lb-podium-bottom">
-            {averageKills(player.total_kills, player.appearances)} kills per
-            game
-          </div>
-        </article>
-      ))}
-    </div>
+    <section className="lb-leaders" aria-label="Top ranked players">
+      <div className="lb-leaders-heading">
+        <span><Icon name="target" /> TOP FRAGGERS</span>
+        <small>Player leaders</small>
+      </div>
+      <div className="lb-podium lb-podium-players">
+        {players.slice(0, 3).map((player, index) => (
+          <article className={`lb-podium-card lb-place-${index + 1}`} key={player.id}>
+            <span className="lb-podium-rank">#{player.rank}</span>
+            <RankCrest label={player.ign} player />
+            <div className="lb-podium-identity">
+              <small>{index === 0 ? "CURRENT LEADER" : `RANK ${player.rank}`}</small>
+              <strong>{player.ign}</strong>
+              <span>{countLabel(player.appearances, "game")} · {averageKills(player.total_kills, player.appearances)} avg</span>
+            </div>
+            <div className="lb-podium-score"><strong>{player.total_kills}</strong><span>KILLS</span></div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 function SquadBreakdown({ row }: { row: SquadStanding }) {
   if (!row.match_results.length)
     return (
       <div className="lb-detail-content">
-        <p className="lb-table-note">No saved results for this squad yet.</p>
+        <p className="lb-table-note">No game results for this squad yet.</p>
       </div>
     );
   return (
     <div className="lb-detail-content">
-      <p className="lb-detail-title">Saved match results</p>
+      <p className="lb-detail-title">
+        Game results · {countLabel(row.matches_played, "game")} ·{" "}
+        {countLabel(row.wins, "win")}
+      </p>
       <div className="lb-live-matches">
         {row.match_results.map((match) => (
           <div key={match.match_id}>
@@ -193,8 +190,8 @@ function SquadBreakdown({ row }: { row: SquadStanding }) {
               {match.map_label}
             </span>
             <strong>
-              #{match.placement} · {match.team_kills} kills ·{" "}
-              {match.total_points} pts
+              {placementLabel(match.placement)} ·{" "}
+              {countLabel(match.team_kills, "kill")} · {match.total_points} pts
             </strong>
           </div>
         ))}
@@ -257,7 +254,14 @@ function PlayerBreakdown({ playerId }: { playerId: string }) {
               {match.event_title} · {match.map_label} ·{" "}
               {dateText(match.event_date)}
             </span>
-            <strong>{match.kills} kills</strong>
+            <span>{squadIdentity({
+              name: match.squad_name,
+              squadNumber: match.squad_number,
+              clanTag: match.clan_tag,
+              clanName: match.clan_name,
+              clanSquadCount: match.clan_squad_count,
+            })}</span>
+            <strong>{countLabel(match.kills, "kill")}</strong>
           </div>
         ))}
       </div>
@@ -265,6 +269,7 @@ function PlayerBreakdown({ playerId }: { playerId: string }) {
   );
 }
 export default function LiveLeaderboard() {
+  const initialParams = new URLSearchParams(window.location.search);
   const [kind, setKind] = useState<Kind>(
     initialParams.get("type") === "players" ? "players" : "squads",
   );
@@ -411,7 +416,7 @@ export default function LiveLeaderboard() {
   const rows =
     standings.status === "ready"
       ? standings.data.standings.filter((row) =>
-          `${row.squad.name} ${row.squad.tag ?? ""} ${row.squad.clan.name}`
+          `${row.squad.name} ${row.squad.clan.tag ?? ""} ${row.squad.clan.name}`
             .toLowerCase()
             .includes(query.trim().toLowerCase()),
         )
@@ -468,9 +473,9 @@ export default function LiveLeaderboard() {
             <div className="lb-event-picker">
               <Icon name="calendar" />
               <label>
-                <span>EVENT OR SEASON</span>
+                <span>COMPETITION OR SEASON</span>
                 <select
-                  aria-label="Event or season"
+                  aria-label="Competition or season"
                   value={seasonId ? `season:${seasonId}` : event}
                   disabled={
                     events.status !== "ready" || events.data.length === 0
@@ -495,7 +500,7 @@ export default function LiveLeaderboard() {
                     </option>
                   ) : (
                     <>
-                      <optgroup label="Events">
+                      <optgroup label="Competitions">
                         {events.data.map((item) => (
                           <option key={item.id} value={item.slug}>
                             {item.title}
@@ -519,21 +524,23 @@ export default function LiveLeaderboard() {
             {currentEvent && !seasonId && (
               <div className="lb-event-context">
                 <span>
-                  {dateText(currentEvent.start_date)}
-                  {currentEvent.end_date &&
-                  currentEvent.end_date !== currentEvent.start_date
-                    ? ` – ${dateText(currentEvent.end_date)}`
-                    : ""}
+                  {formatDateRange(
+                    currentEvent.start_date,
+                    currentEvent.end_date,
+                  )}
                 </span>
                 <strong>
-                  {currentEvent.scored_match_count} / {currentEvent.match_count}{" "}
-                  games scored
+                  {gamesWithResults(
+                    currentEvent.scored_match_count,
+                    currentEvent.match_count,
+                  )}
                 </strong>
               </div>
             )}
             {currentSeason && (
               <div className="lb-event-context">
-                <span>Public competitions in this season</span>
+                <span>{currentSeason.name}</span>
+                <strong>Combined season standings</strong>
               </div>
             )}
           </section>
@@ -591,12 +598,17 @@ export default function LiveLeaderboard() {
                         </span>
                         <h2 id="all-rankings-title">
                           Squad standings{" "}
-                          <span>{standings.data.standings.length}</span>
+                          <span>
+                            {countLabel(
+                              standings.data.standings.length,
+                              "squad",
+                            )}
+                          </span>
                         </h2>
                       </div>
                       <span className="lb-rules">
                         {standings.data.uses_mixed_scoring_presets
-                          ? "This event uses mixed scoring rules."
+                          ? "Games use different scoring rules. Points from every game are added together."
                           : "Ranked by points, kills and wins."}
                       </span>
                     </div>
@@ -638,8 +650,8 @@ export default function LiveLeaderboard() {
                           <tr>
                             <th scope="col">Rank</th>
                             <th scope="col">Squad</th>
-                            <th scope="col">Games</th>
-                            <th scope="col">Wins</th>
+                            <th scope="col" className="lb-col-games">Games</th>
+                            <th scope="col" className="lb-col-wins">Wins</th>
                             <th scope="col">Kills</th>
                             <th scope="col">Points</th>
                           </tr>
@@ -648,7 +660,7 @@ export default function LiveLeaderboard() {
                           {rows.map((row) => (
                             <Fragment key={row.squad.id}>
                               <tr
-                                className={`lb-result-row${row.rank === 1 ? " lb-row-leader" : ""}`}
+                                className={`lb-result-row lb-rank-${row.rank <= 3 ? row.rank : "other"}${row.rank === 1 ? " lb-row-leader" : ""}`}
                               >
                                 <td className="lb-rank">{row.rank}</td>
                                 <th scope="row">
@@ -664,17 +676,24 @@ export default function LiveLeaderboard() {
                                     }
                                   >
                                     <RankCrest
-                                      label={row.squad.tag || row.squad.name}
+                                      label={row.squad.clan.tag || row.squad.name}
                                     />
                                     <span>
-                                      <strong>{row.squad.name}</strong>
-                                      <small>{row.squad.clan.name}</small>
+                                      <strong>{squadIdentity({
+                                        name: row.squad.name,
+                                        squadNumber: row.squad.squad_number,
+                                        clanTag: row.squad.clan.tag,
+                                        clanName: row.squad.clan.name,
+                                        clanSquadCount: row.squad.clan.squad_count,
+                                      })}</strong>
                                     </span>
                                     <Icon name="chevron" />
                                   </button>
                                 </th>
-                                <td>{row.matches_played}</td>
-                                <td>{row.wins}</td>
+                                <td className="lb-col-games">
+                                  {row.matches_played}
+                                </td>
+                                <td className="lb-col-wins">{row.wins}</td>
                                 <td>{row.total_kills}</td>
                                 <td className="lb-score">
                                   <strong>{row.total_points}</strong>
@@ -706,8 +725,7 @@ export default function LiveLeaderboard() {
                       )}
                     </div>
                     <p className="lb-table-note">
-                      Select a squad to see its saved match results. Rank
-                      numbers come from the scoring engine.
+                      Select a squad to see its game-by-game results.
                     </p>
                   </section>
                 </>
@@ -725,9 +743,7 @@ export default function LiveLeaderboard() {
               )}
               {players.status === "ready" && (
                 <>
-                  {playerPage === 1 && (
-                    <PlayerPodium players={players.data.data} />
-                  )}
+                  {playerPage === 1 && <PlayerPodium players={players.data.data} />}
                   <section
                     className="lb-results"
                     aria-labelledby="all-rankings-title"
@@ -738,7 +754,10 @@ export default function LiveLeaderboard() {
                           ALL PUBLIC COMPETITIONS
                         </span>
                         <h2 id="all-rankings-title">
-                          Player rankings <span>{players.data.total}</span>
+                          Player rankings{" "}
+                          <span>
+                            {countLabel(players.data.total, "player")}
+                          </span>
                         </h2>
                       </div>
                       <span className="lb-rules">
@@ -762,9 +781,9 @@ export default function LiveLeaderboard() {
                           <tr>
                             <th scope="col">Rank</th>
                             <th scope="col">Player</th>
-                            <th scope="col">Games</th>
+                            <th scope="col" className="lb-col-games">Games</th>
                             <th scope="col">Avg kills</th>
-                            <th scope="col">Best</th>
+                            <th scope="col" className="lb-col-best">Best game</th>
                             <th scope="col">Kills</th>
                           </tr>
                         </thead>
@@ -772,7 +791,7 @@ export default function LiveLeaderboard() {
                           {players.data.data.map((player) => (
                             <Fragment key={player.id}>
                               <tr
-                                className={`lb-result-row${player.rank === 1 ? " lb-row-leader" : ""}`}
+                                className={`lb-result-row lb-rank-${player.rank <= 3 ? player.rank : "other"}${player.rank === 1 ? " lb-row-leader" : ""}`}
                               >
                                 <td className="lb-rank">{player.rank}</td>
                                 <th scope="row">
@@ -801,7 +820,7 @@ export default function LiveLeaderboard() {
                                     player.appearances,
                                   )}
                                 </td>
-                                <td>
+                                <td className="lb-col-best">
                                   {Object.hasOwn(bestGames, player.id)
                                     ? (bestGames[player.id] ?? "—")
                                     : "…"}
@@ -838,7 +857,7 @@ export default function LiveLeaderboard() {
                       <div className="lb-pagination">
                         <span>
                           Page {playerPage} of {players.data.lastPage} ·{" "}
-                          {players.data.total} players
+                          {countLabel(players.data.total, "player")}
                         </span>
                         <div>
                           <button
@@ -851,9 +870,6 @@ export default function LiveLeaderboard() {
                           >
                             <Icon name="arrow" />
                           </button>
-                          <span>
-                            {playerPage} <em>/ {players.data.lastPage}</em>
-                          </span>
                           <button
                             aria-label="Next page"
                             disabled={playerPage >= players.data.lastPage}
@@ -868,8 +884,7 @@ export default function LiveLeaderboard() {
                       </div>
                     )}
                     <p className="lb-table-note">
-                      Select a player for recent results. A dash means the best
-                      game could not be loaded.
+                      Select a player to see their recent games.
                     </p>
                   </section>
                 </>

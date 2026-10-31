@@ -2,14 +2,24 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type {
   ManageEvent,
+  RecurrenceAction,
   ManageEventSummary,
-  PublicClan,
+  EventSubmissionReview,
   ScheduleInput,
   ScoringPreset,
   User,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
 import AdminAlerts, { disableAdminPush } from "./AdminAlerts";
+import {
+  competitionTypeLabel,
+  countLabel,
+  formatDateRange,
+  gamesWithResults,
+  scoringLabel,
+  squadIdentity,
+  submissionStatusLabel,
+} from "./presentation";
 import "./competition-manager.css";
 
 type Load<T> =
@@ -17,6 +27,13 @@ type Load<T> =
   | { status: "error"; message: string }
   | { status: "ready"; data: T };
 export type Session = { token: string; user: User };
+export function canManageCompetitions(user: User | null | undefined): boolean {
+  return !!user?.roles.some(
+    (role) =>
+      role.role === "platform_admin" ||
+      (role.role === "organizer" && role.scope_type === "global"),
+  );
+}
 type Game = {
   id: string | null;
   map_code: string;
@@ -29,7 +46,7 @@ type Form = {
   description: string;
   competition_type: "" | "scrim" | "league" | "tournament";
   score: string;
-  squads: string[];
+  squadCapacity: number;
   days: Day[];
 };
 export const tokenKey = "arewavanta-organizer-token";
@@ -37,15 +54,6 @@ const errorMessage = (error: unknown) =>
   error instanceof ApiError
     ? error.message
     : "Something went wrong. Please try again.";
-const dateText = (date: string | null) =>
-  date
-    ? new Intl.DateTimeFormat("en-NG", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      }).format(new Date(`${date}T00:00:00Z`))
-    : "Date not set";
 function weekend() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Africa/Lagos",
@@ -83,7 +91,7 @@ function fromEvent(event: ManageEvent, presets: ScoringPreset[]): Form {
     description: event.description ?? "",
     competition_type: event.competition_type ?? "",
     score: version?.id ?? "",
-    squads: (event.squads ?? []).map((s) => s.id),
+    squadCapacity: event.squad_capacity,
     days: (event.days ?? []).map((day) => ({
       id: day.id,
       date: day.date,
@@ -109,7 +117,6 @@ const schedule = (days: Day[]): ScheduleInput =>
     })),
   }));
 const scheduleKey = (days: Day[]) => JSON.stringify(schedule(days));
-const squadKey = (ids: string[]) => [...ids].sort().join(",");
 function State({
   children,
   retry,
@@ -133,14 +140,20 @@ export function Shell({
   session,
   onLogout,
   section = "competitions",
+  overview = false,
 }: {
   children: React.ReactNode;
   session: Session | null;
   onLogout: () => void;
   section?: "competitions" | "directory";
+  overview?: boolean;
 }) {
+  const organizer = !session || canManageCompetitions(session.user);
+  const captain = !!session?.user.roles.some(
+    (role) => role.role === "clan_captain",
+  );
   return (
-    <div className="manage-page">
+    <div className={`manage-page${overview ? " studio-shell" : ""}`}>
       <a className="skip-link" href="#manage-main">
         Skip to content
       </a>
@@ -151,32 +164,37 @@ export function Shell({
             {session?.user.roles.some(
               (role) => role.role === "platform_admin",
             ) && <AdminAlerts token={session.token} />}
-            {session && (
-              <button type="button" onClick={onLogout}>
-                Sign out
-              </button>
-            )}
-            <a href="/">
-              View site <Icon name="diagonal" />
-            </a>
+            {overview ? <details className="studio-account" onKeyDown={(e) => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary aria-label="Account options"><Icon name="menu" /></summary><div>
+              {session && <small>{session.user.name}</small>}
+              <a href="/">View public site <Icon name="diagonal" /></a>
+              {session && <button type="button" onClick={onLogout}>Sign out</button>}
+            </div></details> : <>
+              {session && <button type="button" onClick={onLogout}>Sign out</button>}
+              <a href="/">View site <Icon name="diagonal" /></a>
+            </>}
           </div>
         </div>
       </header>
       <div className="manage-bar">
         <div className="manage-wrap">
-          <span>ORGANIZER</span>
-          <nav className="manage-nav" aria-label="Organizer navigation">
-            <a
-              href="/manage/competitions"
-              aria-current={section === "competitions" ? "page" : undefined}
-            >
-              Competitions
-            </a>
+          <span>{organizer ? "ORGANIZER" : captain ? "CLAN CAPTAIN" : "MANAGEMENT"}</span>
+          <nav
+            className="manage-nav"
+            aria-label={organizer ? "Organizer navigation" : "Clan navigation"}
+          >
+            {organizer && (
+              <a
+                href="/manage/competitions"
+                aria-current={section === "competitions" ? "page" : undefined}
+              >
+                Competitions
+              </a>
+            )}
             <a
               href="/manage/directory"
               aria-current={section === "directory" ? "page" : undefined}
             >
-              Clans &amp; players
+              {captain && !organizer ? "My clan" : "Clans & players"}
             </a>
           </nav>
           {session && <small>{session.user.name}</small>}
@@ -213,11 +231,11 @@ export function SignIn({
   }
   return (
     <section className="manage-login">
-      <p className="manage-eyebrow">ORGANIZER ACCESS</p>
+      <p className="manage-eyebrow">ORGANIZER &amp; CLAN CAPTAIN ACCESS</p>
       <h1>
         Sign in<span>.</span>
       </h1>
-      <p>Manage your ArewaVanta competitions.</p>
+      <p>Your account role determines which management tools you can use.</p>
       <form onSubmit={submit}>
         <label>
           Email
@@ -239,6 +257,16 @@ export function SignIn({
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
+        <a
+          className="manage-auth-link"
+          href={
+            email.trim()
+              ? `/forgot-password?email=${encodeURIComponent(email.trim())}`
+              : "/forgot-password"
+          }
+        >
+          Forgot password?
+        </a>
         {error && (
           <div className="manage-error" role="alert">
             {error}
@@ -290,30 +318,44 @@ async function getEntries(
   }
   return result;
 }
-async function getClans(signal: AbortSignal): Promise<PublicClan[]> {
-  const first = await api.clans(1, "", signal);
-  const pages = [first.data];
-  for (let p = 2; p <= first.meta.last_page; p += 4)
-    pages.push(
-      ...(
-        await Promise.all(
-          Array.from(
-            { length: Math.min(4, first.meta.last_page - p + 1) },
-            (_, i) => api.clans(p + i, "", signal),
-          ),
-        )
-      ).map((result) => result.data),
-    );
-  return pages.flat();
+function groupCompetitionEntries(entries: Entry[]): Entry[] {
+  const groups = new Map<string, Entry[]>();
+  for (const entry of entries) {
+    const key = entry.summary.series_id ?? entry.summary.id;
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
+  }
+  return [...groups.values()].map((weeks) => {
+    const chronological = [...weeks].sort((a, b) => (a.summary.start_date ?? "").localeCompare(b.summary.start_date ?? ""));
+    const current = chronological.find((entry) => {
+      const now = new Intl.DateTimeFormat("en-CA", { timeZone: entry.detail?.timezone ?? "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      const days = entry.detail?.days ?? [];
+      const end = days.at(-1)?.date ?? entry.summary.start_date;
+      return !!end && end >= now;
+    });
+    return current ?? chronological.at(-1)!;
+  });
 }
-export default function CompetitionManager() {
+export default function CompetitionManager({
+  entriesEventId,
+  workspaceEventId,
+}: {
+  entriesEventId?: string;
+  workspaceEventId?: string;
+}) {
   const [session, setSession] = useState<Session | null>(null);
   const [checking, setChecking] = useState(true);
   const [refresh, setRefresh] = useState(0);
   const [entries, setEntries] = useState<Load<Entry[]>>({ status: "loading" });
   const [view, setView] = useState<
-    { kind: "list" } | { kind: "form"; event: ManageEvent | null }
-  >({ kind: "list" });
+    | { kind: "list" }
+    | { kind: "form"; event: ManageEvent | null }
+    | { kind: "entries"; eventId: string }
+    | { kind: "workspace"; eventId: string }
+  >(() => entriesEventId
+    ? { kind: "entries", eventId: entriesEventId }
+    : workspaceEventId
+      ? { kind: "workspace", eventId: workspaceEventId }
+      : { kind: "list" });
   const [notice, setNotice] = useState("");
   useEffect(() => {
     const token = sessionStorage.getItem(tokenKey);
@@ -338,7 +380,7 @@ export default function CompetitionManager() {
     return () => controller.abort();
   }, []);
   useEffect(() => {
-    if (!session) return;
+    if (!session || !canManageCompetitions(session.user)) return;
     const controller = new AbortController();
     setEntries({ status: "loading" });
     getEntries(session.token, controller.signal)
@@ -363,13 +405,9 @@ export default function CompetitionManager() {
     setView({ kind: "list" });
     setNotice("");
   }
-  const canCreate = !!session?.user.roles.some(
-    (role) =>
-      role.role === "platform_admin" ||
-      (role.role === "organizer" && role.scope_type === "global"),
-  );
+  const canCreate = canManageCompetitions(session?.user);
   return (
-    <Shell session={session} onLogout={logout}>
+    <Shell session={session} onLogout={logout} overview={view.kind === "workspace" && !!session && canManageCompetitions(session.user)}>
       {checking ? (
         <State>Checking your session…</State>
       ) : !session ? (
@@ -377,17 +415,67 @@ export default function CompetitionManager() {
           <SignIn onSuccess={setSession} />
           {notice && <State>{notice}</State>}
         </>
+      ) : !canManageCompetitions(session.user) ? (
+        <div className="manage-notice" role="status">
+          <p className="manage-eyebrow">
+            {session.user.roles.some((role) => role.role === "clan_captain")
+              ? "CLAN CAPTAIN ACCESS"
+              : "NO ORGANIZER ACCESS"}
+          </p>
+          <strong>Competition management is for ArewaVanta organizers.</strong>
+          <p>
+            {session.user.roles.some((role) => role.role === "clan_captain")
+              ? "Your account manages your clan and its squads."
+              : "This account does not have permission to manage competitions."}
+          </p>
+          {session.user.roles.some((role) => role.role === "clan_captain") && (
+            <a className="manage-primary" href="/manage/directory">
+              Go to my clan
+            </a>
+          )}
+        </div>
       ) : view.kind === "form" ? (
         <EventForm
           token={session.token}
           initial={view.event}
-          onCancel={() => setView({ kind: "list" })}
+          onCancel={() => setView(workspaceEventId
+            ? { kind: "workspace", eventId: workspaceEventId }
+            : { kind: "list" })}
           onSaved={() => {
             setNotice("Competition saved.");
-            setView({ kind: "list" });
+            setView(workspaceEventId
+              ? { kind: "workspace", eventId: workspaceEventId }
+              : { kind: "list" });
             setRefresh((n) => n + 1);
           }}
         />
+      ) : view.kind === "entries" ? (
+        entries.status === "ready" ? (
+          entries.data.find((entry) => entry.summary.id === view.eventId)?.detail ? (
+            <EventEntries
+              token={session.token}
+              event={entries.data.find((entry) => entry.summary.id === view.eventId)!.detail!}
+            />
+          ) : (
+            <State retry={() => setRefresh((n) => n + 1)}>This competition could not be loaded.</State>
+          )
+        ) : entries.status === "error" ? (
+          <State retry={() => setRefresh((n) => n + 1)}>{entries.message}</State>
+        ) : <State>Loading competition entries…</State>
+      ) : view.kind === "workspace" ? (
+        entries.status === "ready" ? (
+          entries.data.find((entry) => entry.summary.id === view.eventId)?.detail ? (
+            <EventWorkspace
+              token={session.token}
+              event={entries.data.find((entry) => entry.summary.id === view.eventId)!.detail!}
+              onEdit={(event) => setView({ kind: "form", event })}
+            />
+          ) : (
+            <State retry={() => setRefresh((n) => n + 1)}>This competition could not be loaded.</State>
+          )
+        ) : entries.status === "error" ? (
+          <State retry={() => setRefresh((n) => n + 1)}>{entries.message}</State>
+        ) : <State>Loading competition…</State>
       ) : (
         <>
           <div className="manage-page-heading">
@@ -433,65 +521,68 @@ export default function CompetitionManager() {
           )}
           {entries.status === "ready" && (
             <div className="manage-list">
-              {entries.data.map(({ summary, detail }) => (
+              {groupCompetitionEntries(entries.data).map(({ summary, detail }) => (
                 <article className="manage-event" key={summary.id}>
                   <div className="manage-event-main">
                     <div className="manage-event-top">
                       <span className="manage-event-type">
-                        {detail?.competition_type ??
-                          summary.season?.name ??
-                          "COMPETITION"}
+                        {summary.series_id ? "Weekly scrims" : detail?.competition_type
+                          ? competitionTypeLabel(detail.competition_type)
+                          : (summary.season?.name ?? "Competition")}
                       </span>
                       <span className="manage-event-status">
-                        {summary.scored_match_count} / {summary.match_count}{" "}
-                        games scored
+                        {summary.skipped_at ? "Not playing this week" : gamesWithResults(
+                          summary.scored_match_count,
+                          summary.match_count,
+                        )}
                       </span>
                     </div>
                     <h2>{summary.title}</h2>
                     <p className="manage-date">
-                      <Icon name="calendar" /> {dateText(summary.start_date)}
-                      {detail?.days?.length &&
-                      detail.days[detail.days.length - 1].date !==
-                        summary.start_date
-                        ? ` – ${dateText(detail.days[detail.days.length - 1].date)}`
-                        : ""}
+                      <Icon name="calendar" />{" "}
+                      {formatDateRange(
+                        summary.start_date,
+                        detail?.days?.length
+                          ? detail.days[detail.days.length - 1].date
+                          : null,
+                      )}
                     </p>
                     <div className="manage-meta">
                       <span>
-                        <strong>{summary.match_count}</strong> games
+                        <strong>{summary.match_count}</strong>{" "}
+                        {summary.match_count === 1 ? "game" : "games"}
                       </span>
                       <span>
-                        <strong>
-                          {detail ? (detail.squads?.length ?? 0) : "—"}
-                        </strong>{" "}
-                        squads
+                        <strong>{summary.squad_count}</strong> of{" "}
+                        {summary.squad_capacity} squad slots filled
                       </span>
                       <span>
-                        {detail?.scoring.preset_name ?? "Scoring unavailable"}
+                        {summary.pending_submission_count
+                          ? `${countLabel(summary.pending_submission_count, "squad")} awaiting review`
+                          : "No squads awaiting review"}
                       </span>
+                      {detail && (
+                        <span>
+                          Scoring: {scoringLabel(detail.scoring.preset_name)}
+                        </span>
+                      )}
                     </div>
                     {!detail && (
                       <small className="manage-detail-error">
-                        Details unavailable. Retry to edit this competition.
+                        This competition’s details didn’t load. Reload the page
+                        to edit it.
                       </small>
                     )}
                   </div>
                   <div className="manage-event-actions">
-                    <button
-                      onClick={() =>
-                        detail &&
-                        (setNotice(""),
-                        setView({ kind: "form", event: detail }))
-                      }
-                      disabled={!detail}
-                    >
-                      Edit competition <Icon name="arrow" />
-                    </button>
+                    <a className="manage-primary" href={`/manage/competitions/${encodeURIComponent(summary.id)}`}>
+                      {summary.series_id ? "Manage weekly scrims" : "Manage competition"} <Icon name="arrow" />
+                    </a>
                     {summary.visibility === "public" ? (
                       <a
                         href={`/competitions/${encodeURIComponent(summary.slug)}`}
                       >
-                        View results <Icon name="diagonal" />
+                        Public page <Icon name="diagonal" />
                       </a>
                     ) : (
                       <span>Private competition</span>
@@ -504,6 +595,308 @@ export default function CompetitionManager() {
         </>
       )}
     </Shell>
+  );
+}
+function EventWorkspace({
+  token,
+  event: initialEvent,
+  onEdit,
+}: {
+  token: string;
+  event: ManageEvent;
+  onEdit: (event: ManageEvent) => void;
+}) {
+  const [event, setEvent] = useState(initialEvent);
+  useEffect(() => setEvent(initialEvent), [initialEvent]);
+  const games = (event.days ?? []).flatMap((day) => day.matches);
+  const completedGames = games.filter((game) => game.has_results).length;
+  const firstDate = event.days?.[0]?.date ?? null;
+  const lastDate = event.days?.[event.days.length - 1]?.date ?? null;
+  const resultsUrl = `/manage/competitions/${encodeURIComponent(event.id)}/results`;
+  const entriesUrl = `/manage/competitions/${encodeURIComponent(event.id)}/entries`;
+  return (
+    <div className="event-studio">
+      <div className="studio-toolbar">
+        <a href="/manage/competitions">← Competitions</a>
+        <button type="button" onClick={() => onEdit(event)}>Edit competition <Icon name="diagonal" /></button>
+      </div>
+      <header className="studio-heading">
+        <span className="studio-emblem" aria-hidden="true"><Icon name="trophy" /></span>
+        <div><p>CODM BATTLE ROYALE <span> / {competitionTypeLabel(event.competition_type)}</span></p><h1>{event.title}</h1></div>
+      </header>
+      {event.description && <p className="studio-description">{event.description}</p>}
+      {(event.competition_type === "scrim" || event.recurrence)
+        ? <ScrimRecurrenceControls token={token} event={event} onUpdated={setEvent} />
+        : <p className="studio-date"><Icon name="calendar" />{formatDateRange(firstDate, lastDate)}</p>}
+      {event.skipped_at && <div className="studio-week-off" role="status"><strong>No games this week</strong><p>{event.skip_reason || "Squad entries and result entry are on hold for this week."}</p></div>}
+      <div className="studio-overview-bar">
+      <section className="studio-summary" aria-label="Selected weekend summary">
+        <div><strong>{event.squads?.length ?? 0}<span> / {event.squad_capacity}</span></strong><span>Squad slots</span></div>
+        <div><strong>{games.length}</strong><span>Games</span></div>
+        <div><strong>{completedGames}<span> / {games.length}</span></strong><span>Results saved</span></div>
+      </section>
+      <div className="studio-actions">
+        <a className="studio-action-primary" href={resultsUrl}>Enter results <Icon name="arrow" /></a>
+        <a className="studio-action-secondary" href={entriesUrl}>Manage slots <Icon name="trophy" /></a>
+      </div>
+      </div>
+      <div className="studio-columns">
+        <StudioSchedule event={event} />
+        <EventSquadsOverview token={token} event={event} />
+      </div>
+      <footer className="studio-foot">
+        <div><span className="studio-scoring-icon"><Icon name="target" /></span><span><small>Scoring</small><strong>{scoringLabel(event.scoring.preset_name)}</strong></span></div>
+        {event.visibility === "public" && <a href={`/competitions/${encodeURIComponent(event.slug)}`}>Public competition <Icon name="diagonal" /></a>}
+      </footer>
+    </div>
+  );
+}
+function StudioSchedule({ event }: { event: ManageEvent }) {
+  const [dayId, setDayId] = useState<string | null>(null);
+  const day = event.days?.find((item) => item.id === dayId) ?? event.days?.[0];
+  return <section className="studio-card studio-schedule" aria-labelledby="competition-games-heading">
+    <header className="studio-card-head"><div><span className="studio-section-icon" aria-hidden="true"><Icon name="calendar" /></span><h2 id="competition-games-heading">Weekend schedule</h2></div><span>{countLabel(event.days?.length ?? 0, "day")}</span></header>
+    {event.days?.length ? <>
+      <div className="studio-day-tabs" aria-label="Competition days">{event.days.map((item) => <button key={item.id} type="button" aria-pressed={item.id === day?.id} aria-controls="studio-day-games" onClick={() => setDayId(item.id)}><strong>{item.label || `Day ${item.sort_order}`}</strong><span>{formatDateRange(item.date, null)}</span></button>)}</div>
+      <ol className="studio-game-list" id="studio-day-games" aria-label={`${day?.label || "Selected day"} games`}>
+        {day?.matches.map((game) => <li key={game.id}>
+          <span className="studio-game-number">{String(game.match_index).padStart(2, "0")}</span>
+          <span className="studio-game-map"><strong>{game.map_label}</strong><small>Game {game.match_index}</small></span>
+          <span className={`studio-game-status${game.has_results ? " is-saved" : ""}`}>{game.has_results && <Icon name="check" />}{game.has_results ? "Results saved" : "No results"}</span>
+        </li>)}
+        {!day?.matches.length && <li className="studio-empty">No games configured for this day.</li>}
+      </ol>
+      <p className="studio-schedule-note"><Icon name="calendar" />Dates in {event.timezone === "Africa/Lagos" ? "Lagos time · WAT" : event.timezone}</p>
+    </> : <p className="studio-empty">No games scheduled yet. Edit the competition to add games.</p>}
+  </section>;
+}
+function ScrimRecurrenceControls({ token, event, onUpdated }: { token: string; event: ManageEvent; onUpdated: (event: ManageEvent) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [reason, setReason] = useState("");
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const [message, setMessage] = useState("");
+  const recurring = event.recurrence;
+  const hasResults = (event.days ?? []).some((day) => day.matches.some((game) => game.has_results));
+  async function change(action: RecurrenceAction) {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await api.updateRecurrence(token, event.id, action, reason.trim() || undefined);
+      onUpdated(response.data);
+      setConfirmEnd(false);
+      setReason("");
+      setMessage(({ start: "Weekly scrims enabled.", skip: "This week is marked as not playing.", restore: "This week is playing again.", pause: "Weekly scrims paused.", resume: "Weekly scrims resumed.", end: "Weekly series ended. Saved results are still available." })[action]);
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally { setBusy(false); }
+  }
+  return <section className="manage-workspace-series" aria-label="Weekly scrims">
+    {!recurring ? <p className="manage-workspace-series-feedback" role="status">Weekly schedule is being prepared automatically.</p> : <>
+      <div className="studio-week-context">
+        <details className="studio-week-menu" onKeyDown={(e) => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary aria-label="Choose weekend"><Icon name="calendar" /><span><small>Selected weekend</small><strong>{formatDateRange(event.days?.[0]?.date ?? null, event.days?.at(-1)?.date ?? null)}</strong></span><Icon name="chevron" /></summary>
+          <nav className="studio-week-options" aria-label="Prepared scrim weekends">{recurring.weeks.map((week) => <a key={week.id} href={`/manage/competitions/${encodeURIComponent(week.id)}`} aria-current={week.id === event.id ? "page" : undefined}>{formatDateRange(week.start_date, week.end_date)}{week.skipped_at && <small>Not playing</small>}{week.id === event.id && <Icon name="check" />}</a>)}</nav>
+        </details>
+        <span className={`studio-series-state is-${recurring.state}`}><strong><i />{recurring.state === "active" ? "Every week" : recurring.state === "paused" ? "Paused" : "Ended"}</strong><small>{recurring.state === "ended" ? "Results retained" : recurring.state === "active" ? "Prepared Mondays" : "No end date"}</small></span>
+      </div>
+      {recurring.state !== "ended" && <details className="manage-workspace-series-settings"><summary>Manage weekly schedule <Icon name="chevron" /></summary><div>
+        <p>Upcoming weekends are prepared every Monday. Each week has its own squad submissions, slots and results.</p>
+        <label>Reason <span>Optional, visible to players</span><input maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Taking a break this weekend" /></label>
+        <div className="manage-workspace-series-actions">
+          {recurring.state === "active" && !hasResults && <button type="button" disabled={busy} onClick={() => change(event.skipped_at ? "restore" : "skip")}>{event.skipped_at ? "Play this week" : "Skip this week"}</button>}
+          <button type="button" disabled={busy} onClick={() => change(recurring.state === "paused" ? "resume" : "pause")}>{recurring.state === "paused" ? "Resume weekly scrims" : "Pause weekly scrims"}</button>
+          {!confirmEnd && <button type="button" disabled={busy} onClick={() => setConfirmEnd(true)}>End series</button>}
+        </div>
+        {confirmEnd && <div className="manage-workspace-end-confirm"><p>End this weekly series? Future unplayed weeks will be marked off. Saved results remain available.</p><button type="button" disabled={busy} onClick={() => change("end")}>End weekly series</button><button type="button" disabled={busy} onClick={() => setConfirmEnd(false)}>Keep series</button></div>}
+        {busy && <p role="status">Saving weekly schedule…</p>}
+      </div></details>}
+    </>}
+    {message && <p className="manage-workspace-series-feedback" role="status">{message}</p>}
+    {error && <p className="manage-workspace-series-error" role="alert">{error} <button type="button" disabled={busy} onClick={() => setError("")}>Dismiss</button></p>}
+  </section>;
+}
+function EventSquadsOverview({ token, event }: { token: string; event: ManageEvent }) {
+  const [submissions, setSubmissions] = useState<Load<EventSubmissionReview>>({ status: "loading" });
+  const [retry, setRetry] = useState(0);
+  const [activeList, setActiveList] = useState<"assigned" | "waiting">("assigned");
+  useEffect(() => {
+    const controller = new AbortController();
+    setSubmissions({ status: "loading" });
+    api.eventSubmissions(token, event.id, controller.signal)
+      .then(({ data }) => setSubmissions({ status: "ready", data }))
+      .catch((error) => {
+        if (!controller.signal.aborted) setSubmissions({ status: "error", message: errorMessage(error) });
+      });
+    return () => controller.abort();
+  }, [token, event.id, retry]);
+  const pending = submissions.status === "ready"
+    ? submissions.data.clans.flatMap((clan) => clan.squads
+      .filter((squad) => squad.status === "pending")
+      .map((squad) => ({ clan, squad })))
+    : [];
+  const assigned = event.squads ?? [];
+  const entriesUrl = `/manage/competitions/${encodeURIComponent(event.id)}/entries`;
+  return (
+    <section className="studio-card studio-squads" aria-labelledby="competition-squads-heading">
+      <header className="studio-card-head"><div><span className="studio-section-icon" aria-hidden="true"><Icon name="trophy" /></span><h2 id="competition-squads-heading">Squads &amp; slots</h2></div><a href={entriesUrl}>Manage <Icon name="arrow" /></a></header>
+      <div className="studio-squad-tabs" aria-label="Squad lists">
+        <button type="button" aria-pressed={activeList === "assigned"} onClick={() => setActiveList("assigned")}>Assigned <span>{assigned.length}</span></button>
+        <button type="button" aria-pressed={activeList === "waiting"} onClick={() => setActiveList("waiting")}>Waiting <span>{submissions.status === "ready" ? pending.length : "—"}</span></button>
+      </div>
+      <div className="studio-lineup">
+        {activeList === "assigned" ? (
+          assigned.length ? <ul>
+            {assigned.map((squad) => <li key={squad.id}>
+              <span className="studio-slot"><small>Slot</small><b>{squad.slot_number ?? "—"}</b></span>
+              <strong>{squadIdentity({ name: squad.name, squadNumber: squad.squad_number, clanTag: squad.clan_tag, clanName: squad.clan, clanSquadCount: squad.clan_squad_count })}</strong>
+            </li>)}
+          </ul> : <p className="studio-empty">No slots assigned yet. Select squads from the submitted entries.</p>
+        ) : submissions.status === "loading" ? <State>Loading submitted squads…</State>
+          : submissions.status === "error" ? <State retry={() => setRetry((value) => value + 1)}>{submissions.message}</State>
+          : pending.length ? <ul>
+            {pending.slice(0, 6).map(({ clan, squad }) => <li key={squad.submission_id}>
+              <span className="studio-clan-mark" aria-hidden="true">{clan.tag || clan.name.slice(0, 2)}</span>
+              <span><strong>{squadIdentity({ name: squad.name, squadNumber: squad.squad_number, clanTag: clan.tag, clanName: clan.name, clanSquadCount: squad.clan_squad_count })}</strong><small>{squad.players.length ? squad.players.join(", ") : "No players listed"}</small></span>
+            </li>)}
+            {pending.length > 6 && <li><a href={entriesUrl}>View {pending.length - 6} more submitted squads <Icon name="arrow" /></a></li>}
+          </ul> : <p className="studio-empty">No squads waiting for a slot.</p>}
+      </div>
+      <div className="studio-capacity">
+        <div className="studio-capacity-note"><span><strong>{Math.max(0, event.squad_capacity - assigned.length)}</strong> slots available</span><span>{assigned.length} / {event.squad_capacity} filled</span></div>
+        <progress aria-label="Assigned competition slots" value={assigned.length} max={Math.max(1, event.squad_capacity)} />
+      </div>
+    </section>
+  );
+}
+function EventEntries({ token, event }: { token: string; event: ManageEvent }) {
+  const [entries, setEntries] = useState<Load<EventSubmissionReview>>({ status: "loading" });
+  const [refresh, setRefresh] = useState(0);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [slotSelections, setSlotSelections] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const controller = new AbortController();
+    setEntries({ status: "loading" });
+    api.eventSubmissions(token, event.id, controller.signal)
+      .then(({ data }) => setEntries({ status: "ready", data }))
+      .catch((err) => {
+        if (!controller.signal.aborted) setEntries({ status: "error", message: errorMessage(err) });
+      });
+    return () => controller.abort();
+  }, [token, event.id, refresh]);
+  async function decide(submissionId: string, decision: "select" | "not_selected" | "pending", slotNumber?: number) {
+    setBusy(submissionId);
+    setError("");
+    setNotice("");
+    try {
+      const currentStatus = entries.status === "ready"
+        ? entries.data.clans.flatMap((clan) => clan.squads).find((squad) => squad.submission_id === submissionId)?.status
+        : undefined;
+      await api.decideEventSubmission(token, event.id, submissionId, decision, slotNumber);
+      setNotice(decision === "select"
+        ? `${currentStatus === "selected" ? "Game-day slot updated to" : "Assigned game-day slot"} #${slotNumber}.`
+        : decision === "pending" ? "Slot returned to review." : "Submission marked not selected.");
+      setRefresh((value) => value + 1);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy("");
+    }
+  }
+  const content = entries.status === "ready" ? entries.data : null;
+  const full = !!content && content.event.selected_count >= content.event.squad_capacity;
+  function chosenSlot(submissionId: string, assignedSlot: number | null): string {
+    return slotSelections[submissionId] ?? (assignedSlot === null ? "" : String(assignedSlot));
+  }
+  function slotIsReserved(slotNumber: number, exceptSubmissionId: string): boolean {
+    if (!content) return false;
+    return content.clans.some((clan) => clan.squads.some((other) => {
+      if (other.submission_id === exceptSubmissionId || !["pending", "selected"].includes(other.status)) return false;
+      const otherSlot = slotSelections[other.submission_id] ?? (other.slot_number === null ? "" : String(other.slot_number));
+      return Number(otherSlot) === slotNumber;
+    }));
+  }
+  return (
+    <>
+      <div className="manage-form-heading">
+        <a className="manage-back" href={`/manage/competitions/${encodeURIComponent(event.id)}`}>← {event.title}</a>
+        <p className="manage-eyebrow">SQUAD ENTRIES</p>
+        <h1>{event.title}<span>.</span></h1>
+        <p>Choose which submitted squads fill this competition’s slots.</p>
+      </div>
+      {notice && <div className="manage-success" role="status">{notice}</div>}
+      {error && <div className="manage-error" role="alert">{error}</div>}
+      {entries.status === "loading" && <State>Loading clan submissions…</State>}
+      {entries.status === "error" && <State retry={() => setRefresh((value) => value + 1)}>{entries.message}</State>}
+      {content && (
+        <>
+          <section className="manage-entry-capacity" aria-label="Squad slot count">
+            <div><strong>{content.event.selected_count}</strong><span> of {content.event.squad_capacity} slots filled</span></div>
+            <div><strong>{content.event.pending_count}</strong><span> {content.event.pending_count === 1 ? "squad" : "squads"} awaiting review</span></div>
+          </section>
+          {!content.clans.length ? (
+            <State>No clan squads have been submitted for this competition yet.</State>
+          ) : (
+            <div className="manage-entry-clans">
+              {content.clans.map((clan) => (
+                <section className="manage-entry-clan" key={clan.id}>
+                  <header><span>{clan.tag}</span><strong>{clan.name}</strong></header>
+                  {clan.squads.map((squad) => (
+                    <article className="manage-entry-squad" key={squad.submission_id}>
+                      <div className="manage-entry-squad-main">
+                        <div className="manage-entry-title"><strong>{squadIdentity({
+                          name: squad.name,
+                          squadNumber: squad.squad_number,
+                          clanTag: clan.tag,
+                          clanName: clan.name,
+                          clanSquadCount: squad.clan_squad_count,
+                        })}</strong><span className={`manage-entry-status is-${squad.status}`}>{submissionStatusLabel(squad.status, "organizer")}</span>{squad.status === "selected" && squad.slot_number !== null && <span className="manage-entry-slot-label">GAME SLOT #{squad.slot_number}</span>}</div>
+                        <p>{squad.players.length ? squad.players.join(" · ") : "No players listed"}</p>
+                      </div>
+                      <div className="manage-entry-actions">
+                        {(squad.status === "pending" || squad.status === "selected") && (
+                          <>
+                            <label className="manage-slot-picker">
+                              <span className="sr-only">Game-day slot for {squadIdentity({name: squad.name, squadNumber: squad.squad_number, clanTag: clan.tag, clanName: clan.name, clanSquadCount: squad.clan_squad_count})}</span>
+                              <select
+                                aria-label={`Game-day slot for ${squadIdentity({name: squad.name, squadNumber: squad.squad_number, clanTag: clan.tag, clanName: clan.name, clanSquadCount: squad.clan_squad_count})}`}
+                                value={chosenSlot(squad.submission_id, squad.slot_number)}
+                                onChange={(change) => setSlotSelections((current) => ({ ...current, [squad.submission_id]: change.target.value }))}
+                              >
+                                <option value="">Choose slot</option>
+                                {Array.from({ length: content.event.squad_capacity }, (_, index) => index + 1).map((slotNumber) => (
+                                  <option key={slotNumber} value={slotNumber} disabled={slotIsReserved(slotNumber, squad.submission_id)}>
+                                    Slot {slotNumber}{slotIsReserved(slotNumber, squad.submission_id) ? " · assigned" : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <button
+                              className="manage-primary"
+                              type="button"
+                              disabled={busy === squad.submission_id || !chosenSlot(squad.submission_id, squad.slot_number) || (squad.status === "pending" && full) || (squad.status === "selected" && Number(chosenSlot(squad.submission_id, squad.slot_number)) === squad.slot_number)}
+                              onClick={() => decide(squad.submission_id, "select", Number(chosenSlot(squad.submission_id, squad.slot_number)))}
+                            >
+                              {busy === squad.submission_id ? "Saving…" : squad.status === "pending" ? "Assign slot" : "Update slot"}
+                            </button>
+                          </>
+                        )}
+                        {squad.status === "pending" && <button type="button" disabled={busy === squad.submission_id} onClick={() => decide(squad.submission_id, "not_selected")}>Not selected</button>}
+                        {squad.status === "selected" && (
+                          <button type="button" disabled={busy === squad.submission_id} onClick={() => decide(squad.submission_id, "pending")}>Return to review</button>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </section>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </>
   );
 }
 function EventForm({
@@ -519,7 +912,6 @@ function EventForm({
 }) {
   const [options, setOptions] = useState<
     Load<{
-      clans: PublicClan[];
       presets: ScoringPreset[];
     }>
   >({ status: "loading" });
@@ -549,17 +941,16 @@ function EventForm({
     const controller = new AbortController();
     setOptions({ status: "loading" });
     Promise.all([
-      getClans(controller.signal),
       api.scoringPresets(token, controller.signal).catch((e) => {
         if (e instanceof ApiError && e.status === 403)
           return api.publicScoringPresets(controller.signal);
         throw e;
       }),
     ])
-      .then(([clans, presets]) => {
+      .then(([presets]) => {
         setOptions({
           status: "ready",
-          data: { clans, presets: presets.data },
+          data: { presets: presets.data },
         });
         setForm(
           (current) =>
@@ -569,12 +960,12 @@ function EventForm({
               : {
                   title: "",
                   description: "",
-                  competition_type: "",
+                  competition_type: "scrim",
                   score:
                     presets.data
                       .find((p) => p.slug === "aga-balanced")
                       ?.versions.at(-1)?.id ?? "",
-                  squads: clans.flatMap((clan) => clan.squads.map((s) => s.id)),
+                    squadCapacity: 25,
                   days: standardDays(),
                 }),
         );
@@ -620,6 +1011,14 @@ function EventForm({
       setError("Each competition day needs a different date.");
       return;
     }
+    if (form.competition_type === "scrim") {
+      const sortedDates = [...dates].sort();
+      const span = (Date.parse(sortedDates.at(-1)!) - Date.parse(sortedDates[0])) / 86400000;
+      if (span >= 7) {
+        setError("Keep each week's games within seven days when repeating weekly.");
+        return;
+      }
+    }
     if (form.days.some((day) => !day.games.length)) {
       setError("Each competition day needs at least one game.");
       return;
@@ -632,11 +1031,8 @@ function EventForm({
       const removesScored = oldGames.some(
         (game) => game.has_results && !remaining.has(game.id),
       );
-      const removesSquads =
-        (persisted.squads ?? []).some((s) => !form.squads.includes(s.id)) &&
-        oldGames.some((game) => game.has_results);
       if (
-        (removesScored || removesSquads) &&
+        removesScored &&
         !window.confirm(
           "These changes affect saved results and standings. Continue?",
         )
@@ -650,48 +1046,18 @@ function EventForm({
         title: form.title.trim(),
         description: form.description.trim() || null,
         competition_type: form.competition_type || null,
+        squad_capacity: form.squadCapacity,
         ...(form.score ? { scoring_rule_version_id: form.score } : {}),
       };
       if (!current) {
         setStage("Creating competition…");
-        const defaults = weekend();
-        const datesForTemplate =
-          form.days.length >= 2
-            ? [form.days[0].date, form.days[1].date]
-            : defaults;
         const created = await api.createEvent(token, {
           ...body,
-          dates: datesForTemplate,
-          squad_ids: form.squads,
+          days: schedule(form.days.map((day) => ({ ...day, id: null, games: day.games.map((game) => ({ ...game, id: null })) }))),
         });
         current = created.data;
         setPersisted(current);
-        const generated = current.days ?? [];
-        const mapped = form.days.map((day, di) => ({
-          ...day,
-          id: generated[di]?.id ?? null,
-          games: day.games.map((game, gi) => ({
-            ...game,
-            id: generated[di]?.matches[gi]?.id ?? null,
-          })),
-        }));
-        setForm({ ...form, days: mapped });
-        setStage("Saving schedule…");
-        const updated = await api.updateSchedule(
-          token,
-          current.id,
-          schedule(mapped),
-        );
-        current = updated.data;
-        setPersisted(current);
-        setForm((value) =>
-          value
-            ? {
-                ...value,
-                days: fromEvent(updated.data, options.data.presets).days,
-              }
-            : value,
-        );
+        setForm(fromEvent(current, options.data.presets));
       } else {
         setStage("Saving competition details…");
         const updated = await api.updateEvent(token, current.id, body);
@@ -699,7 +1065,7 @@ function EventForm({
         setPersisted(current);
         const originalDays = fromEvent(current, options.data.presets).days;
         if (scheduleKey(originalDays) !== scheduleKey(form.days)) {
-          setStage("Saving schedule…");
+          setStage("Saving dates and games…");
           const updatedSchedule = await api.updateSchedule(
             token,
             current.id,
@@ -716,19 +1082,6 @@ function EventForm({
                 }
               : value,
           );
-        }
-        if (
-          squadKey((current.squads ?? []).map((s) => s.id)) !==
-          squadKey(form.squads)
-        ) {
-          setStage("Saving squads…");
-          const updatedSquads = await api.setEventSquads(
-            token,
-            current.id,
-            form.squads,
-          );
-          current = updatedSquads.data;
-          setPersisted(current);
         }
       }
       setStage("");
@@ -758,10 +1111,10 @@ function EventForm({
               : "Create competition"}
           <span>.</span>
         </h1>
-        <p>Set the basics, choose your squads, and save.</p>
+        <p>Set the competition. Clan captains submit their squads next.</p>
       </div>
       {options.status === "loading" && (
-        <State>Loading squads and scoring options…</State>
+        <State>Loading scoring options…</State>
       )}
       {options.status === "error" && (
         <State retry={() => setRetry((n) => n + 1)}>{options.message}</State>
@@ -801,13 +1154,10 @@ function EventForm({
                 <select
                   value={form.competition_type}
                   onChange={(e) =>
-                    update(
-                      "competition_type",
-                      e.target.value as Form["competition_type"],
-                    )
+                    update("competition_type", e.target.value as Form["competition_type"])
                   }
                 >
-                  <option value="">Not specified</option>
+                  <option value="">Choose a type</option>
                   <option value="scrim">Scrim</option>
                   <option value="league">League</option>
                   <option value="tournament">Tournament</option>
@@ -831,7 +1181,7 @@ function EventForm({
                         <option key={version.id} value={version.id}>
                           {preset.name}
                           {preset.versions.length > 1
-                            ? ` · v${version.version_number}`
+                            ? ` · version ${version.version_number}`
                             : ""}
                         </option>
                       )),
@@ -849,8 +1199,9 @@ function EventForm({
                 />
               </label>
             </div>
+            {form.competition_type === "scrim" && <p className="manage-weekly-default-note">Scrims continue every week automatically until you pause or end the series. Squad entries, slots and results are separate for each week.</p>}
             <details className="manage-advanced">
-              <summary>About scoring presets</summary>
+              <summary>How scoring works</summary>
               <div>
                 {options.data.presets.map((preset) => (
                   <p key={preset.id}>
@@ -859,8 +1210,8 @@ function EventForm({
                 ))}
               </div>
               <p>
-                Changing the event preset recalculates its saved games. Games
-                with their own scoring rules keep their overrides.
+                Changing the scoring preset recalculates saved games. Games with
+                custom scoring keep their own rules.
               </p>
             </details>
           </section>
@@ -895,7 +1246,7 @@ function EventForm({
                   </div>
                   <div className="manage-day-fields">
                     <label className="manage-field">
-                      Day label
+                      Day name
                       <input
                         required
                         maxLength={80}
@@ -1008,46 +1359,25 @@ function EventForm({
             <div className="manage-panel-heading">
               <div>
                 <span>03</span>
-                <h2>Participating squads</h2>
+                <h2>Squad slots</h2>
               </div>
-              <p>
-                {form.squads.length} selected · Choose squads already registered
-                on ArewaVanta.
-              </p>
+              <p>Captains submit each clan squad. You assign the available slots.</p>
             </div>
-            {options.data.clans.some((clan) => clan.squads.length) ? (
-              <div className="manage-squad-list">
-                {options.data.clans
-                  .filter((clan) => clan.squads.length)
-                  .map((clan) => (
-                    <div className="manage-clan" key={clan.id}>
-                      <strong>{clan.name}</strong>
-                      {clan.squads.map((squad) => (
-                        <label key={squad.id}>
-                          <input
-                            type="checkbox"
-                            checked={form.squads.includes(squad.id)}
-                            onChange={(e) =>
-                              update(
-                                "squads",
-                                e.target.checked
-                                  ? [...form.squads, squad.id]
-                                  : form.squads.filter((id) => id !== squad.id),
-                              )
-                            }
-                          />
-                          <span>{squad.name}</span>
-                          {squad.tag && <small>{squad.tag}</small>}
-                        </label>
-                      ))}
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <div className="manage-empty">
-                No registered squads yet. You can add squads later.
-              </div>
-            )}
+            <div className="manage-capacity-setting">
+              <label className="manage-field">
+                Maximum participating squads
+                <input
+                  type="number"
+                  min={1}
+                max={25}
+                  required
+                  value={form.squadCapacity}
+                  onChange={(event) => update("squadCapacity", Number(event.target.value))}
+                />
+                <span>Standard CODM BR supports 100 players: 25 four-player squads. Set fewer slots when needed.</span>
+              </label>
+              <div><strong>{form.squadCapacity}</strong><span> competition slots</span></div>
+            </div>
           </section>
           <div className="manage-save">
             <div>
@@ -1055,9 +1385,12 @@ function EventForm({
                 {initial ? "Ready to update?" : "Ready to create?"}
               </strong>
               <span>
-                {form.days.length} days ·{" "}
-                {form.days.reduce((n, d) => n + d.games.length, 0)} games ·{" "}
-                {form.squads.length} squads
+                {countLabel(form.days.length, "day")} ·{" "}
+                {countLabel(
+                  form.days.reduce((n, d) => n + d.games.length, 0),
+                  "game",
+                )}{" "}
+                · {form.squadCapacity} squad slots
               </span>
             </div>
             <div>

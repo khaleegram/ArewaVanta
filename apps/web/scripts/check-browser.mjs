@@ -274,7 +274,7 @@ try {
     assert.match(await page.locator("#standings").innerText(), /21\.5/);
     assert.match(
       await page.locator("#standings").innerText(),
-      /Mixed scoring rules/,
+      /Scoring varies by game/,
     );
     assert.equal(await page.locator("#standings tbody tr").count(), 2);
     assert.equal(await page.locator(".competition-dialog").count(), 0);
@@ -323,7 +323,7 @@ try {
     "1",
   );
   await page
-    .getByRole("combobox", { name: "Event or season" })
+    .getByRole("combobox", { name: "Competition or season" })
     .selectOption("season:season-1");
   await page
     .locator(".lb-results .lb-overline")
@@ -347,7 +347,10 @@ try {
     "3.33",
   );
   await page.getByRole("button", { name: /REAPER/ }).click();
-  await page.getByText("Best game", { exact: true }).waitFor();
+  await page
+    .locator(".lb-detail-stats")
+    .getByText("Best game", { exact: true })
+    .waitFor();
   assert.deepEqual(errors, []);
   console.log(
     "PASS rankings API, tie ranks, exact decimals, season, player profile and navigation",

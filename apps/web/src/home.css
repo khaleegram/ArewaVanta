@@ -458,7 +458,6 @@
   border-radius: 50%;
   background: currentColor;
   box-shadow: 0 0 0 4px rgba(240, 74, 51, 0.14);
-  animation: hv-pulse 2.6s ease-in-out infinite;
 }
 
 .hv-hero-next-title {
@@ -502,18 +501,6 @@
   font-weight: 750;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-}
-
-@keyframes hv-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 0 4px rgba(240, 74, 51, 0.14);
-  }
-  50% {
-    opacity: 0.65;
-    box-shadow: 0 0 0 7px rgba(240, 74, 51, 0.04);
-  }
 }
 
 /* ============================== ticker ============================== */

@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "./api/client";
 import { allPublicEvents } from "./api/events";
 import type { EventStandings, EventSummary, PublicEvent } from "./api/types";
+import {
+  competitionTypeLabel,
+  formatDate,
+  formatDateRange,
+  gamesWithResults,
+  squadIdentity,
+  timezoneLabel,
+} from "./presentation";
 import { Brand, Icon } from "./ui";
 
 type Load<T> =
@@ -27,26 +35,11 @@ function localToday(timezone: string) {
     return localToday("Africa/Lagos");
   }
 }
-function formatDate(date: string | null) {
-  if (!date) return "Date to be announced";
-  return new Intl.DateTimeFormat("en-NG", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${date}T00:00:00Z`));
-}
-function dateRange(event: EventSummary) {
-  const first = formatDate(event.start_date);
-  return event.end_date && event.end_date !== event.start_date
-    ? `${first} – ${formatDate(event.end_date)}`
-    : first;
-}
 function selectNext(events: EventSummary[]) {
   return [...events]
     .filter(
       (event) =>
-        event.start_date &&
+        !event.skipped_at && event.start_date &&
         (event.end_date ?? event.start_date) >= localToday(event.timezone),
     )
     .sort(
@@ -64,6 +57,21 @@ function selectLatestScored(events: EventSummary[]) {
           a.end_date ?? a.start_date ?? "",
         ) || b.id.localeCompare(a.id),
     )[0];
+}
+function startDateBadge(date: string | null) {
+  if (!date) return null;
+  const parsed = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+  }).formatToParts(parsed);
+  const value = (type: string) =>
+    parts.find((part) => part.type === type)?.value;
+  return {
+    day: value("day"),
+    month: value("month")?.toUpperCase(),
+  };
 }
 function StateMessage({ text, retry }: { text: string; retry?: () => void }) {
   return (
@@ -95,7 +103,11 @@ function Header() {
           className={`hv-nav${open ? " is-open" : ""}`}
           aria-label="Main navigation"
         >
-          <a href="/" onClick={() => setOpen(false)}>
+          <a
+            href="/"
+            aria-current="page"
+            onClick={() => setOpen(false)}
+          >
             Home
           </a>
           <a href="/competitions" onClick={() => setOpen(false)}>
@@ -161,6 +173,8 @@ export default function LiveHome() {
       events.status === "ready" ? selectLatestScored(events.data) : undefined,
     [events],
   );
+  const nextBadge = next ? startDateBadge(next.start_date) : null;
+  const nextSquadCount = next?.squad_count ?? 0;
   useEffect(() => {
     if (!next) return;
     const controller = new AbortController();
@@ -193,6 +207,7 @@ export default function LiveHome() {
       ? [...details.data.days].sort((a, b) => a.sort_order - b.sort_order)
       : [];
   const selected = days[day] ?? days[0];
+  const dayHasResults = !!selected?.matches.some((match) => match.has_results);
   const rows =
     results.status === "ready" && results.data.event.slug === latest?.slug
       ? results.data.standings
@@ -207,26 +222,34 @@ export default function LiveHome() {
       <Header />
       <main id="main">
         <section className="home-hero" aria-labelledby="hero-title">
-          <div className="home-hero-art" aria-hidden="true" />
-          <div className="home-wrap home-hero-content">
-            <p className="home-eyebrow">
-              <span /> AREWA CODM · BATTLE ROYALE
-            </p>
-            <h1 id="hero-title">
-              Weekend scrims.
-              <br />
-              <em>Northern pride.</em>
-            </h1>
-            <p className="home-hero-description">
-              Your home for Arewa CODM scrims, leagues and tournaments.
-            </p>
-            <div className="home-hero-actions">
-              <a href="#schedule" className="home-button home-button-primary">
-                View schedule <Icon name="arrow" />
-              </a>
-              <a href="#standings" className="home-button home-button-outline">
-                Latest standings <Icon name="arrow" />
-              </a>
+          <div className="home-wrap home-hero-grid">
+            <div className="home-hero-copy">
+              <p className="home-eyebrow">
+                <span /> AREWA CODM · BATTLE ROYALE
+              </p>
+              <h1 id="hero-title">
+                Weekend scrims.
+                <br />
+                <em>Northern pride.</em>
+              </h1>
+              <p className="home-hero-description">
+                Your home for Arewa CODM scrims, leagues and tournaments.
+              </p>
+              <div className="home-hero-actions">
+                <a href="#schedule" className="home-button home-button-primary">
+                  View schedule <Icon name="arrow" />
+                </a>
+                <a href="#standings" className="home-button home-button-outline">
+                  Latest standings <Icon name="arrow" />
+                </a>
+              </div>
+            </div>
+            <div className="home-hero-visual" aria-hidden="true">
+              <div className="home-hero-art" />
+              <span className="home-hero-stamp">Northern force</span>
+              <span className="home-hero-caption">
+                The north plays here<span>.</span>
+              </span>
             </div>
           </div>
         </section>
@@ -236,11 +259,16 @@ export default function LiveHome() {
           aria-labelledby="event-title"
         >
           <div className="home-section-heading">
-            <div>
-              <p className="home-label">THE NEXT COMPETITION</p>
-              <h2 id="event-title">
-                Up next<span>.</span>
-              </h2>
+            <div className="home-heading-lockup">
+              <span className="home-section-icon is-warm" aria-hidden="true">
+                <Icon name="trophy" />
+              </span>
+              <div>
+                <p className="home-label">THE NEXT COMPETITION</p>
+                <h2 id="event-title">
+                  Up next<span>.</span>
+                </h2>
+              </div>
             </div>
             <a href="#schedule" className="home-link">
               View schedule <Icon name="arrow" />
@@ -261,25 +289,64 @@ export default function LiveHome() {
           {next && (
             <article className="home-event-card">
               <div className="home-event-mark" aria-hidden="true">
-                <Icon name="trophy" />
+                {nextBadge ? (
+                  <>
+                    <strong>{nextBadge.day}</strong>
+                    <span>{nextBadge.month}</span>
+                  </>
+                ) : (
+                  <Icon name="trophy" />
+                )}
               </div>
               <div className="home-event-main">
                 <span className="home-event-type">
-                  AREWA CODM · BATTLE ROYALE
+                  {competitionTypeLabel(next.competition_type)}
                 </span>
                 <h3>
                   <a href={`/competitions/${encodeURIComponent(next.slug)}`}>
                     {next.title}
                   </a>
                 </h3>
-                <p>
+                <p className="home-event-date">
                   <Icon name="calendar" />
-                  {dateRange(next)}
+                  {formatDateRange(next.start_date, next.end_date)}
                 </p>
+                <div className="home-event-facts">
+                  <div>
+                    <strong>{next.match_count}</strong>
+                    <span>{next.match_count === 1 ? "Game" : "Games"}</span>
+                  </div>
+                  <div>
+                    <strong>
+                      {next.scored_match_count}
+                      <span> of {next.match_count}</span>
+                    </strong>
+                    <span>Games completed</span>
+                  </div>
+                </div>
               </div>
-              <div className="home-event-count">
-                <strong>{next.match_count}</strong>
-                <span>GAMES</span>
+              <div className="home-event-side">
+                {next.squad_capacity ? (
+                  <div className="home-event-capacity">
+                    <div>
+                      <span>Squad slots</span>
+                      <strong>
+                        {nextSquadCount} / {next.squad_capacity}
+                      </strong>
+                    </div>
+                    <progress
+                      value={Math.min(nextSquadCount, next.squad_capacity)}
+                      max={next.squad_capacity}
+                      aria-label={`${nextSquadCount} of ${next.squad_capacity} squad slots filled`}
+                    />
+                  </div>
+                ) : null}
+                <a
+                  href={`/competitions/${encodeURIComponent(next.slug)}`}
+                  className="home-button home-button-primary"
+                >
+                  View competition <Icon name="arrow" />
+                </a>
               </div>
             </article>
           )}
@@ -290,13 +357,17 @@ export default function LiveHome() {
           aria-labelledby="schedule-title"
         >
           <div className="home-section-heading">
-            <div>
-              <p className="home-label">DATES &amp; MAPS</p>
-              <h2 id="schedule-title">
-                Game schedule<span>.</span>
-              </h2>
+            <div className="home-heading-lockup">
+              <span className="home-section-icon is-warm" aria-hidden="true">
+                <Icon name="calendar" />
+              </span>
+              <div>
+                <p className="home-label">DATES &amp; MAPS</p>
+                <h2 id="schedule-title">
+                  Game schedule<span>.</span>
+                </h2>
+              </div>
             </div>
-            {next && <span className="home-context">{next.title}</span>}
           </div>
           {events.status === "loading" && (
             <StateMessage text="Loading schedule…" />
@@ -357,29 +428,34 @@ export default function LiveHome() {
                           <small>GAME {match.match_index}</small>
                           <strong>{match.map_label}</strong>
                           {match.is_scoring_override && (
-                            <small>Different scoring rules</small>
+                            <small>Custom scoring</small>
                           )}
                         </span>
-                        <span className="home-game-status">
-                          {match.has_results
-                            ? "Results saved"
-                            : "Awaiting results"}
-                        </span>
+                        {match.has_results ? (
+                          <span className="home-game-status is-saved">
+                            <Icon name="check" /> Complete
+                          </span>
+                        ) : dayHasResults ? (
+                          <span className="home-game-status">Results pending</span>
+                        ) : null}
                       </li>
                     ))}
                   </ol>
                 ) : (
                   <StateMessage text="No games scheduled for this day." />
                 )}
+                {!dayHasResults && selected?.matches.length ? (
+                  <p className="home-schedule-note">
+                    Results will appear here after each game is played.
+                  </p>
+                ) : null}
                 <div className="home-schedule-foot">
-                  <span>
-                    Dates shown for {next.timezone.replaceAll("_", " ")}
-                  </span>
+                  <span>Dates in {timezoneLabel(next.timezone)}</span>
                   <a
                     href={`/leaderboard?type=squads&event=${encodeURIComponent(next.slug)}`}
                     className="home-link"
                   >
-                    Event standings <Icon name="arrow" />
+                    View standings <Icon name="arrow" />
                   </a>
                 </div>
               </div>
@@ -391,11 +467,16 @@ export default function LiveHome() {
           aria-labelledby="standings-title"
         >
           <div className="home-section-heading">
-            <div>
-              <p className="home-label">SQUAD RANKINGS</p>
-              <h2 id="standings-title">
-                Latest standings<span>.</span>
-              </h2>
+            <div className="home-heading-lockup">
+              <span className="home-section-icon" aria-hidden="true">
+                <Icon name="target" />
+              </span>
+              <div>
+                <p className="home-label">SQUAD RANKINGS</p>
+                <h2 id="standings-title">
+                  Latest standings<span>.</span>
+                </h2>
+              </div>
             </div>
             <a
               href={
@@ -418,7 +499,7 @@ export default function LiveHome() {
             />
           )}
           {events.status === "ready" && !latest && (
-            <StateMessage text="No results yet. Standings appear after the first games are saved." />
+            <StateMessage text="No results yet. Standings appear after the first game." />
           )}
           {latest &&
             (results.status === "loading" ||
@@ -435,17 +516,21 @@ export default function LiveHome() {
           {latest &&
             results.status === "ready" &&
             results.data.event.slug === latest.slug && (
-              <>
+              <div className="home-standings-card">
                 <div className="home-result-context">
                   <div>
                     <strong>{latest.title}</strong>
                     <span>
-                      {latest.scored_match_count} of {latest.match_count} games
-                      scored
+                      {gamesWithResults(
+                        latest.scored_match_count,
+                        latest.match_count,
+                      )}
                     </span>
                   </div>
                   {results.data.uses_mixed_scoring_presets && (
-                    <span className="home-rules-note">Mixed scoring rules</span>
+                    <span className="home-rules-note">
+                      Scoring varies by game
+                    </span>
                   )}
                 </div>
                 {rows.length ? (
@@ -469,13 +554,19 @@ export default function LiveHome() {
                               {String(row.rank).padStart(2, "0")}
                             </td>
                             <th scope="row">
-                              <span className="home-squad-tag">
-                                {(row.squad.tag || row.squad.name)
-                                  .slice(0, 3)
-                                  .toUpperCase()}
-                              </span>
+                              {row.squad.squad_number ? (
+                                <span className="home-squad-tag">
+                                  S{row.squad.squad_number}
+                                </span>
+                              ) : null}
                               <span className="home-squad-name">
-                                {row.squad.name}
+                                {squadIdentity({
+                                  name: row.squad.name,
+                                  squadNumber: row.squad.squad_number,
+                                  clanTag: row.squad.clan.tag,
+                                  clanName: row.squad.clan.name,
+                                  clanSquadCount: row.squad.clan.squad_count,
+                                })}
                               </span>
                             </th>
                             <td>{row.total_kills}</td>
@@ -486,10 +577,12 @@ export default function LiveHome() {
                     </table>
                   </div>
                 ) : (
-                  <StateMessage text="No saved squad results are available yet." />
+                  <p className="home-standings-empty">
+                    No saved squad results are available yet.
+                  </p>
                 )}
                 <div className="home-standings-foot">
-                  <span>Showing up to 5 squads</span>
+                  <span>Top 5 squads</span>
                   <a
                     href={`/leaderboard?type=squads&event=${encodeURIComponent(latest.slug)}`}
                     className="home-link"
@@ -497,22 +590,46 @@ export default function LiveHome() {
                     View full table <Icon name="arrow" />
                   </a>
                 </div>
-              </>
+              </div>
             )}
         </section>
-        <section className="home-community">
+        <section className="home-community" aria-labelledby="community-title">
           <div className="home-wrap">
-            <p className="home-label">OUR COMMUNITY</p>
-            <h2>
-              Built for the north<span>.</span>
-            </h2>
-            <p>
-              One place for the squads, players and competitions bringing Arewa
-              CODM together.
-            </p>
-            <a href="/leaderboard?type=players" className="home-link">
-              View player rankings <Icon name="arrow" />
-            </a>
+            <div className="home-community-card">
+              <div className="home-community-copy">
+                <p className="home-label">OUR COMMUNITY</p>
+                <h2 id="community-title">
+                  Built for the north<span>.</span>
+                </h2>
+                <p>
+                  One place for the squads, players and competitions bringing
+                  Arewa CODM together.
+                </p>
+                <a
+                  href="/leaderboard?type=players"
+                  className="home-button home-button-light"
+                >
+                  View player rankings <Icon name="arrow" />
+                </a>
+              </div>
+              <nav className="home-community-nav" aria-label="Community links">
+                <a href="/leaderboard?type=squads">
+                  <span>Squad standings</span>
+                  <small>Points, kills and form</small>
+                  <Icon name="arrow" />
+                </a>
+                <a href="/clans">
+                  <span>Clans</span>
+                  <small>Rosters across the north</small>
+                  <Icon name="arrow" />
+                </a>
+                <a href="/competitions">
+                  <span>All competitions</span>
+                  <small>Scrims, leagues and tournaments</small>
+                  <Icon name="arrow" />
+                </a>
+              </nav>
+            </div>
           </div>
         </section>
       </main>

@@ -12,8 +12,11 @@
     "preview": "vite preview --host 0.0.0.0",
     "check:browser": "node scripts/check-browser.mjs",
     "check:public": "node scripts/check-public.mjs",
+    "check:results": "node scripts/check-results.mjs",
     "check:manager": "node scripts/check-manager.mjs",
-    "check:directory": "node scripts/check-directory.mjs"
+    "check:directory": "node scripts/check-directory.mjs",
+    "check:results-real": "node scripts/check-results-real.mjs",
+    "check:password-reset": "node scripts/check-password-reset.mjs"
   },
   "dependencies": {
     "react": "19.3.1",

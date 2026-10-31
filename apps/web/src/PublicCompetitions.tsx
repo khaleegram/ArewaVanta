@@ -8,6 +8,15 @@ import type {
   PublicMatchResult,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
+import {
+  competitionLabel as displayCompetitionLabel,
+  countLabel,
+  formatDate,
+  formatDateRange,
+  placementLabel,
+  scoringLabel,
+  squadIdentity,
+} from "./presentation";
 import "./public-competitions.css";
 
 type Load<T> =
@@ -39,19 +48,9 @@ export function useLoad<T>(
   }, [key, retry, enabled]);
   return [state, () => setRetry((value) => value + 1)];
 }
-export const dateText = (date: string | null) =>
-  date
-    ? new Intl.DateTimeFormat("en-NG", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      }).format(new Date(`${date}T00:00:00Z`))
-    : "Date to be announced";
+export const dateText = (date: string | null) => formatDate(date);
 const dates = (event: EventSummary) =>
-  event.end_date && event.end_date !== event.start_date
-    ? `${dateText(event.start_date)} – ${dateText(event.end_date)}`
-    : dateText(event.start_date);
+  formatDateRange(event.start_date, event.end_date);
 function today(timezone: string) {
   try {
     return new Intl.DateTimeFormat("en-CA", {
@@ -71,9 +70,7 @@ function today(timezone: string) {
 }
 const eventUrl = (slug: string) => `/competitions/${encodeURIComponent(slug)}`;
 const competitionLabel = (event: EventSummary) =>
-  event.competition_type
-    ? event.competition_type.toUpperCase()
-    : (event.season?.name ?? "AREWA CODM");
+  displayCompetitionLabel(event);
 const matchUrl = (slug: string, id: string) =>
   `${eventUrl(slug)}/games/${encodeURIComponent(id)}`;
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -178,7 +175,7 @@ export function CompetitionListing() {
             const isPrevious = !!end && end < today(event.timezone);
             if (filter === "upcoming")
               return (
-                !!event.start_date &&
+                !event.skipped_at && !!event.start_date &&
                 (event.end_date ?? event.start_date) >= today(event.timezone)
               );
             if (filter === "previous") return isPrevious;
@@ -193,70 +190,51 @@ export function CompetitionListing() {
       : [];
   return (
     <Shell>
-      <div className="public-intro">
-        <p className="public-kicker">AREWA CODM · BATTLE ROYALE</p>
-        <h1>
-          Competitions<span>.</span>
-        </h1>
-        <p>Find the games, results and standings from across the community.</p>
-      </div>
-      <div className="public-filters" aria-label="Filter competitions">
-        {(
-          [
-            ["all", "All"],
-            ["upcoming", "Upcoming"],
-            ["results", "With results"],
-            ["previous", "Previous"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <Notice
-        state={events}
-        retry={retry}
-        empty={
-          events.status === "ready" && !filtered.length
-            ? "No competitions to show here yet."
-            : undefined
-        }
-      />
-      <div className="public-list">
-        {filtered.map((event) => (
-          <a
-            className="public-event-row"
-            href={eventUrl(event.slug)}
-            key={event.id}
-          >
-            <div>
-              <span className="public-row-label">
-                {competitionLabel(event)}
+      <div className="competition-listing">
+        <header className="competition-listing-heading">
+          <p className="public-kicker">AREWA CODM · BATTLE ROYALE</p>
+          <h1>Competitions<span>.</span></h1>
+          <p>Weekend scrims, leagues and tournaments across the community.</p>
+        </header>
+        <div className="competition-listing-filters" aria-label="Filter competitions">
+          {(
+            [
+              ["all", "All"],
+              ["upcoming", "Upcoming"],
+              ["results", "With results"],
+              ["previous", "Previous"],
+            ] as const
+          ).map(([value, label]) => (
+            <button key={value} aria-pressed={filter === value} onClick={() => setFilter(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <Notice
+          state={events}
+          retry={retry}
+          empty={events.status === "ready" && !filtered.length ? "No competitions to show here yet." : undefined}
+        />
+        <div className="competition-listing-items">
+          {filtered.map((event) => (
+            <a className="competition-listing-item" href={eventUrl(event.slug)} key={event.id}>
+              <span className="competition-listing-date"><Icon name="calendar" /><span>{dates(event)}</span></span>
+              <span className="competition-listing-copy">
+                <span className="competition-listing-type">
+                  <span>{competitionLabel(event)}</span>
+                  {event.skipped_at && <span className="competition-listing-paused">Not playing</span>}
+                </span>
+                <strong className="competition-listing-name">{event.title}</strong>
+                <span className="competition-listing-facts">
+                  <span>{countLabel(event.match_count, "game")}</span>
+                  {event.squad_capacity ? <span>{event.squad_count ?? 0} / {event.squad_capacity} squads</span> : null}
+                  {event.scored_match_count > 0 ? <span>{countLabel(event.scored_match_count, "game")} with results</span> : null}
+                </span>
               </span>
-              <h2>{event.title}</h2>
-              <p>
-                {dates(event)} <span>·</span> {event.match_count} games
-                {event.squad_count !== undefined && (
-                  <>
-                    {" "}
-                    <span>·</span> {event.squad_count} squads
-                  </>
-                )}
-              </p>
-              <small>
-                {event.scored_match_count > 0
-                  ? `${event.scored_match_count} ${event.scored_match_count === 1 ? "game" : "games"} with results`
-                  : "Results not yet available"}
-              </small>
-            </div>
-            <Icon name="arrow" />
-          </a>
-        ))}
+              <span className="competition-listing-arrow" aria-hidden="true"><Icon name="arrow" /></span>
+            </a>
+          ))}
+        </div>
       </div>
     </Shell>
   );
@@ -273,8 +251,8 @@ function StandingTable({ data }: { data: EventStandings }) {
     <>
       {data.uses_mixed_scoring_presets && (
         <p className="public-note">
-          Games use different scoring presets; totals combine the points awarded
-          in each game.
+          Games use different scoring rules. Points from every game are added
+          together.
         </p>
       )}
       <div className="public-table-scroll">
@@ -283,9 +261,9 @@ function StandingTable({ data }: { data: EventStandings }) {
             <tr>
               <th>Rank</th>
               <th>Squad</th>
-              <th>Games</th>
+              <th className="public-col-games">Games</th>
               <th>Kills</th>
-              <th>Wins</th>
+              <th className="public-col-wins">Wins</th>
               <th>Points</th>
             </tr>
           </thead>
@@ -299,14 +277,23 @@ function StandingTable({ data }: { data: EventStandings }) {
                       className="public-inline-link"
                       href={`/squads/${encodeURIComponent(row.squad.slug)}`}
                     >
-                      {row.squad.name}
+                      {squadIdentity({
+                        name: row.squad.name,
+                        squadNumber: row.squad.squad_number,
+                        clanTag: row.squad.clan.tag,
+                        clanName: row.squad.clan.name,
+                        clanSquadCount: row.squad.clan.squad_count,
+                      })}
                     </a>
                   </strong>
-                  <small>{row.squad.clan.name}</small>
+                  <small className="public-mobile-meta">
+                    {countLabel(row.matches_played, "game")} ·{" "}
+                    {countLabel(row.wins, "win")}
+                  </small>
                 </th>
-                <td>{row.matches_played}</td>
+                <td className="public-col-games">{row.matches_played}</td>
                 <td>{row.total_kills}</td>
-                <td>{row.wins}</td>
+                <td className="public-col-wins">{row.wins}</td>
                 <td className="public-points">{row.total_points}</td>
               </tr>
             ))}
@@ -340,37 +327,33 @@ export function CompetitionDetail({ slug }: { slug: string }) {
   const day = days.find((item) => item.id === dayId) ?? days[0];
   return (
     <Shell>
-      <a className="public-back" href="/competitions">
-        ← All competitions
-      </a>
-      <Notice state={event} retry={retryEvent} />
-      {data && (
-        <>
-          <div className="public-intro public-detail-intro">
-            <p className="public-kicker">
-              {competitionLabel(data)} · COMPETITION
-            </p>
-            <h1>
-              {data.title}
-              <span>.</span>
-            </h1>
-            <p>{dates(data)}</p>
-            {data.description && <p>{data.description}</p>}
-            <div className="public-facts">
-              <span>
-                <strong>{data.squads.length}</strong> squads
-              </span>
-              <span>
-                <strong>{data.match_count}</strong> games
-              </span>
-              <span>
-                Scoring:{" "}
-                <strong>
-                  {data.default_scoring.preset_name ?? "Not specified"}
-                </strong>
-              </span>
-            </div>
-          </div>
+      <div className="public-event-detail">
+        <a className="public-back" href="/competitions">
+          <Icon name="arrow" /> All competitions
+        </a>
+        <Notice state={event} retry={retryEvent} />
+        {data && (
+          <>
+            <section className="public-detail-overview" aria-labelledby="public-event-title">
+              <div className="public-detail-heading">
+                <span className="public-detail-emblem" aria-hidden="true"><Icon name="trophy" /></span>
+                <div className="public-detail-heading-copy">
+                  <p className="public-kicker">{competitionLabel(data)} <span>· AREWA CODM</span></p>
+                  <h1 id="public-event-title">{data.title}<span>.</span></h1>
+                  <div className="public-detail-meta">
+                    <span><Icon name="calendar" />{dates(data)}</span>
+                    {data.skipped_at && <span className="public-detail-week-off" role="status">Not playing this week</span>}
+                  </div>
+                  {data.description && <p className="public-detail-description">{data.description}</p>}
+                  {data.skipped_at && data.skip_reason && <p className="public-detail-skip-reason">{data.skip_reason}</p>}
+                </div>
+              </div>
+              <div className="public-detail-facts">
+                <div><strong>{data.squads.length}{data.squad_capacity ? <span> / {data.squad_capacity}</span> : null}</strong><small>Squads entered</small></div>
+                <div><strong>{data.match_count}</strong><small>Games scheduled</small></div>
+                <div><strong className="public-detail-scoring">{scoringLabel(data.default_scoring.preset_name)}</strong><small>Scoring preset</small></div>
+              </div>
+            </section>
           <div
             className="public-filters public-detail-tabs"
             aria-label="Competition sections"
@@ -392,7 +375,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
             ))}
           </div>
           {tab === "schedule" && (
-            <section className="public-section">
+            <section className="public-section public-detail-section">
               <div className="public-section-title">
                 <div>
                   <p className="public-kicker">DATES & MAPS</p>
@@ -433,7 +416,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                               <small>
                                 Game {match.match_index}
                                 {match.is_scoring_override
-                                  ? " · Different scoring"
+                                  ? " · Custom scoring"
                                   : ""}
                               </small>
                             </span>
@@ -446,7 +429,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                             >
                               {match.has_results
                                 ? "View results"
-                                : "Awaiting results"}
+                                : "Results pending"}
                             </span>
                             <Icon name="arrow" />
                           </a>
@@ -466,7 +449,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
             </section>
           )}
           {tab === "standings" && (
-            <section className="public-section">
+            <section className="public-section public-detail-section">
               <div className="public-section-title">
                 <div>
                   <p className="public-kicker">COMPETITION RESULTS</p>
@@ -488,7 +471,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
             </section>
           )}
           {tab === "squads" && (
-            <section className="public-section">
+            <section className="public-section public-detail-section">
               <div className="public-section-title">
                 <div>
                   <p className="public-kicker">THE FIELD</p>
@@ -505,24 +488,31 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                       key={squad.id}
                     >
                       <span className="public-squad-mark">
-                        {(squad.tag || squad.name).slice(0, 2).toUpperCase()}
+                        {(squad.clan.tag || squad.name).slice(0, 2).toUpperCase()}
                       </span>
                       <span>
-                        <strong>{squad.name}</strong>
-                        <small>{squad.clan.name}</small>
+                        <strong>{squadIdentity({
+                          name: squad.name,
+                          squadNumber: squad.squad_number,
+                          clanTag: squad.clan.tag,
+                          clanName: squad.clan.name,
+                          clanSquadCount: squad.clan.squad_count,
+                        })}</strong>
+                        <small>{squad.slot_number ? `Game slot ${squad.slot_number}` : "Registered squad"}</small>
                       </span>
                     </a>
                   ))}
                 </div>
               ) : (
                 <div className="public-notice">
-                  No squads have been added yet.
+                  Squads appear here after the organizer assigns competition slots.
                 </div>
               )}
             </section>
           )}
         </>
       )}
+      </div>
     </Shell>
   );
 }
@@ -559,99 +549,79 @@ export function MatchPage({
       : undefined;
   return (
     <Shell>
-      <a className="public-back" href={eventUrl(slug)}>
-        ← Competition
-      </a>
-      <Notice state={event} retry={retryEvent} />
-      {data && !match && (
-        <div className="public-notice">
-          This game is not part of this competition.
-        </div>
-      )}
-      {data && match && day && (
-        <>
-          <div className="public-intro public-detail-intro">
-            <p className="public-kicker">
-              {data.title} · {day.label}
-            </p>
-            <h1>
-              Game {match.match_index}
-              <span>.</span>
-            </h1>
-            <p>
-              {match.map_label} · {dateText(day.date)}
-            </p>
-            <div className="public-facts">
-              <span>
-                Scoring:{" "}
+      <div className="public-match-page">
+        <a className="public-back" href={eventUrl(slug)}>
+          <Icon name="arrow" /> Competition
+        </a>
+        <Notice state={event} retry={retryEvent} />
+        {data && !match && (
+          <div className="public-match-empty">This game is not part of this competition.</div>
+        )}
+        {data && match && day && (
+          <>
+            <header className="public-match-hero">
+              <div className="public-match-context">
+                <p className="public-kicker">
+                  <a href={eventUrl(slug)}>{data.title}</a><span>· {day.label}</span>
+                </p>
+                <span className={`public-match-state${match.has_results ? " is-complete" : ""}`}>
+                  <i />{match.has_results ? "Results available" : "Awaiting results"}
+                </span>
+              </div>
+              <div className="public-match-title-row">
+                <span className="public-match-index">{String(match.match_index).padStart(2, "0")}</span>
+                <div>
+                  <h1>{match.map_label}<span>.</span></h1>
+                  <p><Icon name="calendar" />{dateText(day.date)}<span>·</span>Game {match.match_index}</p>
+                </div>
+              </div>
+              <div className="public-match-scoring">
+                <span>Scoring preset</span>
                 <strong>
                   {typeof match.scoring.preset_name === "string"
                     ? match.scoring.preset_name
                     : match.is_scoring_override
-                      ? "Game-specific rules"
-                      : (data.default_scoring.preset_name ?? "Not specified")}
+                      ? "Custom scoring"
+                      : scoringLabel(data.default_scoring.preset_name)}
                 </strong>
-              </span>
-            </div>
-          </div>
-          <section className="public-section">
-            <div className="public-section-title">
-              <div>
-                <p className="public-kicker">
-                  {match.has_results ? "SAVED RESULTS" : "GAME SCHEDULE"}
-                </p>
-                <h2>
-                  Match results<span>.</span>
-                </h2>
               </div>
-              <a className="public-text-link" href={eventUrl(slug)}>
-                All games →
-              </a>
-            </div>
-            {!match.has_results ? (
-              <div className="public-notice">
-                Results have not been saved for this game yet.
+            </header>
+            <section className="public-match-results">
+              <div className="public-match-section-head">
+                <div>
+                  <p className="public-kicker">{match.has_results ? "FINAL SCORES" : "MATCH"}</p>
+                  <h2>Squad results<span>.</span></h2>
+                </div>
+                <a href={eventUrl(slug)}>All games <Icon name="arrow" /></a>
               </div>
-            ) : (
-              <>
-                <Notice state={result} retry={retryResult} />
-                {result.status === "ready" && !saved && (
-                  <div className="public-notice">
-                    Results could not be matched to this competition.
-                  </div>
-                )}
-                {saved &&
-                  (saved.result.results.length ? (
+              {!match.has_results ? (
+                <div className="public-match-empty">Results are not available for this game yet.</div>
+              ) : (
+                <>
+                  <Notice state={result} retry={retryResult} />
+                  {result.status === "ready" && !saved && (
+                    <div className="public-match-empty" role="alert">
+                      We couldn’t load the results for this game. Please try again.
+                    </div>
+                  )}
+                  {saved && (saved.result.results.length ? (
                     <div className="public-result-list">
                       {[...saved.result.results]
-                        .sort(
-                          (a, b) =>
-                            (a.placement ?? Infinity) -
-                            (b.placement ?? Infinity),
-                        )
+                        .sort((a, b) => (a.placement ?? Infinity) - (b.placement ?? Infinity))
                         .map((row) => (
                           <article className="public-result" key={row.squad_id}>
                             <div className="public-result-heading">
                               <div>
                                 <span className="public-row-label">
-                                  {row.participation_status === "absent"
-                                    ? "ABSENT"
-                                    : `PLACEMENT #${row.placement ?? "—"}`}
+                                  {row.participation_status === "absent" ? "ABSENT" : placementLabel(row.placement)}
                                 </span>
                                 <h3>
                                   {row.squad_slug ? (
-                                    <a
-                                      href={`/squads/${encodeURIComponent(row.squad_slug)}`}
-                                    >
-                                      {row.squad_name}
+                                    <a href={`/squads/${encodeURIComponent(row.squad_slug)}`}>
+                                      {squadIdentity({ name: row.squad_name, squadNumber: row.squad_number, clanTag: row.clan_tag, clanName: row.clan_name, clanSquadCount: row.clan_squad_count })}
                                     </a>
-                                  ) : (
-                                    row.squad_name
-                                  )}
+                                  ) : squadIdentity({ name: row.squad_name, squadNumber: row.squad_number, clanTag: row.clan_tag, clanName: row.clan_name, clanSquadCount: row.clan_squad_count })}
                                 </h3>
-                                {row.clan_name && (
-                                  <small>{row.clan_name}</small>
-                                )}
                               </div>
                               <div className="public-result-points">
                                 <strong>{row.total_points}</strong>
@@ -661,65 +631,40 @@ export function MatchPage({
                             {row.participation_status === "present" && (
                               <>
                                 <div className="public-score-grid">
+                                  <div><span>Squad kills</span><strong>{row.team_kills}</strong></div>
+                                  <div><span>Kill points</span><strong>{row.kill_points ?? "—"}</strong></div>
                                   <div>
-                                    <span>Squad kills</span>
-                                    <strong>{row.team_kills}</strong>
-                                  </div>
-                                  <div>
-                                    <span>Kill points</span>
-                                    <strong>{row.kill_points ?? "—"}</strong>
-                                  </div>
-                                  <div>
-                                    <span>
-                                      {row.placement_multiplier !== null
-                                        ? "Multiplier"
-                                        : "Placement pts"}
-                                    </span>
-                                    <strong>
-                                      {row.placement_multiplier !== null
-                                        ? `×${row.placement_multiplier}`
-                                        : (row.placement_points ?? "—")}
-                                    </strong>
+                                    <span>{row.placement_multiplier !== null ? "Placement bonus" : "Placement points"}</span>
+                                    <strong>{row.placement_multiplier !== null ? `×${row.placement_multiplier}` : (row.placement_points ?? "—")}</strong>
                                   </div>
                                 </div>
-                                <table className="public-player-table">
-                                  <thead>
-                                    <tr>
-                                      <th>Player</th>
-                                      <th>Kills</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {row.players.map((player) => (
-                                      <tr key={player.player_id}>
-                                        <th scope="row">
-                                          <a
-                                            className="public-inline-link"
-                                            href={`/players/${encodeURIComponent(player.player_id)}`}
-                                          >
-                                            {player.ign}
-                                          </a>
-                                        </th>
-                                        <td>{player.kills}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
+                                <div className="public-match-players">
+                                  <table className="public-player-table">
+                                    <thead><tr><th>Player</th><th>Kills</th></tr></thead>
+                                    <tbody>
+                                      {row.players.map((player) => (
+                                        <tr key={player.player_id}>
+                                          <th scope="row"><a className="public-inline-link" href={`/players/${encodeURIComponent(player.player_id)}`}>{player.ign}</a></th>
+                                          <td>{player.kills}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </>
                             )}
                           </article>
                         ))}
                     </div>
                   ) : (
-                    <div className="public-notice">
-                      No squad results were recorded for this game.
-                    </div>
+                    <div className="public-match-empty">No squad results were recorded for this game.</div>
                   ))}
-              </>
-            )}
-          </section>
-        </>
-      )}
+                </>
+              )}
+            </section>
+          </>
+        )}
+      </div>
     </Shell>
   );
 }

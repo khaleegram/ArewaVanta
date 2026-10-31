@@ -79,8 +79,15 @@
   padding: 8px 18px;
   border-bottom: 1px solid #35432e;
 }
+.directory-squad {
+  flex-wrap: wrap;
+}
 .directory-squad > div {
   flex: 1;
+  min-width: 0;
+}
+.directory-squad > .directory-squad-entries {
+  flex: 1 0 100%;
   min-width: 0;
 }
 .directory-squad strong,
@@ -92,10 +99,40 @@
 .directory-player-row strong {
   font-size: 13px;
 }
+.directory-squad-name {
+  display: flex !important;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.directory-clan-tag {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 6px;
+  margin: 0 !important;
+  border: 1px solid #755044;
+  color: #f39b82 !important;
+  font-size: 9px !important;
+  font-weight: 900;
+  letter-spacing: .08em;
+  line-height: 1;
+}
 .directory-squad span {
   font-size: 11px;
   color: #a9b8a1;
   margin-top: 4px;
+}
+.directory-squad-players {
+  margin-top: 6px;
+  color: #c7d3bf;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.directory-squad-players span {
+  display: inline;
+  font-size: inherit;
 }
 .directory-add {
   margin: 4px 18px;
@@ -176,6 +213,116 @@
 .directory-squad button:disabled,
 .directory-player-row button:disabled {
   opacity: 0.5;
+}
+.directory-submit-toggle {
+  margin-top: 7px;
+  min-height: 36px !important;
+  padding: 0 10px;
+  border: 1px solid #46583e !important;
+  color: #f0a18b !important;
+  font-size: 11px !important;
+}
+.directory-submissions {
+  margin: 10px 0 3px;
+  padding: 11px;
+  border: 1px solid #3e5038;
+  background: #131a12;
+  color: #dce4d5;
+  font-size: 11px;
+}
+.directory-submissions > p {
+  margin: 8px 0 0;
+  color: #b8c6af;
+  line-height: 1.5;
+}
+.directory-submissions-heading,
+.directory-opportunity,
+.directory-past-submissions > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+}
+.directory-submissions-heading {
+  margin-bottom: 5px;
+}
+.directory-submissions-heading button {
+  min-height: 32px !important;
+  padding: 0 8px;
+  font-size: 19px !important;
+}
+.directory-opportunity,
+.directory-past-submissions > div {
+  padding: 8px 0;
+  border-top: 1px solid #2c3828;
+}
+.directory-opportunity > div {
+  min-width: 0;
+}
+.directory-opportunity strong,
+.directory-opportunity span,
+.directory-past-submissions span,
+.directory-past-submissions small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.directory-event-link {
+  color: #f1eee4;
+  text-decoration: underline;
+  text-decoration-color: #6f5248;
+  text-underline-offset: 3px;
+}
+.directory-opportunity > div > span,
+.directory-past-submissions small {
+  margin-top: 3px;
+  color: #aebba6;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.directory-opportunity button {
+  min-height: 36px !important;
+  padding: 0 10px;
+  border: 1px solid #6d4033 !important;
+}
+.directory-submission-status {
+  color: #91b87a;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.directory-past-submissions {
+  margin-top: 8px;
+  border-top: 1px solid #3a4933;
+  padding-top: 8px;
+}
+.directory-past-submissions > strong {
+  display: block;
+  margin-bottom: 5px;
+}
+.directory-submission-notice,
+.directory-submission-error {
+  padding: 8px;
+  border: 1px solid #4c6844;
+  background: #1c2a19;
+}
+.directory-submission-error {
+  border-color: #7d4939;
+  color: #f0b09a !important;
+  background: #2b1a16;
+}
+.directory-submission-state {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.directory-submission-state button {
+  min-height: 36px !important;
+  padding: 0 8px;
+}
+.directory-squad-tag-note {
+  margin: 0;
+  color: #b8c6af;
+  font-size: 12px;
 }
 @media (max-width: 430px) {
   .directory-clan-head,

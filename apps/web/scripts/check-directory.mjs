@@ -60,7 +60,13 @@ for (const width of [360, 390, 430, 768, 1440]) {
       return route.fulfill({ json: { data: clans[0] } });
     }
     if (path === "/api/v1/manage/clans/c1/squads") {
-      const squad = { id: `s${++counter}`, slug: `s${counter}`, ...body };
+      const squad = {
+        id: `s${++counter}`,
+        slug: `s${counter}`,
+        ...body,
+        name: `Squad ${counter}`,
+        squad_number: counter,
+      };
       clans[0].squads.push(squad);
       return route.fulfill({ status: 201, json: { data: squad } });
     }
@@ -141,18 +147,37 @@ for (const width of [360, 390, 430, 768, 1440]) {
   assert.equal(person.roles.length, 0);
   await page.getByRole("button", { name: "← Clans & players" }).click();
   await page.getByRole("button", { name: "Add squad" }).click();
-  await page.getByLabel("Squad name").fill("Alpha");
-  await page.getByRole("button", { name: "Save changes" }).click();
-  await page.getByText("Squad created.").waitFor();
+  const firstSquadName = page.getByLabel("Automatically assigned squad name");
+  assert.equal(await firstSquadName.inputValue(), "Squad 1");
+  assert.equal(await firstSquadName.isEditable(), false);
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/manage/clans/c1/squads") &&
+        response.request().method() === "POST",
+    ),
+    page.getByRole("button", { name: "Create squad" }).click(),
+  ]);
+  await page.getByText("Numbered squad created.").waitFor();
+  await page.getByRole("button", { name: "Add squad" }).waitFor();
   await page.getByRole("button", { name: "Add squad" }).click();
-  await page.getByLabel("Squad name").fill("Bravo");
-  await page.getByRole("button", { name: "Save changes" }).click();
-  await page.getByText("Squad created.").waitFor();
+  const secondSquadName = page.getByLabel("Automatically assigned squad name");
+  assert.equal(await secondSquadName.inputValue(), "Squad 2");
+  assert.equal(await secondSquadName.isEditable(), false);
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/manage/clans/c1/squads") &&
+        response.request().method() === "POST",
+    ),
+    page.getByRole("button", { name: "Create squad" }).click(),
+  ]);
+  await page.getByRole("button", { name: "Add squad" }).waitFor();
   assert.equal(clans[0].squads.length, 2);
-  await page.getByRole("button", { name: "Edit", exact: true }).nth(1).click();
-  await page.getByLabel("Squad name").fill("Bravo Two");
-  await page.getByRole("button", { name: "Save changes" }).click();
-  await page.getByText("Bravo Two").waitFor();
+  assert.deepEqual(
+    clans[0].squads.map((squad) => squad.name),
+    ["Squad 1", "Squad 2"],
+  );
   if (width === 390 || width === 1440)
     await page.screenshot({
       path: `artifacts/directory-clans-${width}.png`,
@@ -164,7 +189,10 @@ for (const width of [360, 390, 430, 768, 1440]) {
     ),
     false,
   );
-  await page.getByRole("button", { name: "Players", exact: true }).click();
+  await page
+    .getByLabel("Directory section")
+    .getByRole("button", { name: "Players", exact: true })
+    .click();
   await page.getByRole("button", { name: "Register player" }).click();
   await page.getByLabel("Player IGN").fill("ACE");
   await page.getByLabel("CODM UID").fill("UID-1");
@@ -180,15 +208,15 @@ for (const width of [360, 390, 430, 768, 1440]) {
     .getByRole("button", { name: "Roster", exact: true })
     .first()
     .click();
-  await page.getByText("No players on this roster yet.").waitFor();
-  await page.getByLabel("Search player IGN").fill("ACE");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByText("No players have been added to this squad yet.").waitFor();
+  await page.getByLabel("Player IGN").fill("ACE");
+  await page.getByText("ACE TWO", { exact: true }).waitFor();
   await page.getByRole("button", { name: "+ Add", exact: true }).click();
-  await page.getByText("ACE TWO added to roster.").waitFor();
+  await page.getByText("ACE TWO added to this squad.").waitFor();
   assert.equal(roster.length, 1);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Remove", exact: true }).click();
-  await page.getByText("ACE TWO removed from roster.").waitFor();
+  await page.getByText("ACE TWO removed from this squad.").waitFor();
   assert.equal(roster.length, 0);
   assert.equal(
     await page.evaluate(

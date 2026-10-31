@@ -2,12 +2,15 @@ import type {
   ApiData,
   ApiPage,
   AuthSession,
+  CaptainSquadSubmissions,
   CompetitionTemplate,
   CreateEventInput,
   EventStandings,
+  EventSubmissionReview,
   EventSummary,
   Id,
   ManageEvent,
+  RecurrenceAction,
   ManageEventSummary,
   ManageClan,
   ClanEditResponse,
@@ -28,6 +31,7 @@ import type {
   ResultSheet,
   SavedResult,
   SeasonStandings,
+  SquadHistoryEntry,
   User,
 } from "./types";
 
@@ -51,6 +55,19 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
+}
+function fallbackMessage(status: number) {
+  if (status === 401) return "Please sign in again to continue.";
+  if (status === 403) return "You don’t have permission to do that.";
+  if (status === 404) return "That item could not be found. It may have been removed.";
+  if (status === 409)
+    return "This changed while you were working. Reload and try again.";
+  if (status === 422) return "Please check the form and try again.";
+  if (status === 429)
+    return "Too many attempts. Please wait a moment and try again.";
+  if (status >= 500)
+    return "ArewaVanta is having trouble right now. Please try again.";
+  return "We couldn’t complete that request. Please try again.";
 }
 async function request<T>(path: string, options: Options = {}): Promise<T> {
   const query = new URLSearchParams();
@@ -89,7 +106,7 @@ async function request<T>(path: string, options: Options = {}): Promise<T> {
     const message =
       typeof details.message === "string"
         ? details.message
-        : `Request failed (${response.status}).`;
+        : fallbackMessage(response.status);
     const errors =
       details.errors && typeof details.errors === "object"
         ? (details.errors as Record<string, string[]>)
@@ -99,7 +116,7 @@ async function request<T>(path: string, options: Options = {}): Promise<T> {
   if (response.status !== 204 && payload === undefined)
     throw new ApiError(
       response.status,
-      "The server returned an invalid response.",
+      "Something went wrong. Please refresh and try again.",
     );
   return payload as T;
 }
@@ -214,20 +231,10 @@ export const api = {
   createSquad: (
     token: string,
     clanId: string,
-    body: { name: string; tag: string | null },
+    body: { tag?: string | null },
   ) =>
     request<ApiData<ManageSquad>>(`/manage/clans/${key(clanId)}/squads`, {
       method: "POST",
-      token,
-      body,
-    }),
-  updateSquad: (
-    token: string,
-    id: string,
-    body: { name: string; tag: string | null },
-  ) =>
-    request<ApiData<ManageSquad>>(`/manage/squads/${key(id)}`, {
-      method: "PATCH",
       token,
       body,
     }),
@@ -250,6 +257,21 @@ export const api = {
       method: "DELETE",
       token,
     }),
+  squadEventSubmissions: (token: string, squadId: string, signal?: AbortSignal) =>
+    request<ApiData<CaptainSquadSubmissions>>(
+      `/manage/squads/${key(squadId)}/event-submissions`,
+      { token, signal },
+    ),
+  submitSquadForEvent: (token: string, squadId: string, eventId: string) =>
+    request<ApiData<{ id: Id; event_id: Id; squad_id: Id; status: string }>>(
+      `/manage/squads/${key(squadId)}/event-submissions`,
+      { token, method: "POST", body: { event_id: eventId } },
+    ),
+  withdrawSquadSubmission: (token: string, squadId: string, submissionId: string) =>
+    request<void>(
+      `/manage/squads/${key(squadId)}/event-submissions/${key(submissionId)}`,
+      { token, method: "DELETE" },
+    ),
   managePlayer: (token: string, id: string) =>
     request<ApiData<ManagePlayer>>(`/manage/players/${key(id)}`, { token }),
   createPlayer: (token: string, body: Omit<ManagePlayer, "id">) =>
@@ -270,6 +292,8 @@ export const api = {
     request<ApiData<PublicClan>>(`/clans/${key(slug)}`, { signal }),
   squad: (slug: string, signal?: AbortSignal) =>
     request<ApiData<PublicSquad>>(`/squads/${key(slug)}`, { signal }),
+  squadHistory: (slug: string, signal?: AbortSignal) =>
+    request<ApiData<SquadHistoryEntry[]>>(`/squads/${key(slug)}/history`, { signal }),
   players: (page = 1, search = "", signal?: AbortSignal) =>
     request<ApiPage<PublicPlayer>>("/players", {
       query: { page, search },
@@ -310,6 +334,24 @@ export const api = {
       body: { email, password, device_name: "arewavanta-web" },
       signal,
     }),
+  sendPasswordResetLink: (email: string, signal?: AbortSignal) =>
+    request<{ message: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+      signal,
+    }),
+  resetPassword: (
+    email: string,
+    token: string,
+    password: string,
+    password_confirmation: string,
+    signal?: AbortSignal,
+  ) =>
+    request<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: { email, token, password, password_confirmation },
+      signal,
+    }),
   me: (token: string, signal?: AbortSignal) =>
     request<ApiData<User>>("/auth/me", { token, signal }),
   logout: (token: string, signal?: AbortSignal) =>
@@ -324,6 +366,10 @@ export const api = {
     request<ApiData<ManageEvent>>(`/manage/events/${key(id)}`, {
       token,
       signal,
+    }),
+  updateRecurrence: (token: string, eventId: Id, action: RecurrenceAction, reason?: string) =>
+    request<ApiData<ManageEvent>>(`/manage/events/${key(eventId)}/recurrence`, {
+      token, method: "PATCH", body: { action, ...(reason ? { reason } : {}) },
     }),
   scoringPresets: (token: string, signal?: AbortSignal) =>
     request<ApiData<ScoringPreset[]>>("/manage/scoring-presets", {
@@ -380,6 +426,22 @@ export const api = {
       body: { squad_ids: squadIds },
       signal,
     }),
+  eventSubmissions: (token: string, eventId: Id, signal?: AbortSignal) =>
+    request<ApiData<EventSubmissionReview>>(
+      `/manage/events/${key(eventId)}/submissions`,
+      { token, signal },
+    ),
+  decideEventSubmission: (
+    token: string,
+    eventId: Id,
+    submissionId: Id,
+    decision: "select" | "not_selected" | "pending",
+    slotNumber?: number,
+  ) =>
+    request<ApiData<{ id: Id; event_id: Id; squad_id: Id; status: string; slot_number: number | null }>>(
+      `/manage/events/${key(eventId)}/submissions/${key(submissionId)}`,
+      { token, method: "PATCH", body: { decision, ...(slotNumber === undefined ? {} : { slot_number: slotNumber }) } },
+    ),
   resultSheet: (token: string, matchId: Id, signal?: AbortSignal) =>
     request<ApiData<ResultSheet>>(
       `/manage/matches/${key(matchId)}/result-sheet`,
@@ -389,12 +451,14 @@ export const api = {
     token: string,
     matchId: Id,
     results: MatchResultInput[],
+    expectedLockVersion: number | null,
+    expectedScoringVersionId: Id | null,
     signal?: AbortSignal,
   ) =>
     request<ApiData<SavedResult>>(`/manage/matches/${key(matchId)}/results`, {
       method: "PUT",
       token,
-      body: { results },
+      body: { results, expected_lock_version: expectedLockVersion, expected_scoring_version_id: expectedScoringVersionId },
       signal,
     }),
 };

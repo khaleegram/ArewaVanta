@@ -103,6 +103,9 @@ for (const width of [360, 390, 430, 768, 1440]) {
                     0,
                   ),
                   scored_match_count: 0,
+                  squad_count: event.squads?.length ?? 0,
+                  squad_capacity: event.squad_capacity ?? 20,
+                  pending_submission_count: 0,
                 },
               ]
             : [],
@@ -112,7 +115,7 @@ for (const width of [360, 390, 430, 768, 1440]) {
     if (path === "/api/v1/manage/events" && method === "POST") {
       creates++;
       assert.equal(data.title, "Weekend test");
-      assert.deepEqual(data.squad_ids, ["s1"]);
+      assert.equal(data.squad_capacity, 20);
       assert.equal(data.scoring_rule_version_id, "score1");
       event = {
         id: "e1",
@@ -123,6 +126,7 @@ for (const width of [360, 390, 430, 768, 1440]) {
         visibility: "public",
         timezone: "Africa/Lagos",
         squad_size: 4,
+        squad_capacity: data.squad_capacity ?? 20,
         maximum_position: 25,
         season: null,
         scoring: {
@@ -131,15 +135,7 @@ for (const width of [360, 390, 430, 768, 1440]) {
           mode: "additive",
           rules: {},
         },
-        squads: [
-          {
-            id: "s1",
-            name: "Kano Squad",
-            tag: "KS",
-            clan: "Kano Clan",
-            seed: null,
-          },
-        ],
+        squads: [],
         days: generateDays(),
       };
       return route.fulfill({ status: 201, json: { data: event } });
@@ -220,7 +216,7 @@ for (const width of [360, 390, 430, 768, 1440]) {
     "Isolated",
     "Blackout",
   ]);
-  assert.equal(await page.getByLabel("Kano Squad").isChecked(), true);
+  assert.equal(await page.getByLabel("Maximum participating squads").inputValue(), "20");
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > innerWidth,
   );
@@ -249,12 +245,12 @@ for (const width of [360, 390, 430, 768, 1440]) {
   await page.getByLabel("Competition type").selectOption("league");
   await page.getByLabel("Scoring preset").selectOption("score2");
   await page.locator(".manage-game input").nth(0).fill("Blackout");
-  await page.getByLabel("Kano Squad").uncheck();
+  await page.getByLabel("Maximum participating squads").fill("24");
   await page.getByRole("button", { name: "Save competition" }).click();
   await page.getByText("Weekend updated").waitFor();
   assert.equal(event.days[0].matches[0].map_label, "Blackout");
   assert.equal(event.days[0].matches[0].id, "game-0-0");
-  assert.equal(event.squads.length, 0);
+  assert.equal(event.squad_capacity, 24);
   assert.equal(event.competition_type, "league");
   assert.equal(event.scoring.preset_name, warzone.name);
   assert.deepEqual(errors, []);

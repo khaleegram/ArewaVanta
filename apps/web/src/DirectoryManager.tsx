@@ -7,17 +7,25 @@ import type {
   PublicClan,
   PublicPlayer,
   RosterMember,
+  CaptainSquadSubmissions,
 } from "./api/types";
-import { Shell, SignIn, tokenKey, type Session } from "./CompetitionManager";
+import {
+  canManageCompetitions,
+  Shell,
+  SignIn,
+  tokenKey,
+  type Session,
+} from "./CompetitionManager";
 import { Icon } from "./ui";
 import { disableAdminPush } from "./AdminAlerts";
+import { formatDate, squadIdentity, submissionStatusLabel } from "./presentation";
 import "./directory-manager.css";
 
 type Squad = ManageClan["squads"][number];
 type View =
   | { kind: "list" }
   | { kind: "clan"; clan: PublicClan | null }
-  | { kind: "squad"; clan: ManageClan; squad: Squad | null }
+  | { kind: "squad"; clan: ManageClan }
   | { kind: "roster"; clan: ManageClan; squad: Squad }
   | { kind: "captains"; clan: ManageClan }
   | { kind: "player"; player: ManagePlayer | null };
@@ -53,6 +61,136 @@ function Notice({ text, retry }: { text: string; retry?: () => void }) {
       {text}
       {retry && <button onClick={retry}>Try again →</button>}
     </div>
+  );
+}
+function SquadPlayers({ token, squadId }: { token: string; squadId: string }) {
+  const [roster, setRoster] = useState<Load<RosterMember[]>>({ status: "loading" });
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setRoster({ status: "loading" });
+    api.roster(token, squadId, controller.signal)
+      .then(({ data }) => setRoster({ status: "ready", data }))
+      .catch((error) => {
+        if (!controller.signal.aborted) setRoster({ status: "error", message: message(error) });
+      });
+    return () => controller.abort();
+  }, [token, squadId, retry]);
+  return (
+    <div className="directory-squad-players">
+      {roster.status === "loading" ? "Loading players…" : roster.status === "error" ? (
+        <><span>Players didn’t load.</span> <button type="button" onClick={() => setRetry((value) => value + 1)}>Retry</button></>
+      ) : roster.data.length ? roster.data.map((player) => player.ign).join(", ") : "No players yet"}
+    </div>
+  );
+}
+function nextSquadName(clan: ManageClan): string {
+  const highest = clan.squads.reduce((max, squad) => {
+    const number = squad.squad_number ?? Number(/^squad\s+(\d+)$/i.exec(squad.name)?.[1] ?? 0);
+    return Math.max(max, number);
+  }, 0);
+  return `Squad ${Math.max(clan.squads.length, highest) + 1}`;
+}
+function SquadSubmissions({ token, squadId }: { token: string; squadId: string }) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<Load<CaptainSquadSubmissions>>({ status: "loading" });
+  const [refresh, setRefresh] = useState(0);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    setData({ status: "loading" });
+    api.squadEventSubmissions(token, squadId, controller.signal)
+      .then(({ data: response }) => setData({ status: "ready", data: response }))
+      .catch((err) => {
+        if (!controller.signal.aborted) setData({ status: "error", message: message(err) });
+      });
+    return () => controller.abort();
+  }, [open, token, squadId, refresh]);
+
+  async function submit(eventId: string) {
+    setBusy(eventId);
+    setError("");
+    setNotice("");
+    try {
+      await api.submitSquadForEvent(token, squadId, eventId);
+      setNotice("Squad submitted. The organizer can now assign a slot.");
+      setRefresh((value) => value + 1);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function withdraw(submissionId: string, eventId: string) {
+    setBusy(eventId);
+    setError("");
+    setNotice("");
+    try {
+      await api.withdrawSquadSubmission(token, squadId, submissionId);
+      setNotice("Submission withdrawn.");
+      setRefresh((value) => value + 1);
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  if (!open)
+    return (
+      <button className="directory-submit-toggle" type="button" onClick={() => setOpen(true)}>
+        Submit to competition
+      </button>
+    );
+
+  return (
+    <section className="directory-submissions" aria-label="Competition squad submissions">
+      <div className="directory-submissions-heading">
+        <strong>Competition entries</strong>
+        <button type="button" onClick={() => setOpen(false)} aria-label="Close competition entries">×</button>
+      </div>
+      <p className="directory-submission-help">Submitted squads wait for the organizer to assign a slot. Only selected squads appear on the public competition page.</p>
+      {notice && <p className="directory-submission-notice" role="status">{notice}</p>}
+      {error && <p className="directory-submission-error" role="alert">{error}</p>}
+      {data.status === "loading" ? <p>Loading upcoming competitions…</p> : data.status === "error" ? (
+        <div className="directory-submission-state">
+          <span>{data.message}</span>
+          <button type="button" onClick={() => setRefresh((value) => value + 1)}>Try again</button>
+        </div>
+      ) : (
+        <>
+          {data.data.opportunities.length ? data.data.opportunities.map((event) => {
+            const canSubmit = event.status === null || event.status === "not_selected" || event.status === "withdrawn";
+            const statusLabel = submissionStatusLabel(event.status, "captain");
+            return (
+              <div className="directory-opportunity" key={event.id}>
+                <div>
+                  <strong><a className="directory-event-link" href={`/competitions/${encodeURIComponent(event.slug)}`}>{event.title}</a></strong>
+                  <span>{formatDate(event.start_date)} · {event.squad_count} of {event.squad_capacity} slots filled · {statusLabel}</span>
+                </div>
+                {event.status === "pending" && event.submission_id ? (
+                  <button type="button" disabled={busy === event.id} onClick={() => withdraw(event.submission_id!, event.id)}>{busy === event.id ? "…" : "Withdraw"}</button>
+                ) : canSubmit ? (
+                  <button type="button" disabled={busy === event.id} onClick={() => submit(event.id)}>{busy === event.id ? "Sending…" : event.status ? "Submit again" : "Submit"}</button>
+                ) : <span className="directory-submission-status">Slot confirmed</span>}
+              </div>
+            );
+          }) : <p>No upcoming competitions are open for squad entries.</p>}
+          {data.data.submissions.some((submission) => !data.data.opportunities.some((event) => event.id === submission.event.id)) && (
+            <div className="directory-past-submissions">
+              <strong>Previous entries</strong>
+              {data.data.submissions.filter((submission) => !data.data.opportunities.some((event) => event.id === submission.event.id)).map((submission) => (
+                <div key={submission.id}><span>{submission.event.title}</span><small>{submissionStatusLabel(submission.status, "captain")}</small></div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 export default function DirectoryManager() {
@@ -136,11 +274,13 @@ export default function DirectoryManager() {
     setSession(null);
     setView({ kind: "list" });
   }
-  const global = !!session?.user.roles.some(
-    (role) =>
-      role.role === "platform_admin" ||
-      (role.role === "organizer" && role.scope_type === "global"),
+  const global = canManageCompetitions(session?.user);
+  const captainOnly = !!session && !global && session.user.roles.some(
+    (role) => role.role === "clan_captain",
   );
+  useEffect(() => {
+    if (captainOnly) setTab("clans");
+  }, [captainOnly]);
   async function openClan(clan: ManageClan) {
     setError("");
     setBusy(true);
@@ -189,7 +329,7 @@ export default function DirectoryManager() {
         />
       ) : view.kind !== "list" ? (
         <Editor
-          key={`${view.kind}-${view.kind === "clan" ? (view.clan?.id ?? "new") : view.kind === "player" ? (view.player?.id ?? "new") : (view.squad?.id ?? "new")}`}
+          key={`${view.kind}-${view.kind === "clan" ? (view.clan?.id ?? "new") : view.kind === "player" ? (view.player?.id ?? "new") : "new"}`}
           token={session.token}
           view={view}
           global={global}
@@ -200,27 +340,34 @@ export default function DirectoryManager() {
         <>
           <div className="manage-page-heading">
             <div>
-              <p className="manage-eyebrow">ORGANIZER WORKSPACE</p>
+              <p className="manage-eyebrow">
+                {captainOnly ? "CLAN CAPTAIN WORKSPACE" : "ORGANIZER WORKSPACE"}
+              </p>
               <h1>
-                Clans &amp; players<span>.</span>
+                {captainOnly ? "My clan & squads" : "Clans & players"}<span>.</span>
               </h1>
-              <p>Manage the community and its rosters.</p>
+              <p>
+                {captainOnly
+                  ? "Manage your clan, squads and players."
+                  : "Manage the community, squads and players."}
+              </p>
             </div>
-            <button
-              className="manage-primary"
-              onClick={() => {
-                setSuccess("");
-                setView(
-                  tab === "clans"
-                    ? { kind: "clan", clan: null }
-                    : { kind: "player", player: null },
-                );
-              }}
-              disabled={tab === "players" && !global}
-            >
-              <Icon name="plus" />
-              {tab === "clans" ? "Create clan" : "Register player"}
-            </button>
+            {global && (
+              <button
+                className="manage-primary"
+                onClick={() => {
+                  setSuccess("");
+                  setView(
+                    tab === "clans"
+                      ? { kind: "clan", clan: null }
+                      : { kind: "player", player: null },
+                  );
+                }}
+              >
+                <Icon name="plus" />
+                {tab === "clans" ? "Create clan" : "Register player"}
+              </button>
+            )}
           </div>
           <div className="directory-tabs" aria-label="Directory section">
             <button
@@ -234,17 +381,19 @@ export default function DirectoryManager() {
             >
               Clans &amp; squads
             </button>
-            <button
-              aria-pressed={tab === "players"}
-              onClick={() => {
-                setTab("players");
-                setQuery("");
-                setSearch("");
-                setPage(1);
-              }}
-            >
-              Players
-            </button>
+            {global && (
+              <button
+                aria-pressed={tab === "players"}
+                onClick={() => {
+                  setTab("players");
+                  setQuery("");
+                  setSearch("");
+                  setPage(1);
+                }}
+              >
+                Players
+              </button>
+            )}
           </div>
           <form
             className="directory-search"
@@ -296,7 +445,9 @@ export default function DirectoryManager() {
                       <article className="directory-clan" key={clan.id}>
                         <div className="directory-clan-head">
                           <div>
-                            <p className="manage-eyebrow">{clan.tag}</p>
+                            <p className="manage-eyebrow">
+                              {clan.tag || "Clan"}
+                            </p>
                             <h2>{clan.name}</h2>
                             <span>
                               {clan.squads.length}{" "}
@@ -327,8 +478,16 @@ export default function DirectoryManager() {
                           {clan.squads.map((squad) => (
                             <div className="directory-squad" key={squad.id}>
                               <div>
-                                <strong>{squad.name}</strong>
-                                <span>{squad.tag ?? "Squad"}</span>
+                                <strong className="directory-squad-name">
+                                  {squadIdentity({
+                                    name: squad.name,
+                                    squadNumber: squad.squad_number,
+                                    clanTag: clan.tag,
+                                    clanName: clan.name,
+                                    clanSquadCount: clan.squad_count ?? clan.squads.length,
+                                  })}
+                                </strong>
+                                <SquadPlayers token={session.token} squadId={squad.id} />
                               </div>
                               <button
                                 onClick={() =>
@@ -337,20 +496,18 @@ export default function DirectoryManager() {
                               >
                                 Roster
                               </button>
-                              <button
-                                onClick={() =>
-                                  setView({ kind: "squad", clan, squad })
-                                }
-                              >
-                                Edit
-                              </button>
+                              {session.user.roles.some((role) => role.role === "clan_captain" && role.scope_id === clan.id) && (
+                                <div className="directory-squad-entries">
+                                  <SquadSubmissions token={session.token} squadId={squad.id} />
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
                         <button
                           className="directory-add"
                           onClick={() =>
-                            setView({ kind: "squad", clan, squad: null })
+                              setView({ kind: "squad", clan })
                           }
                         >
                           + Add squad
@@ -445,7 +602,7 @@ function Editor({
     view.kind === "clan"
       ? (view.clan?.name ?? "")
       : view.kind === "squad"
-        ? (view.squad?.name ?? "")
+        ? nextSquadName(view.clan)
         : view.kind === "player"
           ? (view.player?.current_ign ?? "")
           : "",
@@ -453,9 +610,7 @@ function Editor({
   const [tag, setTag] = useState(
     view.kind === "clan"
       ? (view.clan?.tag ?? "")
-      : view.kind === "squad"
-        ? (view.squad?.tag ?? "")
-        : "",
+      : "",
   );
   const [bio, setBio] = useState(
     view.kind === "clan" ? (view.clan?.bio ?? "") : "",
@@ -483,10 +638,8 @@ function Editor({
         else await api.createClan(token, body);
         onSaved(view.clan ? "Clan updated." : "Clan created.");
       } else if (view.kind === "squad") {
-        const body = { name: name.trim(), tag: tag.trim() || null };
-        if (view.squad) await api.updateSquad(token, view.squad.id, body);
-        else await api.createSquad(token, view.clan.id, body);
-        onSaved(view.squad ? "Squad updated." : "Squad created.");
+        await api.createSquad(token, view.clan.id, {});
+        onSaved("Numbered squad created.");
       } else if (view.kind === "player") {
         const body = {
           current_ign: name.trim(),
@@ -518,9 +671,7 @@ function Editor({
         ? "Edit clan"
         : "Create clan"
       : view.kind === "squad"
-        ? view.squad
-          ? "Edit squad"
-          : "Add squad"
+        ? "Add squad"
         : view.player
           ? "Edit player"
           : "Register player";
@@ -539,7 +690,7 @@ function Editor({
         </h1>
         <p>
           {view.kind === "player"
-            ? "Use an existing player when adding someone to a roster."
+            ? "Use an existing player when adding someone to a squad."
             : "Keep details clear for players and organizers."}
         </p>
       </div>
@@ -550,22 +701,32 @@ function Editor({
           </div>
         )}
         <label className="manage-field">
-          {view.kind === "player"
-            ? "Player IGN"
-            : view.kind === "clan"
-              ? "Clan name"
-              : "Squad name"}
+          {view.kind === "squad"
+            ? "Automatically assigned squad name"
+            : view.kind === "player"
+              ? "Player IGN"
+              : "Clan name"}
           <input
-            autoFocus
-            required
+            autoFocus={view.kind !== "squad"}
+            required={view.kind !== "squad"}
+            readOnly={view.kind === "squad"}
             maxLength={view.kind === "player" ? 100 : 120}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+          {view.kind === "squad" && <span>
+            Numbered automatically and cannot be renamed. It will appear as {squadIdentity({
+              name,
+              squadNumber: Number(/^Squad\s+(\d+)$/i.exec(name)?.[1] ?? 0),
+              clanTag: view.clan.tag,
+              clanName: view.clan.name,
+              clanSquadCount: view.clan.squads.length + 1,
+            })}.
+          </span>}
         </label>
-        {view.kind !== "player" && (
+        {view.kind === "clan" && (
           <label className="manage-field">
-            Tag {view.kind === "squad" && <span>Optional</span>}
+            Clan tag
             <input
               required={view.kind === "clan"}
               maxLength={16}
@@ -615,7 +776,7 @@ function Editor({
             Cancel
           </button>
           <button className="manage-primary" disabled={busy}>
-            {busy ? "Saving…" : "Save changes"} <Icon name="arrow" />
+            {busy ? "Saving…" : view.kind === "squad" ? "Create squad" : "Save changes"} <Icon name="arrow" />
           </button>
         </div>
       </form>
@@ -648,30 +809,7 @@ function Roster({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [newIgn, setNewIgn] = useState("");
   const [newUid, setNewUid] = useState("");
-  async function addNew(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy("new");
-    setError("");
-    setSuccess("");
-    try {
-      await api.addNewRosterPlayer(
-        token,
-        squad.id,
-        newIgn.trim(),
-        newUid.trim() || null,
-      );
-      setRefresh((x) => x + 1);
-      setSuccess(`${newIgn.trim()} added to roster.`);
-      setNewIgn("");
-      setNewUid("");
-    } catch (err) {
-      setError(message(err));
-    } finally {
-      setBusy("");
-    }
-  }
   useEffect(() => {
     const c = new AbortController();
     setRoster({ status: "loading" });
@@ -684,6 +822,13 @@ function Roster({
       });
     return () => c.abort();
   }, [token, squad.id, refresh]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setSearch(query.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
   useEffect(() => {
     if (!search) {
       setPlayers(null);
@@ -712,9 +857,71 @@ function Roster({
     try {
       await api.addRosterPlayer(token, squad.id, player.id);
       setRefresh((x) => x + 1);
-      setSuccess(`${player.current_ign} added to roster.`);
+      setSuccess(`${player.current_ign} added to this squad.`);
+      setQuery("");
+      setSearch("");
+      setNewUid("");
     } catch (e) {
       setError(message(e));
+    } finally {
+      setBusy("");
+    }
+  }
+  async function addTyped(e: React.FormEvent) {
+    e.preventDefault();
+    const ign = query.trim();
+    if (
+      !ign ||
+      roster.status !== "ready" ||
+      players?.status !== "ready" ||
+      search !== ign
+    )
+      return;
+    setBusy("resolve");
+    setError("");
+    setSuccess("");
+    try {
+      // IGN is not unique. Check every search page before creating a player.
+      const first = await api.players(1, ign);
+      const pages = [first.data];
+      for (let index = 2; index <= first.meta.last_page; index += 4) {
+        const batch = await Promise.all(
+          Array.from(
+            { length: Math.min(4, first.meta.last_page - index + 1) },
+            (_, offset) => api.players(index + offset, ign),
+          ),
+        );
+        pages.push(...batch.map((result) => result.data));
+      }
+      const exact = pages
+        .flat()
+        .filter(
+          (player) =>
+            player.current_ign.toLocaleLowerCase() === ign.toLocaleLowerCase(),
+        );
+      if (exact.length > 1) {
+        setError(
+          "More than one player has this IGN. Select the correct player from the results.",
+        );
+      } else if (exact.length === 1) {
+        if (roster.data.some((member) => member.player_id === exact[0].id))
+          setError(`${exact[0].current_ign} is already in this squad.`);
+        else await add(exact[0]);
+      } else {
+        await api.addNewRosterPlayer(
+          token,
+          squad.id,
+          ign,
+          newUid.trim() || null,
+        );
+        setRefresh((value) => value + 1);
+        setSuccess(`${ign} created and added to this squad.`);
+        setQuery("");
+        setSearch("");
+        setNewUid("");
+      }
+    } catch (err) {
+      setError(message(err));
     } finally {
       setBusy("");
     }
@@ -722,7 +929,7 @@ function Roster({
   async function remove(member: RosterMember) {
     if (
       !window.confirm(
-        `Remove ${member.ign} from this roster? Previous match results remain unchanged.`,
+        `Remove ${member.ign} from this squad? Previous match results remain unchanged.`,
       )
     )
       return;
@@ -732,7 +939,7 @@ function Roster({
     try {
       await api.removeRosterPlayer(token, squad.id, member.player_id);
       setRefresh((x) => x + 1);
-      setSuccess(`${member.ign} removed from roster.`);
+      setSuccess(`${member.ign} removed from this squad.`);
     } catch (e) {
       setError(message(e));
     } finally {
@@ -747,12 +954,18 @@ function Roster({
       <div className="manage-form-heading">
         <p className="manage-eyebrow">{clan.name}</p>
         <h1>
-          {squad.name}
+          {squadIdentity({
+            name: squad.name,
+            squadNumber: squad.squad_number,
+            clanTag: clan.tag,
+            clanName: clan.name,
+            clanSquadCount: clan.squad_count ?? clan.squads.length,
+          })}
           <span>.</span>
         </h1>
         <p>
-          Roster members are eligible players. Actual game participants are
-          recorded with each result.
+          Players listed here can be selected when you enter results. Past
+          results stay unchanged.
         </p>
       </div>
       {success && (
@@ -768,12 +981,12 @@ function Roster({
       <section className="manage-panel">
         <div className="manage-panel-heading">
           <div>
-            <h2>Current roster</h2>
+            <h2>Players in this squad</h2>
           </div>
           <p>Removing a player does not remove their past results.</p>
         </div>
         {roster.status === "loading" ? (
-          <Notice text="Loading roster…" />
+          <Notice text="Loading players…" />
         ) : roster.status === "error" ? (
           <Notice
             text={roster.message}
@@ -797,7 +1010,7 @@ function Roster({
             ))}
           </div>
         ) : (
-          <Notice text="No players on this roster yet." />
+          <Notice text="No players have been added to this squad yet." />
         )}
       </section>
       <section className="manage-panel directory-find">
@@ -805,36 +1018,48 @@ function Roster({
           <div>
             <h2>Add a player</h2>
           </div>
-          <p>Search registered players by IGN to avoid duplicates.</p>
+          <p>Search by IGN, then add the right player (or create a new profile).</p>
         </div>
-        <form
-          className="directory-search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setPage(1);
-            setSearch(query.trim());
-          }}
-        >
+        <form className="directory-search" onSubmit={addTyped}>
           <label>
-            <span className="sr-only">Search player IGN</span>
+            <span className="sr-only">Player IGN</span>
             <input
-              placeholder="Search player IGN"
+              placeholder="Type player IGN"
               required
               value={query}
               maxLength={100}
-              onChange={(e) => setQuery(e.target.value)}
+              autoComplete="off"
+              disabled={!!busy}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setError("");
+                setSuccess("");
+              }}
             />
           </label>
-          <button>Search</button>
+          <button
+            disabled={
+              !!busy ||
+              roster.status !== "ready" ||
+              !query.trim() ||
+              search !== query.trim() ||
+              players?.status !== "ready"
+            }
+          >
+            {busy === "resolve" ? "Adding…" : "Add player"}
+          </button>
         </form>
-        {players?.status === "loading" && <Notice text="Searching players…" />}
-        {players?.status === "error" && (
+        {query.trim() &&
+          (search !== query.trim() || players?.status === "loading") && (
+            <Notice text="Searching players…" />
+          )}
+        {search === query.trim() && players?.status === "error" && (
           <Notice
             text={players.message}
             retry={() => setSearchRetry((value) => value + 1)}
           />
         )}
-        {players?.status === "ready" && (
+        {search === query.trim() && !!search && players?.status === "ready" && (
           <>
             <div className="directory-player-list">
               {players.data.data.map((player) => {
@@ -844,13 +1069,16 @@ function Roster({
                 return (
                   <div className="directory-player-row" key={player.id}>
                     <strong>{player.current_ign}</strong>
+                    <a href={`/players/${encodeURIComponent(player.id)}`}>
+                      View
+                    </a>
                     <button
                       type="button"
                       disabled={!!busy || roster.status !== "ready" || member}
                       onClick={() => add(player)}
                     >
                       {member
-                        ? "On roster"
+                        ? "In squad"
                         : busy === player.id
                           ? "Adding…"
                           : "+ Add"}
@@ -859,9 +1087,12 @@ function Roster({
                 );
               })}
               {!players.data.data.length && (
-                <Notice text="No players found. You can register a new player below." />
+                <Notice text="No matching players. Add player to create a new profile." />
               )}
             </div>
+            {!!players.data.data.length && (
+              <p>No exact match? Add player creates a new player profile.</p>
+            )}
             {players.data.last > 1 && (
               <div className="directory-pager">
                 <button
@@ -884,30 +1115,17 @@ function Roster({
           </>
         )}
         <details className="manage-advanced">
-          <summary>Register a new player</summary>
-          <p>Search first to avoid duplicates. UID is optional and private.</p>
-          <form onSubmit={addNew} className="directory-editor">
-            <label className="manage-field">
-              Player IGN
-              <input
-                required
-                maxLength={100}
-                value={newIgn}
-                onChange={(e) => setNewIgn(e.target.value)}
-              />
-            </label>
-            <label className="manage-field">
-              CODM UID <span>Optional</span>
-              <input
-                maxLength={64}
-                value={newUid}
-                onChange={(e) => setNewUid(e.target.value)}
-              />
-            </label>
-            <button className="manage-primary" disabled={!!busy}>
-              {busy === "new" ? "Adding…" : "Add new player"}
-            </button>
-          </form>
+          <summary>CODM UID (optional)</summary>
+          <p>Used only when creating a player. The UID is private.</p>
+          <label className="manage-field">
+            CODM UID
+            <input
+              maxLength={64}
+              value={newUid}
+              disabled={!!busy}
+              onChange={(e) => setNewUid(e.target.value)}
+            />
+          </label>
         </details>
       </section>
     </>

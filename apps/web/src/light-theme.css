@@ -1,0 +1,187 @@
+/* ArewaVanta light theme: warm paper, forest green, sage and coral. */
+:root {
+  color-scheme: light;
+  --paper: #202a22;
+  --canvas: #f6f5ef;
+  --ink: #e8eee5;
+  --muted: #59675b;
+  --line: #d9dfd5;
+  --dark: #edf1e9;
+}
+
+body { background: #f6f5ef; color: #202a22; }
+
+/* The public homepage is themed by home-studio.css. */
+.hv-page {
+  --hv-bg: #f6f5ef;
+  --hv-bg-deep: #e8eee5;
+  --hv-panel: #fffefa;
+  --hv-panel-2: #edf1e9;
+  --hv-line: #d8dfd4;
+  --hv-line-strong: #aebba9;
+  --hv-paper: #202a22;
+  --hv-dim: #526054;
+  --hv-faint: #68776a;
+  --hv-ink: #17281b;
+  --hv-sage: #71876b;
+  --hv-sand: #9b753e;
+}
+
+/* Public pages */
+.public-page, .lb-page { background: #f6f5ef; color: #202a22; }
+.public-header, .lb-site-header { background: #e9eee6; border-color: #d5ddd2; }
+.public-header nav a, .lb-site-header nav a { color: #405544; }
+.public-header nav a[aria-current], .lb-site-header nav a[aria-current] { color: #a94334; }
+.public-page h1, .public-page h2, .public-page h3,
+.public-page strong, .public-page .public-back,
+.public-page .public-event-row p, .public-page .public-event-row small,
+.public-page .public-facts, .public-page .public-facts strong,
+.public-page .public-table, .public-page .public-table th,
+.public-page .public-table td, .public-page .public-game-info,
+.public-page .public-note { color: #26352a; }
+.public-page :is(.public-kicker, .public-row-label, .public-section-title .public-kicker) { color: #a94334; }
+.public-page .public-intro > p:not(.public-kicker),
+.public-page .public-event-row p, .public-page .public-event-row small,
+.public-page .public-facts, .public-page .public-game-info small,
+.public-page .public-note, .public-page .public-person-row small,
+.public-page .public-player-stats span { color: #526054; }
+.public-page .public-back, .public-page .public-inline-link,
+.public-page .public-text-link, .public-page .public-game > .icon,
+.public-page .public-event-row > .icon { color: #a94334; }
+.public-event-row, .public-game, .public-notice, .public-result,
+.public-squads > div, .public-player-stats > div, .public-person-row {
+  background: #fffefa;
+  border-color: #d8dfd4;
+}
+.public-filters button, .public-days button { background: #edf1e9; color: #344337; border-color: #cbd5c9; }
+.public-filters button[aria-pressed="true"], .public-days button[aria-pressed="true"] { color: #fffefa; background: #31583a; border-color: #31583a; }
+.public-table thead th, .public-player-table thead th { background: #e8eee5; color: #344337; }
+.public-footer, .lb-footer { background: #203a28; color: #f5f4ed; }
+.public-footer .brand > span, .lb-footer .brand > span { color: #f5f4ed; }
+.public-footer :is(p, small, a), .lb-footer :is(p, small, a) { color: #e0e9dc; }
+
+/* Standings keep a strong table hierarchy while moving to bright, readable surfaces. */
+.lb-site-header nav a, .lb-page-title p, .lb-event-context,
+.lb-overline, .lb-demo-note span, .lb-rules, .lb-table-note,
+.lb-identity small, .lb-detail-stats span, .lb-pagination,
+.lb-empty p, .lb-preview-foot { color: #526054; }
+.lb-page-title h1, .lb-results-heading h2, .lb-preview h2,
+.lb-identity strong, .lb-score strong, .lb-event-context strong,
+.lb-table td, .lb-table th, .lb-podium h3, .lb-podium-card > p,
+.lb-detail-stats strong { color: #202a22; }
+.lb-competition-bar, .lb-tabs, .lb-podium-card, .lb-table-wrap,
+.lb-detail-content, .lb-detail-stats > div, .lb-game-chart,
+.lb-search, .lb-search input, .lb-sort, .lb-sort select, .lb-empty,
+.lb-tools, .lb-event-picker select {
+  background: #fffefa;
+  border-color: #d8dfd4;
+  color: #26352a;
+}
+.lb-tabs > button { color: #425246; }
+.lb-tools { background: #edf1e9; border-color: #d8dfd4; }
+.lb-search input, .lb-sort select, .lb-event-picker select { color: #26352a; }
+.lb-search input::placeholder { color: #69786a; }
+.lb-sort > span, .lb-event-picker label > span { color: #59675b; }
+.lb-event-picker > .icon { color: #547454; }
+.lb-tabs > button[aria-selected="true"] { background: #31583a; color: #fffefa; box-shadow: none; }
+.lb-table thead { background: #e8eee5; }
+.lb-result-row, .lb-result-row:nth-of-type(4n + 1) { background: #fffefa; }
+.lb-row-leader { background: #eff3ea; }
+
+/* Organizer workspaces use white and pale sage work surfaces under a deep green masthead. */
+.manage-page { background: #f6f5ef; color: #26352a; }
+.manage-header { background: #203a28; border-color: #36533b; }
+.manage-header .brand > span, .manage-head-actions a, .manage-head-actions button { color: #f5f4ed; }
+.manage-bar { background: #e7eee5; border-color: #d0dbce; color: #26352a; }
+.manage-bar span, .manage-bar small, .manage-bar strong { color: #405544; }
+.manage-bar strong { border-color: #bdcbb9; }
+.manage-page h1, .manage-page h2, .manage-page h3,
+.manage-form-heading > p:last-child, .manage-page-heading p:last-child,
+.manage-date, .manage-meta, .manage-event-status, .manage-workspace-date,
+.manage-workspace-description, .manage-workspace-section-title h2,
+.manage-workspace-capacity > span, .manage-workspace-results-count > span,
+.manage-workspace-lineup, .manage-workspace-series-settings p,
+.manage-workspace-series-settings label, .manage-page .manage-back,
+.manage-page .manage-panel, .manage-page .manage-panel p,
+.manage-page .manage-panel label, .manage-page .manage-panel strong,
+.manage-page .manage-field, .manage-page .manage-login { color: #26352a; }
+.manage-event, .manage-panel, .manage-notice, .manage-empty,
+.manage-workspace-squads, .manage-workspace-games,
+.manage-workspace-lineup li, .manage-workspace-series-settings > div,
+.manage-workspace-end-confirm, .directory-clan, .directory-player-list,
+.directory-submissions, .directory-squad, .directory-player-row,
+.directory-opportunity, .directory-past-submissions > div,
+.results-schedule, .results-list, .results-squad {
+  background-color: #fffefa;
+  border-color: #d8dfd4;
+  color: #26352a;
+}
+.manage-event { border-left-color: #d85a43; }
+.manage-event-actions { border-color: #d8dfd4; }
+.manage-event-actions button, .manage-event-actions a:not(.manage-primary),
+.manage-workspace-series-settings summary, .manage-workspace-series-feedback,
+.manage-workspace-week-off, .directory-clan-head span,
+.directory-squad span, .directory-squad-players, .directory-pager,
+.directory-player-row a, .directory-submission-state,
+.results-heading > p:last-child, .results-title p, .results-state,
+.results-participate small, .results-squad-body { color: #526054; }
+.manage-workspace-squads { background: #e8f0e5; border-color: #c7d7c2; }
+.manage-workspace-games { background: #edf2ee; border-color: #d2ded5; }
+.manage-workspace-heading h1, .manage-workspace-capacity > strong,
+.manage-workspace-results-count > strong { color: #203a28; }
+.manage-workspace-heading .manage-eyebrow,
+.manage-workspace-section-icon, .manage-workspace-date .icon,
+.manage-workspace-scoring > .icon { color: #547454; }
+.manage-page .manage-workspace-lineup strong,
+.manage-page .manage-workspace-days strong,
+.manage-page .manage-workspace-scoring strong { color: #26352a; }
+.manage-page .manage-workspace-lineup li small:not(.manage-workspace-slot small),
+.manage-page .manage-workspace-days small,
+.manage-page .manage-workspace-scoring small { color: #59675b; }
+.manage-page .manage-workspace-slot,
+.manage-page .manage-workspace-clan-mark { background: #31583a; color: #fffefa; }
+.manage-page .manage-workspace-slot small { color: #e1ebdc; }
+.manage-page .manage-workspace-day-mark { background: #dce7d9; color: #31583a; }
+.manage-page .manage-workspace-squad-tabs { background: #dfe8dd; }
+.manage-page .manage-workspace-squad-tabs button { color: #405544; }
+.manage-page .manage-workspace-squad-tabs button[aria-pressed="true"] { background: #31583a; color: #fffefa; box-shadow: none; }
+.manage-page .manage-workspace-entries-link { background: #cfe0c8; color: #203a28; }
+.manage-page .manage-workspace-results-link { background: #31583a; border-color: #31583a; color: #fffefa; }
+.manage-page .manage-workspace-settings > a { color: #31583a; border-color: #d0dbce; }
+.manage-workspace-series-status { color: #26352a; }
+.manage-workspace-series-status b { background: #dce9d8; color: #31583a; }
+.manage-workspace-series-status.is-paused b,
+.manage-workspace-series-status.is-ended b { background: #f4e9ce; color: #765c2b; }
+.manage-workspace-series-horizon { margin-top: 2px; color: #526054; font-size: 12px; line-height: 1.5; }
+.manage-workspace-weeks a { background: #fffefa; border-color: #d1dbce; color: #405544; }
+.manage-workspace-weeks a[aria-current="page"] { background: #31583a; border-color: #31583a; color: #fffefa; }
+.manage-workspace-series-actions button, .manage-workspace-end-confirm button {
+  background: #e8eee5; border-color: #bdcbb9; color: #29432e;
+}
+.manage-primary { background: #d74733; color: white; }
+.manage-secondary { background: #e8eee5; border-color: #c2d0bf; color: #29432e; }
+.manage-page input, .manage-page select, .manage-page textarea {
+  background: #fffefa; border-color: #bac8b8; color: #26352a;
+}
+.manage-page .manage-login label, .manage-page .manage-login > p:not(.manage-eyebrow),
+.manage-page .manage-field > span, .manage-page .manage-field label { color: #405544; }
+.manage-page .manage-login input, .manage-page .manage-field input,
+.manage-page .manage-field select, .manage-page .manage-field textarea {
+  background: #fffefa !important; border-color: #bac8b8; color: #26352a !important;
+}
+.manage-page .manage-auth-link { color: #a94334; }
+.manage-page input::placeholder, .manage-page textarea::placeholder { color: #778477; }
+.manage-notice, .manage-empty { background: #edf2ea; }
+.manage-success { background: #e4efe0; border-color: #adc5a4; color: #31583a; }
+.manage-error { background: #fff0ec; border-color: #e5b4a7; color: #8e382b; }
+.directory-tabs button, .directory-search button, .directory-pager button {
+  color: #344337; background: #e8eee5; border-color: #cbd5c9;
+}
+.directory-tabs button[aria-pressed="true"] { background: #31583a; border-color: #31583a; color: white; }
+.directory-mark { background: #e5ece2; color: #bc4938; }
+.directory-clan-tag { color: #a63f30 !important; border-color: #d9b7ae; }
+.directory-squad button, .directory-player-row button, .directory-add,
+.directory-clan-head button, .directory-person button { color: #a94334; }
+.results-games button { background: #fffefa; border-color: #d0dbce; color: #26352a; }
+.results-games button[aria-pressed="true"] { background: #f7e9e4; border-color: #d9826d; }
+.manage-page .results-placement input, .manage-page .results-kills input { background: #fffefa; color: #26352a; }

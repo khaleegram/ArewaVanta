@@ -11,22 +11,34 @@ export type ApiPage<T> = {
 };
 export type ApiData<T> = { data: T };
 export type SeasonRef = { id: Id; name: string };
-export type ClanRef = { name: string; tag: string | null };
+export type ClanRef = { name: string; tag: string | null; squad_count?: number };
 export type PublicClan = {
   id: Id;
   name: string;
   slug: string;
   tag: string | null;
   bio: string | null;
-  squads: { id: Id; name: string; slug: string; tag: string | null }[];
+  squad_count?: number;
+  squads: { id: Id; name: string; squad_number?: number; slug: string; tag: string | null }[];
 };
 export type PublicSquad = {
   id: Id;
   name: string;
+  squad_number?: number;
   slug: string;
   tag: string | null;
-  clan: { id: Id; name: string; slug: string; tag: string | null };
+  clan: { id: Id; name: string; slug: string; tag: string | null; squad_count?: number };
   roster: { id: Id; ign: string }[];
+};
+export type SquadHistoryEntry = {
+  event: Pick<EventSummary, "id" | "title" | "slug" | "start_date" | "end_date">;
+  rank: number;
+  matches_played: number;
+  total_kills: number;
+  wins: number;
+  total_points: string;
+  uses_mixed_scoring_presets: boolean;
+  scored_match_count: number;
 };
 export type PublicPlayer = { id: Id; current_ign: string };
 export type ManageClan = {
@@ -34,7 +46,8 @@ export type ManageClan = {
   name: string;
   slug: string;
   tag: string;
-  squads: { id: Id; name: string; slug: string; tag: string | null }[];
+  squad_count?: number;
+  squads: { id: Id; name: string; squad_number?: number; slug: string; tag: string | null }[];
 };
 export type ClanEditResponse = {
   id: Id;
@@ -47,6 +60,7 @@ export type ManageSquad = {
   id: Id;
   clan_id: Id;
   name: string;
+  squad_number?: number;
   slug: string;
   tag: string | null;
 };
@@ -71,11 +85,15 @@ export type ManagePerson = {
 export type SquadRef = {
   id: Id;
   name: string;
+  squad_number?: number;
   slug: string;
   tag: string | null;
   clan: ClanRef;
 };
 export type EventSummary = {
+  series_id?: Id | null;
+  skipped_at?: string | null;
+  skip_reason?: string | null;
   id: Id;
   title: string;
   competition_type?: "scrim" | "league" | "tournament" | null;
@@ -87,6 +105,7 @@ export type EventSummary = {
   match_count: number;
   scored_match_count: number;
   squad_count?: number;
+  squad_capacity?: number;
 };
 export type PublicMatch = {
   id: Id;
@@ -101,8 +120,11 @@ export type PublicMatch = {
 export type PublicSquadResult = {
   squad_id: Id;
   squad_name: string;
+  squad_number?: number | null;
   squad_slug: string | null;
   clan_name: string | null;
+  clan_tag?: string | null;
+  clan_squad_count?: number | null;
   participation_status: "present" | "absent";
   placement: number | null;
   team_kills: number;
@@ -111,9 +133,10 @@ export type PublicSquadResult = {
 export type PublicEvent = EventSummary & {
   description?: string | null;
   maximum_position: number;
+  squad_capacity: number;
   squad_size: number;
   default_scoring: { preset_name: string | null; mode: string | null };
-  squads: SquadRef[];
+  squads: (SquadRef & { slot_number: number | null })[];
   days: {
     id: Id;
     date: string;
@@ -168,8 +191,9 @@ export type PlayerProfile = {
   current_squads?: {
     id: Id;
     name: string;
+    squad_number?: number;
     slug: string;
-    clan: { name: string; slug: string };
+    clan: { name: string; slug: string; tag: string | null; squad_count?: number };
   }[];
   uid: string | null;
   appearances: number;
@@ -187,6 +211,12 @@ export type PlayerProfile = {
     event_slug: string;
     squad_id: Id;
     squad_name_snapshot: string;
+    squad_name: string;
+    squad_slug: string;
+    squad_number: number;
+    clan_name: string;
+    clan_tag: string;
+    clan_squad_count: number;
   }[];
   history_meta: { current_page: number; last_page: number; total: number };
 };
@@ -229,6 +259,8 @@ export type CompetitionTemplate = {
   }[];
 };
 export type ManageEventSummary = {
+  series_id?: Id | null;
+  skipped_at?: string | null;
   id: Id;
   title: string;
   slug: string;
@@ -237,8 +269,21 @@ export type ManageEventSummary = {
   start_date: string | null;
   match_count: number;
   scored_match_count: number;
+  squad_count: number;
+  squad_capacity: number;
+  pending_submission_count: number;
+};
+export type RecurrenceAction = "start" | "pause" | "resume" | "end" | "skip" | "restore";
+export type ScrimRecurrence = {
+  id: Id;
+  state: "active" | "paused" | "ended";
+  next_week_date: string | null;
+  weeks: { id: Id; slug: string; start_date: string | null; end_date: string | null; skipped_at: string | null; skip_reason: string | null }[];
 };
 export type ManageEvent = {
+  skipped_at?: string | null;
+  skip_reason?: string | null;
+  recurrence?: ScrimRecurrence | null;
   id: Id;
   title: string;
   description: string | null;
@@ -247,6 +292,7 @@ export type ManageEvent = {
   visibility: "public" | "private";
   timezone: string;
   squad_size: number;
+  squad_capacity: number;
   maximum_position: number;
   season?: SeasonRef | null;
   scoring: {
@@ -271,17 +317,25 @@ export type ManageEvent = {
       expected_squads: {
         id: Id;
         name: string;
+        squad_number?: number;
         tag: string | null;
         clan: string;
+        clan_tag: string | null;
+        clan_squad_count?: number;
+        slot_number: number | null;
       }[];
     }[];
   }[];
   squads?: {
     id: Id;
     name: string;
+    squad_number?: number;
     tag: string | null;
     clan: string;
-    seed: number | null;
+    clan_tag: string | null;
+    clan_squad_count?: number;
+    slot_number: number | null;
+    seed?: number | null;
   }[];
 };
 export type ScoringPreset = {
@@ -305,6 +359,7 @@ export type ScheduleInput = {
   games: { id: Id | null; map_code: string; map_label: string }[];
 }[];
 export type CreateEventInput = {
+  days?: ScheduleInput;
   title: string;
   description?: string | null;
   competition_type?: "scrim" | "league" | "tournament" | null;
@@ -312,11 +367,63 @@ export type CreateEventInput = {
   season_id?: Id | null;
   scoring_rule_version_id?: Id | null;
   dates?: string[];
-  squad_ids?: Id[];
   timezone?: string;
   maximum_position?: number;
   squad_size?: number;
+  squad_capacity?: number;
   visibility?: "public" | "private";
+};
+export type CaptainSquadSubmissions = {
+  squad_id: Id;
+  clan: { name: string; tag: string };
+  opportunities: {
+    id: Id;
+    title: string;
+    slug: string;
+    competition_type: "scrim" | "league" | "tournament" | null;
+    start_date: string | null;
+    squad_capacity: number;
+    squad_count: number;
+    status: "pending" | "selected" | "not_selected" | "withdrawn" | null;
+    submission_id: Id | null;
+  }[];
+  submissions: {
+    id: Id;
+    status: "pending" | "selected" | "not_selected" | "withdrawn";
+    submitted_at: string | null;
+    event: {
+      id: Id;
+      title: string;
+      slug: string;
+      start_date: string | null;
+      squad_capacity: number;
+    };
+  }[];
+};
+export type EventSubmissionReview = {
+  event: {
+    id: Id;
+    title: string;
+    squad_capacity: number;
+    selected_count: number;
+    pending_count: number;
+  };
+  clans: {
+    id: Id;
+    name: string;
+    tag: string;
+    squads: {
+      submission_id: Id;
+      id: Id;
+      name: string;
+      squad_number?: number;
+      clan_squad_count?: number;
+      status: "pending" | "selected" | "not_selected";
+      slot_number: number | null;
+      submitted_at: string | null;
+      players: string[];
+    }[];
+  }[];
 };
 export type MatchResultInput = {
   squad_id: Id;
@@ -326,11 +433,15 @@ export type MatchResultInput = {
 };
 export type SavedResult = {
   saved_at: string | null;
+  lock_version: number;
   results: {
     squad_id: Id;
     squad_name: string;
+    squad_number?: number | null;
     squad_slug: string | null;
     clan_name: string | null;
+    clan_tag?: string | null;
+    clan_squad_count?: number | null;
     participation_status: "present" | "absent";
     placement: number | null;
     team_kills: number;
@@ -372,8 +483,12 @@ export type ResultSheet = {
   squads: {
     id: Id;
     name: string;
+    squad_number?: number;
     tag: string | null;
     clan: string;
+    clan_tag: string;
+    clan_squad_count?: number;
+    slot_number: number | null;
     eligible_players: { id: Id; ign: string }[];
   }[];
   result: SavedResult | null;

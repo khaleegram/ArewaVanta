@@ -172,6 +172,26 @@ for (const width of [360, 390, 430, 1440]) {
           roster: [{ id: "p1", ign: "ACE" }],
         },
       },
+      "/api/v1/squads/kano-squad/history": {
+        data: [
+          {
+            event: {
+              id: event.id,
+              title: event.title,
+              slug: event.slug,
+              start_date: event.start_date,
+              end_date: event.end_date,
+            },
+            rank: 1,
+            matches_played: 1,
+            total_kills: 10,
+            wins: 0,
+            total_points: "19.00",
+            uses_mixed_scoring_presets: false,
+            scored_match_count: 1,
+          },
+        ],
+      },
       "/api/v1/players": { data: [{ id: "p1", current_ign: "ACE" }], meta },
       "/api/v1/players/p1": { data: profile },
     };

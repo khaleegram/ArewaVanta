@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api/client";
+import { activityFullTime, activityText, activityTime } from "./presentation";
 type Data = {
   items: {
     id: number;
@@ -57,11 +58,11 @@ export default function AdminAlerts({ token }: { token: string }) {
   }, [token]);
   async function toggle() {
     if (!data?.push_public_key) {
-      setError("Push notifications are not configured yet.");
+      setError("Browser notifications aren’t available yet.");
       return;
     }
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      setError("Push notifications are not supported in this browser.");
+      setError("This browser doesn’t support notifications.");
       return;
     }
     setBusy(true);
@@ -78,7 +79,9 @@ export default function AdminAlerts({ token }: { token: string }) {
       } else {
         const permission = await Notification.requestPermission();
         if (permission !== "granted")
-          throw new Error("Allow notifications in your browser settings.");
+          throw new Error(
+            "Notifications are blocked. Allow them in your browser settings and try again.",
+          );
         const subscription = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: keyBytes(data.push_public_key) as BufferSource,
@@ -93,7 +96,9 @@ export default function AdminAlerts({ token }: { token: string }) {
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Could not update notifications.",
+        err instanceof Error
+          ? err.message
+          : "We couldn’t update your notification settings.",
       );
     } finally {
       setBusy(false);
@@ -118,7 +123,7 @@ export default function AdminAlerts({ token }: { token: string }) {
       setError(
         err instanceof ApiError
           ? err.message
-          : "Could not mark notifications read.",
+          : "We couldn’t mark your updates as read.",
       );
     }
   }
@@ -136,10 +141,10 @@ export default function AdminAlerts({ token }: { token: string }) {
         )}
       </button>
       {open && (
-        <section className="admin-alert-panel" aria-label="Admin activity">
+        <section className="admin-alert-panel" aria-label="Recent activity">
           <div className="admin-alert-heading">
-            <strong>Community activity</strong>
-            {data.unread > 0 && <button onClick={read}>Mark read</button>}
+            <strong>Recent activity</strong>
+            {data.unread > 0 && <button onClick={read}>Mark all read</button>}
           </div>
           <button
             className="admin-push-toggle"
@@ -149,8 +154,8 @@ export default function AdminAlerts({ token }: { token: string }) {
             {busy
               ? "Updating…"
               : subscribed
-                ? "Turn off browser push"
-                : "Enable browser push"}
+                ? "Turn off notifications"
+                : "Enable notifications"}
           </button>
           {error && (
             <p className="admin-alert-error" role="alert">
@@ -161,17 +166,9 @@ export default function AdminAlerts({ token }: { token: string }) {
             {data.items.length ? (
               data.items.map((item) => (
                 <div key={item.id} className={item.read_at ? "" : "unread"}>
-                  <p>{item.message}</p>
-                  <small>
-                    {new Date(
-                      item.created_at.endsWith("Z")
-                        ? item.created_at
-                        : item.created_at.replace(" ", "T") + "Z",
-                    ).toLocaleString("en-NG", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                      timeZone: "Africa/Lagos",
-                    })}
+                  <p>{activityText(item.message)}</p>
+                  <small title={activityFullTime(item.created_at)}>
+                    {activityTime(item.created_at)}
                   </small>
                 </div>
               ))

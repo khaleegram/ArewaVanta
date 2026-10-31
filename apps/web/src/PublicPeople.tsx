@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { api } from "./api/client";
-import { allPublicEvents } from "./api/events";
-import type { EventStandings, EventSummary } from "./api/types";
+import type { SquadHistoryEntry } from "./api/types";
 import { Shell, Notice, dateText, useLoad } from "./PublicCompetitions";
+import { countLabel, squadIdentity } from "./presentation";
 import { Icon } from "./ui";
 
 const clanUrl = (slug: string) => `/clans/${encodeURIComponent(slug)}`;
@@ -70,59 +70,24 @@ export function ClanListing() {
   );
   return (
     <Shell>
-      <div className="public-intro">
-        <p className="public-kicker">AREWA CODM COMMUNITY</p>
-        <h1>
-          Clans<span>.</span>
-        </h1>
-        <p>Explore clans and their squads.</p>
-      </div>
-      <DirectorySearch
-        label="Search clans"
-        onSearch={(value) => {
-          setPage(1);
-          setSearch(value);
-        }}
-      />
-      <Notice
-        state={clans}
-        retry={retry}
-        empty={
-          clans.status === "ready" && !clans.data.data.length
-            ? "No clans found."
-            : undefined
-        }
-      />
-      <div className="public-list">
-        {clans.status === "ready" &&
-          clans.data.data.map((clan) => (
-            <a
-              key={clan.id}
-              href={clanUrl(clan.slug)}
-              className="public-person-row"
-            >
-              <span className="public-squad-mark">
-                {(clan.tag || clan.name).slice(0, 2).toUpperCase()}
-              </span>
-              <span>
-                <strong>{clan.name}</strong>
-                <small>
-                  {clan.tag ? `${clan.tag} · ` : ""}
-                  {clan.squads.length}{" "}
-                  {clan.squads.length === 1 ? "squad" : "squads"}
-                </small>
-              </span>
-              <Icon name="arrow" />
+      <div className="public-clans-index">
+        <header className="public-clans-heading">
+          <div><p className="public-kicker">AREWA CODM COMMUNITY</p><h1>Clans<span>.</span></h1><p>Find a clan and see the squads representing it.</p></div>
+          {clans.status === "ready" && <span className="public-clans-count">{clans.data.meta.total} registered</span>}
+        </header>
+        <DirectorySearch label="Search clans" onSearch={(value) => { setPage(1); setSearch(value); }} />
+        <Notice state={clans} retry={retry} empty={clans.status === "ready" && !clans.data.data.length ? "No clans found." : undefined} />
+        <div className="public-clans-list">
+          {clans.status === "ready" && clans.data.data.map((clan) => (
+            <a key={clan.id} href={clanUrl(clan.slug)} className="public-clan-index-row">
+              <span className="public-clan-index-tag">{clan.tag || "CLAN"}</span>
+              <span className="public-clan-index-copy"><strong>{clan.name}</strong><small>{clan.squads.length} {clan.squads.length === 1 ? "squad" : "squads"}</small></span>
+              <span className="public-clan-index-open">View <Icon name="arrow" /></span>
             </a>
           ))}
+        </div>
+        {clans.status === "ready" && <Pager page={clans.data.meta.current_page} last={clans.data.meta.last_page} onChange={setPage} />}
       </div>
-      {clans.status === "ready" && (
-        <Pager
-          page={clans.data.meta.current_page}
-          last={clans.data.meta.last_page}
-          onChange={setPage}
-        />
-      )}
     </Shell>
   );
 }
@@ -133,93 +98,50 @@ export function ClanPage({ slug }: { slug: string }) {
   );
   return (
     <Shell>
-      <a className="public-back" href="/clans">
-        ← All clans
-      </a>
-      <Notice state={clan} retry={retry} />
-      {clan.status === "ready" && (
+      <div className="public-clan-profile">
+        <a className="public-back" href="/clans">← All clans</a>
+        <Notice state={clan} retry={retry} />
+        {clan.status === "ready" && (
         <>
-          <div className="public-intro public-detail-intro">
-            <p className="public-kicker">
-              CLAN {clan.data.tag ? `· ${clan.data.tag}` : ""}
-            </p>
-            <h1>
-              {clan.data.name}
-              <span>.</span>
-            </h1>
-            {clan.data.bio && <p>{clan.data.bio}</p>}
-          </div>
-          <section className="public-section">
-            <div className="public-section-title">
-              <div>
-                <p className="public-kicker">THE ROSTER</p>
-                <h2>
-                  Squads<span>.</span>
-                </h2>
-              </div>
+          <header className="public-clan-hero">
+            <span className="public-clan-hero-tag">{clan.data.tag || "CLAN"}</span>
+            <div><p className="public-kicker">AREWA CLAN</p><h1>{clan.data.name}<span>.</span></h1>{clan.data.bio && <p>{clan.data.bio}</p>}</div>
+            <span className="public-clan-hero-count">{clan.data.squads.length}<small>{clan.data.squads.length === 1 ? "SQUAD" : "SQUADS"}</small></span>
+          </header>
+          <section className="public-clan-squads">
+            <div className="public-clan-section-head"><div><p className="public-kicker">THE LINEUP</p><h2>Clan squads<span>.</span></h2></div><span>{clan.data.squads.length}</span></div>
+            <div className="public-clan-squad-list">
+              {clan.data.squads.length ? (
+              <>
+              {clan.data.squads.map((squad) => (
+                <a key={squad.id} href={squadUrl(squad.slug)} className="public-clan-squad-row">
+                  <span className="public-clan-squad-no">{squad.squad_number == null ? "—" : String(squad.squad_number).padStart(2, "0")}</span>
+                  <span><strong>{squadIdentity({ name: squad.name, squadNumber: squad.squad_number, clanTag: clan.data.tag, clanName: clan.data.name, clanSquadCount: clan.data.squad_count ?? clan.data.squads.length })}</strong><small>{clan.data.tag} · {clan.data.name}</small></span>
+                  <Icon name="arrow" />
+                </a>
+              ))}
+              </>
+              ) : (
+                <div className="public-notice">No squads registered yet.</div>
+              )}
             </div>
-            {clan.data.squads.length ? (
-              <div className="public-list">
-                {clan.data.squads.map((squad) => (
-                  <a
-                    key={squad.id}
-                    href={squadUrl(squad.slug)}
-                    className="public-person-row"
-                  >
-                    <span className="public-squad-mark">
-                      {(squad.tag || squad.name).slice(0, 2).toUpperCase()}
-                    </span>
-                    <span>
-                      <strong>{squad.name}</strong>
-                      <small>{squad.tag ?? "Squad"}</small>
-                    </span>
-                    <Icon name="arrow" />
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <div className="public-notice">No squads registered yet.</div>
-            )}
           </section>
         </>
       )}
+      </div>
     </Shell>
   );
 }
-type SquadHistory = { event: EventSummary; standings: EventStandings }[];
-async function squadHistory(
-  id: string,
-  signal: AbortSignal,
-): Promise<SquadHistory> {
-  const events = (await allPublicEvents(signal)).filter(
-    (event) => event.scored_match_count > 0,
+function SquadPerformance({ slug }: { slug: string }) {
+  const [history, retry] = useLoad(
+    (signal) => api.squadHistory(slug, signal).then((response) => response.data),
+    slug,
   );
-  const collected: SquadHistory = [];
-  for (let index = 0; index < events.length; index += 4) {
-    const batch = events.slice(index, index + 4);
-    const responses = await Promise.all(
-      batch.map((event) => api.eventStandings(event.slug, signal)),
-    );
-    responses.forEach((response, offset) => {
-      if (
-        response.data.standings.some(
-          (row) => row.squad.id === id && row.matches_played > 0,
-        )
-      )
-        collected.push({ event: batch[offset], standings: response.data });
-    });
-  }
-  return collected.sort((a, b) =>
-    (b.event.end_date ?? "").localeCompare(a.event.end_date ?? ""),
-  );
-}
-function SquadPerformance({ id }: { id: string }) {
-  const [history, retry] = useLoad((signal) => squadHistory(id, signal), id);
   return (
-    <section className="public-section">
+    <section className="public-section public-squad-performance">
       <div className="public-section-title">
         <div>
-          <p className="public-kicker">PUBLIC RESULTS</p>
+          <p className="public-kicker">RESULTS</p>
           <h2>
             Competition history<span>.</span>
           </h2>
@@ -236,10 +158,8 @@ function SquadPerformance({ id }: { id: string }) {
       />
       {history.status === "ready" && (
         <div className="public-list">
-          {history.data.map(({ event, standings }) => {
-            const row = standings.standings.find(
-              (item) => item.squad.id === id,
-            )!;
+          {history.data.map((item) => {
+            const { event } = item;
             return (
               <a
                 className="public-event-row"
@@ -252,13 +172,14 @@ function SquadPerformance({ id }: { id: string }) {
                   </span>
                   <h2>{event.title}</h2>
                   <p>
-                    Rank {row.rank} · {row.matches_played} games ·{" "}
-                    {row.total_kills} kills · {row.wins} wins
+                    Rank {item.rank} · {countLabel(item.matches_played, "game")}{" "}
+                    · {countLabel(item.total_kills, "kill")} ·{" "}
+                    {countLabel(item.wins, "win")}
                   </p>
                   <small>
-                    {row.total_points} points
-                    {standings.uses_mixed_scoring_presets
-                      ? " · Mixed scoring"
+                    {item.total_points} points
+                    {item.uses_mixed_scoring_presets
+                      ? " · Scoring varies by game"
                       : ""}
                   </small>
                 </div>
@@ -278,65 +199,32 @@ export function SquadPage({ slug }: { slug: string }) {
   );
   return (
     <Shell>
-      <a className="public-back" href="/clans">
-        ← Clans
-      </a>
-      <Notice state={squad} retry={retry} />
-      {squad.status === "ready" && (
+      <div className="public-squad-profile">
+        <a className="public-back" href={squad.status === "ready" ? clanUrl(squad.data.clan.slug) : "/clans"}>← Clan</a>
+        <Notice state={squad} retry={retry} />
+        {squad.status === "ready" && (
         <>
-          <div className="public-intro public-detail-intro">
-            <p className="public-kicker">
-              SQUAD {squad.data.tag ? `· ${squad.data.tag}` : ""}
-            </p>
-            <h1>
-              {squad.data.name}
-              <span>.</span>
-            </h1>
-            <p>
-              Clan:{" "}
-              <a
-                className="public-inline-link"
-                href={clanUrl(squad.data.clan.slug)}
-              >
-                {squad.data.clan.name}
-              </a>
-            </p>
-          </div>
-          <section className="public-section">
-            <div className="public-section-title">
-              <div>
-                <p className="public-kicker">CURRENT MEMBERS</p>
-                <h2>
-                  Roster<span>.</span>
-                </h2>
-              </div>
-            </div>
+          <header className="public-squad-hero">
+            <div className="public-squad-hero-top"><a href={clanUrl(squad.data.clan.slug)}>{squad.data.clan.tag} · {squad.data.clan.name}<Icon name="arrow" /></a><span>TEAM {squad.data.squad_number ?? "—"}</span></div>
+            <h1>{squadIdentity({ name: squad.data.name, squadNumber: squad.data.squad_number, clanTag: squad.data.clan.tag, clanName: squad.data.clan.name, clanSquadCount: squad.data.clan.squad_count })}<span>.</span></h1>
+            <p>Players representing this squad.</p>
+          </header>
+          <section className="public-squad-players">
+            <div className="public-squad-section-head"><div><p className="public-kicker">SQUAD PLAYERS</p><h2>Players<span>.</span></h2></div><span>{squad.data.roster.length}</span></div>
             {squad.data.roster.length ? (
-              <div className="public-list">
-                {squad.data.roster.map((player) => (
-                  <a
-                    href={playerUrl(player.id)}
-                    key={player.id}
-                    className="public-person-row"
-                  >
-                    <span className="public-squad-mark">
-                      {player.ign.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span>
-                      <strong>{player.ign}</strong>
-                      <small>Player</small>
-                    </span>
-                    <Icon name="arrow" />
-                  </a>
+              <ol className="public-squad-player-list">
+                {squad.data.roster.map((player, index) => (
+                  <li key={player.id}><span>{String(index + 1).padStart(2, "0")}</span><a href={playerUrl(player.id)}><strong>{player.ign}</strong><Icon name="arrow" /></a></li>
                 ))}
-              </div>
+              </ol>
             ) : (
-              <div className="public-notice">No current roster members.</div>
+              <div className="public-notice">No players listed yet.</div>
             )}
           </section>
-          <SquadPerformance id={squad.data.id} />
+          <SquadPerformance slug={squad.data.slug} />
         </>
       )}
+      </div>
     </Shell>
   );
 }
@@ -349,55 +237,21 @@ export function PlayerListing() {
   );
   return (
     <Shell>
-      <div className="public-intro">
-        <p className="public-kicker">AREWA CODM COMMUNITY</p>
-        <h1>
-          Players<span>.</span>
-        </h1>
-        <p>Find players and see their match history.</p>
-      </div>
-      <DirectorySearch
-        label="Search player IGN"
-        onSearch={(value) => {
-          setPage(1);
-          setSearch(value);
-        }}
-      />
-      <Notice
-        state={players}
-        retry={retry}
-        empty={
-          players.status === "ready" && !players.data.data.length
-            ? "No players found."
-            : undefined
-        }
-      />
-      <div className="public-list">
-        {players.status === "ready" &&
-          players.data.data.map((player) => (
-            <a
-              key={player.id}
-              href={playerUrl(player.id)}
-              className="public-person-row"
-            >
-              <span className="public-squad-mark">
-                {player.current_ign.slice(0, 2).toUpperCase()}
-              </span>
-              <span>
-                <strong>{player.current_ign}</strong>
-                <small>Player</small>
-              </span>
+      <div className="public-player-directory">
+        <header className="public-player-directory-heading"><div><p className="public-kicker">AREWA CODM COMMUNITY</p><h1>Players<span>.</span></h1><p>Search by in-game name and open a player’s match history.</p></div>{players.status === "ready" && <span>{players.data.meta.total} players</span>}</header>
+        <DirectorySearch label="Search player IGN" onSearch={(value) => { setPage(1); setSearch(value); }} />
+        <Notice state={players} retry={retry} empty={players.status === "ready" && !players.data.data.length ? "No players found." : undefined} />
+        <div className="public-player-directory-list">
+          {players.status === "ready" && players.data.data.map((player) => (
+            <a key={player.id} href={playerUrl(player.id)} className="public-player-directory-row">
+              <span className="public-player-directory-avatar">{player.current_ign.slice(0, 2).toUpperCase()}</span>
+              <strong>{player.current_ign}</strong>
               <Icon name="arrow" />
             </a>
           ))}
+        </div>
+        {players.status === "ready" && <Pager page={players.data.meta.current_page} last={players.data.meta.last_page} onChange={setPage} />}
       </div>
-      {players.status === "ready" && (
-        <Pager
-          page={players.data.meta.current_page}
-          last={players.data.meta.last_page}
-          onChange={setPage}
-        />
-      )}
     </Shell>
   );
 }
@@ -409,107 +263,60 @@ export function PlayerPage({ id }: { id: string }) {
   );
   return (
     <Shell>
-      <a className="public-back" href="/players">
-        ← All players
-      </a>
-      <Notice state={player} retry={retry} />
-      {player.status === "ready" && (
-        <>
-          <div className="public-intro public-detail-intro">
-            <p className="public-kicker">PLAYER PROFILE</p>
-            <h1>
-              {player.data.current_ign}
-              <span>.</span>
-            </h1>
-            {player.data.uid && <p>CODM UID: {player.data.uid}</p>}
-            {!!player.data.current_squads?.length && (
-              <div className="public-facts">
-                {player.data.current_squads.map((squad) => (
-                  <span key={squad.id}>
-                    <a
-                      className="public-inline-link"
-                      href={squadUrl(squad.slug)}
-                    >
-                      {squad.name}
-                    </a>{" "}
-                    ·{" "}
-                    <a
-                      className="public-inline-link"
-                      href={clanUrl(squad.clan.slug)}
-                    >
-                      {squad.clan.name}
+      <div className="public-player-profile">
+        <a className="public-back" href="/players">← Players</a>
+        <Notice state={player} retry={retry} />
+        {player.status === "ready" && (
+          <>
+            <header className="public-player-hero">
+              <span className="public-player-crest" aria-hidden="true">{player.data.current_ign.slice(0, 2).toUpperCase()}</span>
+              <div className="public-player-identity">
+                <p className="public-kicker">PLAYER PROFILE · AREWA CODM</p>
+                <h1>{player.data.current_ign}<span>.</span></h1>
+                {player.data.uid && <p className="public-player-uid">CODM UID <strong>{player.data.uid}</strong></p>}
+              </div>
+              {!!player.data.current_squads?.length && (
+                <div className="public-player-affiliations">
+                  <small>PLAYING WITH</small>
+                  {player.data.current_squads.map((squad) => (
+                    <a key={squad.id} href={squadUrl(squad.slug)}>
+                      {squad.clan.tag && <b>{squad.clan.tag}</b>}
+                      <span>{squad.clan.name}{squad.clan.squad_count != null && squad.clan.squad_count > 1 && squad.squad_number ? ` (${squad.squad_number})` : ""}</span>
+                      <Icon name="arrow" />
                     </a>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="public-player-stats">
-              <div>
-                <strong>{player.data.appearances}</strong>
-                <span>Games</span>
-              </div>
-              <div>
-                <strong>{player.data.total_kills}</strong>
-                <span>Kills</span>
-              </div>
-              <div>
-                <strong>{player.data.kills_per_appearance ?? "—"}</strong>
-                <span>Avg kills</span>
-              </div>
-              <div>
-                <strong>{player.data.best_game_kills ?? "—"}</strong>
-                <span>Best game</span>
-              </div>
-            </div>
-          </div>
-          <section className="public-section">
-            <div className="public-section-title">
-              <div>
-                <p className="public-kicker">SAVED PUBLIC RESULTS</p>
-                <h2>
-                  Match history<span>.</span>
-                </h2>
-              </div>
-            </div>
-            {player.data.match_history.length ? (
-              <div className="public-list">
-                {player.data.match_history.map((match, index) => (
-                  <a
-                    key={`${match.match_id}-${index}`}
-                    href={`/competitions/${encodeURIComponent(match.event_slug)}/games/${encodeURIComponent(match.match_id)}`}
-                    className="public-event-row"
-                  >
-                    <div>
-                      <span className="public-row-label">
-                        {dateText(match.event_date)} · GAME {match.match_index}{" "}
-                        · {match.map_label}
+                  ))}
+                </div>
+              )}
+            </header>
+            <section className="public-player-statline" aria-label="Player statistics">
+              <div><strong>{player.data.appearances}</strong><span>Games</span></div>
+              <div><strong>{player.data.total_kills}</strong><span>Total kills</span></div>
+              <div><strong>{player.data.kills_per_appearance ?? "—"}</strong><span>Average kills</span></div>
+              <div><strong>{player.data.best_game_kills ?? "—"}</strong><span>Best game</span></div>
+            </section>
+            <section className="public-player-history">
+              <header><div><p className="public-kicker">RECENT MATCHES</p><h2>Game history<span>.</span></h2></div><span>{player.data.history_meta.total} games</span></header>
+              {player.data.match_history.length ? (
+                <div className="public-player-match-list">
+                  {player.data.match_history.map((match, index) => (
+                    <a key={`${match.match_id}-${index}`} href={`/competitions/${encodeURIComponent(match.event_slug)}/games/${encodeURIComponent(match.match_id)}`} className="public-player-match-row">
+                      <span className="public-player-match-date">{dateText(match.event_date)}</span>
+                      <span className="public-player-match-info">
+                        <strong>{match.event_title}</strong>
+                        <small>Game {match.match_index} · {match.map_label} · {squadIdentity({ name: match.squad_name, squadNumber: match.squad_number, clanTag: match.clan_tag, clanName: match.clan_name, clanSquadCount: match.clan_squad_count })}</small>
+                        {match.ign_snapshot !== player.data.current_ign && <small>Played as {match.ign_snapshot}</small>}
                       </span>
-                      <h2>{match.event_title}</h2>
-                      <p>
-                        Played for {match.squad_name_snapshot} · {match.kills}{" "}
-                        kills
-                      </p>
-                      {match.ign_snapshot !== player.data.current_ign && (
-                        <small>Played as {match.ign_snapshot}</small>
-                      )}
-                    </div>
-                    <Icon name="arrow" />
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <div className="public-notice">
-                No public match appearances yet.
-              </div>
-            )}
-            <Pager
-              page={player.data.history_meta.current_page}
-              last={player.data.history_meta.last_page}
-              onChange={setPage}
-            />
-          </section>
-        </>
-      )}
+                      <span className="public-player-match-kills"><strong>{match.kills}</strong><small>KILLS</small></span>
+                      <Icon name="arrow" />
+                    </a>
+                  ))}
+                </div>
+              ) : <div className="public-notice">No public games played yet.</div>}
+              <Pager page={player.data.history_meta.current_page} last={player.data.history_meta.last_page} onChange={setPage} />
+            </section>
+          </>
+        )}
+      </div>
     </Shell>
   );
 }

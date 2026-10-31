@@ -1,0 +1,185 @@
+/* Clan directory: browse by recognizable clan tag, then open the clan. */
+.public-page .public-clans-index,
+.public-page .public-clan-profile,
+.public-page .public-squad-profile,
+.public-page .public-player-directory,
+.public-page .public-player-profile { max-width: 920px; margin: 0 auto; color: #22362d; }
+.public-clans-heading,
+.public-player-directory-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin: 26px 0 17px; }
+.public-clans-heading .public-kicker,
+.public-player-directory-heading .public-kicker { margin-bottom: 4px; color: #9b513b; }
+.public-page .public-clans-heading h1,
+.public-page .public-player-directory-heading h1 { margin: 0; color: #22362d; font: 800 clamp(30px, 4vw, 40px)/1.15 Manrope, Arial, sans-serif; letter-spacing: -.8px; text-transform: none; }
+.public-clans-heading h1 span,
+.public-player-directory-heading h1 span { color: #d65a43; }
+.public-clans-heading p:last-child,
+.public-player-directory-heading p:last-child { margin-top: 6px; color: #596a5e; font-size: 13px; line-height: 1.5; }
+.public-clans-count,
+.public-player-directory-heading > span { flex: 0 0 auto; padding: 7px 9px; border: 1px solid #dce3d8; border-radius: 7px; background: #fffefa; color: #52645a; font-size: 11px; font-weight: 700; }
+.public-clans-index .public-search,
+.public-player-directory .public-search { margin-bottom: 13px; }
+.public-clans-index .public-search input,
+.public-player-directory .public-search input { min-height: 48px; border-color: #d3ddd0; border-radius: 9px; background: #fffefa; color: #263b2d; }
+.public-clans-index .public-search button,
+.public-player-directory .public-search button { min-width: 82px; border: 1px solid #315b43; border-radius: 8px; background: #315b43; color: #fffefa; }
+.public-clans-list { display: grid; gap: 7px; }
+.public-clan-index-row { min-height: 72px; display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 9px 12px; border: 1px solid #dce3d8; border-radius: 10px; background: #fffefa; color: #22362d; }
+.public-clan-index-row:hover { border-color: #9eaf97; }
+.public-clan-index-tag { width: 58px; height: 48px; display: grid; place-items: center; border-radius: 8px; background: #315b43; color: #fffefa; font: 800 13px Manrope, Arial, sans-serif; letter-spacing: .5px; }
+.public-clan-index-copy { min-width: 0; display: grid; gap: 3px; }
+.public-clan-index-copy strong { color: #263b2d; font: 800 14px/1.4 Manrope, Arial, sans-serif; overflow-wrap: anywhere; }
+.public-clan-index-copy small { color: #637267; font-size: 11px; }
+.public-clan-index-open { display: inline-flex; align-items: center; gap: 5px; color: #315b43; font-size: 10px; font-weight: 800; }
+.public-clan-index-open .icon { width: 14px; }
+.public-clans-index .public-notice { margin: 0; border-color: #dce3d8; border-radius: 10px; background: #fffefa; color: #52645a; }
+.public-clans-index .public-pager,
+.public-player-directory .public-pager { margin-top: 10px; padding: 10px 2px; border-color: #dce3d8; color: #596a5e; }
+.public-clans-index .public-pager button,
+.public-player-directory .public-pager button { border: 1px solid #315b43; border-radius: 7px; background: #315b43; color: #fffefa; }
+
+/* Clan profile: the clan badge anchors a clear list of independently ranked squads. */
+.public-clan-profile > .public-back,
+.public-squad-profile > .public-back,
+.public-player-profile > .public-back { min-height: 42px; display: inline-flex; align-items: center; margin-top: 8px; color: #52645a; font-size: 12px; font-weight: 800; }
+.public-clan-hero { display: grid; grid-template-columns: 82px minmax(0, 1fr) auto; align-items: center; gap: 17px; margin: 5px 0 16px; padding: 19px; border: 1px solid #dce3d8; border-radius: 14px; background: #fffefa; }
+.public-clan-hero-tag { width: 78px; height: 72px; display: grid; place-items: center; border-radius: 12px; background: #315b43; color: #fffefa; font: 800 18px Manrope, Arial, sans-serif; letter-spacing: .5px; }
+.public-clan-hero .public-kicker { margin: 0 0 4px; color: #9b513b; }
+.public-page .public-clan-hero h1 { margin: 0; color: #22362d; font: 800 clamp(22px, 3vw, 30px)/1.2 Manrope, Arial, sans-serif; letter-spacing: -.6px; overflow-wrap: anywhere; }
+.public-clan-hero h1 span { color: #d65a43; }
+.public-clan-hero > div > p:last-child { margin-top: 7px; color: #596a5e; font-size: 12px; line-height: 1.55; }
+.public-clan-hero-count { display: grid; justify-items: center; gap: 4px; color: #315b43; font: 800 22px Manrope, Arial, sans-serif; }
+.public-clan-hero-count small { color: #68766a; font: 800 8px Manrope, Arial, sans-serif; letter-spacing: .8px; }
+.public-clan-squads { overflow: hidden; border: 1px solid #dce3d8; border-radius: 13px; background: #fffefa; }
+.public-clan-section-head,
+.public-squad-section-head { min-height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 15px; border-bottom: 1px solid #e7ece4; }
+.public-clan-section-head .public-kicker,
+.public-squad-section-head .public-kicker { margin: 0; color: #9b513b; }
+.public-clan-section-head h2,
+.public-squad-section-head h2 { margin: 2px 0 0; color: #263b2d; font: 800 17px/1.3 Manrope, Arial, sans-serif; }
+.public-clan-section-head h2 span,
+.public-squad-section-head h2 span { color: #d65a43; }
+.public-clan-section-head > span,
+.public-squad-section-head > span { min-width: 28px; height: 28px; display: grid; place-items: center; border-radius: 7px; background: #edf2e9; color: #315b43; font-size: 11px; font-weight: 800; }
+.public-clan-squad-list { display: grid; gap: 0; padding: 0 15px; }
+.public-clan-squad-row { min-height: 67px; display: grid; grid-template-columns: 36px minmax(0, 1fr) 20px; align-items: center; gap: 11px; border-bottom: 1px solid #edf0e9; color: #263b2d; }
+.public-clan-squad-row:last-child { border-bottom: 0; }
+.public-clan-squad-no { width: 33px; height: 35px; display: grid; place-items: center; border-radius: 7px; background: #f3f0e7; color: #806744; font: 800 11px Manrope, Arial, sans-serif; }
+.public-clan-squad-row > span:nth-child(2) { min-width: 0; display: grid; gap: 3px; }
+.public-clan-squad-row strong { color: #263b2d; font-size: 13px; overflow-wrap: anywhere; }
+.public-clan-squad-row small { color: #68766a; font-size: 10px; }
+.public-clan-squad-row > .icon { width: 15px; color: #315b43; }
+.public-clan-profile .public-notice { margin: 12px; border-color: #dce3d8; background: #fafbf7; color: #52645a; }
+
+/* Squad profile: present the roster as the main content, with clan context above it. */
+.public-squad-hero { margin: 5px 0 14px; padding: 17px 18px 18px; border: 1px solid #dce3d8; border-radius: 14px; background: #fffefa; }
+.public-squad-hero-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.public-squad-hero-top a { display: inline-flex; align-items: center; gap: 6px; color: #315b43; font-size: 11px; font-weight: 700; }
+.public-squad-hero-top a .icon { width: 13px; }
+.public-squad-hero-top > span { padding: 5px 7px; border-radius: 5px; background: #f3f0e7; color: #806744; font-size: 9px; font-weight: 800; letter-spacing: .7px; }
+.public-page .public-squad-hero h1 { margin: 12px 0 5px; color: #22362d; font: 800 clamp(22px, 3vw, 30px)/1.22 Manrope, Arial, sans-serif; letter-spacing: -.6px; overflow-wrap: anywhere; }
+.public-squad-hero h1 span { color: #d65a43; }
+.public-squad-hero > p { color: #596a5e; font-size: 12px; }
+.public-squad-players,
+.public-squad-performance { overflow: hidden; border: 1px solid #dce3d8; border-radius: 13px; background: #fffefa; }
+.public-squad-player-list { list-style: none; margin: 0; padding: 0 14px; }
+.public-squad-player-list li { min-height: 57px; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 10px; border-bottom: 1px solid #edf0e9; }
+.public-squad-player-list li:last-child { border: 0; }
+.public-squad-player-list li > span { color: #9b513b; font: 800 10px Manrope, Arial, sans-serif; }
+.public-squad-player-list a { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #263b2d; }
+.public-squad-player-list a strong { font-size: 13px; overflow-wrap: anywhere; }
+.public-squad-player-list a .icon { width: 15px; color: #315b43; }
+.public-squad-players .public-notice,
+.public-squad-performance .public-notice { margin: 12px; border-color: #dce3d8; background: #fafbf7; color: #52645a; }
+.public-squad-performance { margin-top: 14px; }
+.public-squad-performance .public-section-title { min-height: 60px; align-items: center; margin: 0; padding: 10px 15px; border-bottom: 1px solid #e7ece4; }
+.public-squad-performance .public-section-title .public-kicker { margin: 0; color: #9b513b; }
+.public-squad-performance .public-section-title h2 { margin: 3px 0 0; color: #263b2d; font: 800 17px/1.3 Manrope, Arial, sans-serif; text-transform: none; }
+.public-squad-performance .public-list { margin: 0; padding: 0 12px; }
+.public-squad-performance .public-event-row { min-height: 78px; border-left: 0; border-bottom: 1px solid #edf0e9; border-radius: 0; box-shadow: none; }
+.public-squad-performance .public-event-row:last-child { border-bottom: 0; }
+
+/* Player directory: quick IGN scanning, no unsupported profile claims. */
+.public-player-directory-heading { margin-top: 26px; }
+.public-player-directory-list { display: grid; gap: 6px; }
+.public-player-directory-row { min-height: 58px; display: grid; grid-template-columns: 36px minmax(0, 1fr) 19px; align-items: center; gap: 10px; padding: 7px 11px; border: 1px solid #dce3d8; border-radius: 9px; background: #fffefa; color: #263b2d; }
+.public-player-directory-row:hover { border-color: #a8b9a1; }
+.public-player-directory-avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #edf2e9; color: #315b43; font-size: 10px; font-weight: 800; }
+.public-player-directory-row strong { color: #263b2d; font-size: 13px; overflow-wrap: anywhere; }
+.public-player-directory-row > .icon { width: 15px; color: #315b43; }
+
+/* Player profile: statistics and match log have separate, easy-to-scan zones. */
+.public-player-hero { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 14px; margin: 5px 0 12px; padding: 17px; border: 1px solid #dce3d8; border-radius: 14px; background: #fffefa; }
+.public-player-crest { width: 62px; height: 62px; display: grid; place-items: center; border: 1px solid #d5dfd2; border-radius: 14px; background: #edf2e9; color: #315b43; font: 800 19px Manrope, Arial, sans-serif; }
+.public-player-identity { min-width: 0; }
+.public-player-identity .public-kicker { margin: 0 0 4px; color: #9b513b; font-size: 9px; }
+.public-page .public-player-identity h1 { margin: 0; color: #22362d; font: 800 clamp(22px, 4vw, 30px)/1.2 Manrope, Arial, sans-serif; letter-spacing: -.6px; overflow-wrap: anywhere; }
+.public-player-identity h1 span { color: #d65a43; }
+.public-player-uid { margin-top: 5px; color: #68766a; font-size: 10px; }
+.public-player-uid strong { color: #405b47; font-variant-numeric: tabular-nums; }
+.public-player-affiliations { grid-column: 1 / -1; display: grid; gap: 5px; padding-top: 11px; border-top: 1px solid #e7ece4; }
+.public-player-affiliations > small { color: #9b513b; font-size: 9px; font-weight: 800; letter-spacing: .8px; }
+.public-player-affiliations a { min-height: 38px; display: flex; align-items: center; gap: 8px; color: #315b43; font-size: 12px; }
+.public-player-affiliations a b { padding: 4px 6px; border-radius: 4px; background: #edf2e9; font-size: 9px; }
+.public-player-affiliations a span { color: #405b47; }
+.public-player-affiliations a .icon { width: 14px; margin-left: auto; }
+.public-player-statline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 14px; border: 1px solid #dce3d8; border-radius: 11px; background: #fffefa; }
+.public-player-statline > div { min-width: 0; display: grid; gap: 4px; padding: 12px 13px; }
+.public-player-statline > div + div { border-left: 1px solid #e3e9e0; }
+.public-player-statline strong { color: #315b43; font: 800 20px/1.1 Manrope, Arial, sans-serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.public-player-statline span { color: #68766a; font-size: 10px; }
+.public-player-history { overflow: hidden; border: 1px solid #dce3d8; border-radius: 13px; background: #fffefa; }
+.public-player-history > header { min-height: 61px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 15px; border-bottom: 1px solid #e7ece4; }
+.public-player-history > header .public-kicker { margin: 0; color: #9b513b; }
+.public-player-history > header h2 { margin: 3px 0 0; color: #263b2d; font: 800 17px/1.3 Manrope, Arial, sans-serif; }
+.public-player-history > header h2 span { color: #d65a43; }
+.public-player-history > header > span { color: #68766a; font-size: 10px; }
+.public-player-match-list { display: grid; padding: 0 13px; }
+.public-player-match-row { min-height: 72px; display: grid; grid-template-columns: 70px minmax(0, 1fr) 46px 15px; align-items: center; gap: 10px; border-bottom: 1px solid #edf0e9; color: #263b2d; }
+.public-player-match-row:last-child { border-bottom: 0; }
+.public-player-match-date { color: #806744; font-size: 10px; font-weight: 800; }
+.public-player-match-info { min-width: 0; display: grid; gap: 3px; }
+.public-player-match-info strong { color: #263b2d; font-size: 12px; overflow-wrap: anywhere; }
+.public-player-match-info small { color: #68766a; font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
+.public-player-match-kills { display: grid; justify-items: end; gap: 2px; }
+.public-player-match-kills strong { color: #315b43; font: 800 16px Manrope, Arial, sans-serif; }
+.public-player-match-kills small { color: #68766a; font-size: 8px; letter-spacing: .5px; }
+.public-player-match-row > .icon { width: 14px; color: #315b43; }
+.public-player-history .public-notice { margin: 12px; border-color: #dce3d8; background: #fafbf7; color: #52645a; }
+.public-player-history .public-pager { margin: 0 13px; border-color: #e7ece4; }
+@media (max-width: 600px) {
+  .public-clans-heading, .public-player-directory-heading { align-items: center; margin: 21px 0 13px; }
+  .public-page .public-clans-heading h1, .public-page .public-player-directory-heading h1 { font-size: 31px; }
+  .public-clan-index-row { grid-template-columns: 50px minmax(0, 1fr) 19px; gap: 9px; padding: 8px; }
+  .public-clan-index-tag { width: 48px; height: 44px; font-size: 11px; }
+  .public-clan-index-copy strong { font-size: 12px; }
+  .public-clan-index-open { font-size: 0; }
+  .public-clan-index-open .icon { width: 16px; }
+  .public-clan-hero { grid-template-columns: 58px minmax(0, 1fr) auto; gap: 10px; padding: 13px; }
+  .public-clan-hero-tag { width: 56px; height: 54px; border-radius: 9px; font-size: 13px; }
+  .public-page .public-clan-hero h1 { font-size: 20px; }
+  .public-clan-hero > div > p:last-child { font-size: 11px; }
+  .public-clan-hero-count { font-size: 18px; }
+  .public-clan-section-head, .public-squad-section-head { min-height: 55px; padding-inline: 12px; }
+  .public-clan-squad-list { padding-inline: 11px; }
+  .public-squad-hero { padding: 13px; }
+  .public-page .public-squad-hero h1 { font-size: 21px; }
+  .public-squad-player-list { padding-inline: 11px; }
+  .public-player-directory-heading > span { font-size: 9px; padding: 6px; }
+  .public-player-directory-row { min-height: 53px; grid-template-columns: 31px minmax(0, 1fr) 16px; gap: 8px; padding-inline: 8px; }
+  .public-player-directory-avatar { width: 30px; height: 30px; }
+  .public-player-directory-row strong { font-size: 12px; }
+  .public-player-hero { grid-template-columns: 51px minmax(0, 1fr); gap: 10px; margin-top: 4px; padding: 13px; }
+  .public-player-crest { width: 49px; height: 49px; border-radius: 11px; font-size: 16px; }
+  .public-page .public-player-identity h1 { font-size: 22px; }
+  .public-player-statline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .public-player-statline > div { padding: 10px 12px; }
+  .public-player-statline > div:nth-child(3) { border-left: 0; border-top: 1px solid #e3e9e0; }
+  .public-player-statline > div:nth-child(4) { border-top: 1px solid #e3e9e0; }
+  .public-player-statline strong { font-size: 18px; }
+  .public-player-match-list { padding-inline: 10px; }
+  .public-player-match-row { grid-template-columns: 54px minmax(0, 1fr) 33px 13px; gap: 6px; min-height: 69px; }
+  .public-player-match-date { font-size: 9px; }
+  .public-player-match-info strong { font-size: 11px; }
+  .public-player-match-info small { font-size: 9px; }
+  .public-player-match-kills strong { font-size: 14px; }
+}

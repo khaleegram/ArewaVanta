@@ -346,6 +346,13 @@
   text-align: right;
   white-space: nowrap;
 }
+.home-schedule-note {
+  margin: 0;
+  padding: 8px 18px 0;
+  color: #93a287;
+  font-size: 11px;
+  line-height: 1.6;
+}
 .home-schedule-foot {
   display: flex;
   align-items: center;

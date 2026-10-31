@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api/client";
 import { Shell, tokenKey } from "./CompetitionManager";
-const invitationToken = /^[a-f0-9]{64}$/.test(window.location.hash.slice(1))
-  ? window.location.hash.slice(1)
-  : "";
 type Invitation = { clan: string; email: string; existing_account: boolean };
 export default function CaptainInvite() {
+  const [invitationToken] = useState(() => /^[a-f0-9]{64}$/.test(window.location.hash.slice(1))
+    ? window.location.hash.slice(1)
+    : "");
   const [state, setState] = useState<
     | { status: "loading" }
     | { status: "error"; message: string }
@@ -37,7 +37,7 @@ export default function CaptainInvite() {
             message:
               err instanceof ApiError
                 ? err.message
-                : "Could not load the invitation.",
+                : "We couldn’t load this invitation.",
           });
       });
     return () => c.abort();
@@ -58,12 +58,13 @@ export default function CaptainInvite() {
           : confirmation,
       );
       sessionStorage.setItem(tokenKey, data.token);
-      window.location.assign("/manage/directory");
+      window.history.pushState(null, "", "/manage/directory");
+      window.dispatchEvent(new PopStateEvent("popstate"));
     } catch (err) {
       setError(
         err instanceof ApiError
           ? [err.message, ...Object.values(err.errors).flat()].join(" ")
-          : "Could not accept the invitation.",
+          : "We couldn’t accept the invitation.",
       );
       setBusy(false);
     }
