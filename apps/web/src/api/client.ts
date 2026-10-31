@@ -145,6 +145,25 @@ export const api = {
       method: "POST",
       body: { token, name, password, password_confirmation },
     }),
+  inviteCompetitionOrganizer: (token: string, eventId: string, email: string) =>
+    request<{ message: string }>(
+      `/manage/events/${key(eventId)}/organizer-invitations`,
+      { token, method: "POST", body: { email } },
+    ),
+  inspectCompetitionOrganizerInvitation: (token: string, signal?: AbortSignal) =>
+    request<ApiData<{ event_id: string; competition: string; email: string; existing_account: boolean }>>(
+      "/competition-organizer-invitations/inspect",
+      { method: "POST", body: { token }, signal },
+    ),
+  acceptCompetitionOrganizerInvitation: (
+    token: string,
+    name: string | undefined,
+    password: string,
+    password_confirmation: string | undefined,
+  ) => request<ApiData<{ token: string }>>("/competition-organizer-invitations/accept", {
+    method: "POST",
+    body: { token, name, password, password_confirmation },
+  }),
   activity: (token: string, signal?: AbortSignal) =>
     request<
       ApiData<{

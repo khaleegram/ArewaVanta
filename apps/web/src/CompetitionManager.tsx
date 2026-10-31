@@ -616,6 +616,7 @@ function EventWorkspace({
   const completedGames = games.filter((game) => game.has_results).length;
   const firstDate = event.days?.[0]?.date ?? null;
   const lastDate = event.days?.[event.days.length - 1]?.date ?? null;
+  const canInviteOrganizers = user.roles.some((role) => role.role === "platform_admin" || (role.role === "organizer" && (role.scope_type === "global" || (role.scope_type === "event" && role.scope_id === event.id))));
   const resultsUrl = `/manage/competitions/${encodeURIComponent(event.id)}/results`;
   const entriesUrl = `/manage/competitions/${encodeURIComponent(event.id)}/entries`;
   return (
@@ -632,6 +633,7 @@ function EventWorkspace({
       {(event.competition_type === "scrim" || event.recurrence)
         ? <ScrimRecurrenceControls token={token} event={event} onUpdated={setEvent} />
         : <p className="studio-date"><Icon name="calendar" />{formatDateRange(firstDate, lastDate)}</p>}
+      {canInviteOrganizers && <EventOrganizerAccess token={token} event={event} canAssignExisting={user.roles.some((role) => role.role === "platform_admin")} />}
       {event.skipped_at && <div className="studio-week-off" role="status"><strong>No games this week</strong><p>{event.skip_reason || "Squad entries and result entry are on hold for this week."}</p></div>}
       <div className="studio-overview-bar">
       <section className="studio-summary" aria-label="Selected weekend summary">
@@ -652,18 +654,23 @@ function EventWorkspace({
         <div><span className="studio-scoring-icon"><Icon name="target" /></span><span><small>Scoring</small><strong>{scoringLabel(event.scoring.preset_name)}</strong></span></div>
         {event.visibility === "public" && <a href={`/competitions/${encodeURIComponent(event.slug)}`}>Public competition <Icon name="diagonal" /></a>}
       </footer>
-      {user.roles.some((role) => role.role === "platform_admin") && <EventOrganizerAccess token={token} event={event} />}
     </div>
   );
 }
-function EventOrganizerAccess({ token, event }: { token: string; event: ManageEvent }) {
+function EventOrganizerAccess({ token, event, canAssignExisting }: { token: string; event: ManageEvent; canAssignExisting: boolean }) {
   const [query, setQuery] = useState("");
-  const [people, setPeople] = useState<Load<ManagePerson[]>>({ status: "loading" });
+  const [people, setPeople] = useState<Load<ManagePerson[]>>({ status: canAssignExisting ? "loading" : "ready", data: [] });
   const [refresh, setRefresh] = useState(0);
   const [busy, setBusy] = useState<string | number>("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
+    if (!canAssignExisting) {
+      setPeople({ status: "ready", data: [] });
+      return;
+    }
     const controller = new AbortController();
     setPeople({ status: "loading" });
     api.managePeople(token, 1, query.trim(), controller.signal)
@@ -672,7 +679,22 @@ function EventOrganizerAccess({ token, event }: { token: string; event: ManageEv
         if (!controller.signal.aborted) setPeople({ status: "error", message: errorMessage(reason) });
       });
     return () => controller.abort();
-  }, [token, query, refresh]);
+  }, [token, query, refresh, canAssignExisting]);
+  async function invite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviteBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await api.inviteCompetitionOrganizer(token, event.id, inviteEmail.trim());
+      setInviteEmail("");
+      setNotice("Invitation sent. They can use the link in their email to create or confirm their account.");
+    } catch (reason) {
+      setError(reason instanceof ApiError ? [reason.message, ...Object.values(reason.errors).flat()].join(" ") : "Could not send the invitation.");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
   async function add(person: ManagePerson) {
     setBusy(person.id);
     setError("");
@@ -688,22 +710,28 @@ function EventOrganizerAccess({ token, event }: { token: string; event: ManageEv
     }
   }
   return <details className="studio-organizer-access">
-    <summary>Competition organizers <span>Give another account access to this competition</span><Icon name="chevron" /></summary>
+    <summary>Competition organizers <span>Invite others to help manage this competition</span><Icon name="chevron" /></summary>
     <div className="studio-organizer-access-body">
-      <p>Each assigned organizer can edit this competition, manage squad slots, enter results and control its weekly schedule. Add as many as needed.</p>
-      <form onSubmit={(e) => { e.preventDefault(); setRefresh((value) => value + 1); }}>
-        <label htmlFor="competition-organizer-search">Find an existing account</label>
-        <div><input id="competition-organizer-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name or email" /><button type="submit">Search</button></div>
+      <p>Invite by email. Each organizer gets the same access to edit this competition, manage squad slots, enter results and control its weekly schedule.</p>
+      <form onSubmit={(e) => void invite(e)}>
+        <label htmlFor="competition-organizer-invite-email">Organizer’s email</label>
+        <div><input id="competition-organizer-invite-email" required type="email" autoComplete="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="name@example.com" /><button type="submit" disabled={inviteBusy}>{inviteBusy ? "Sending…" : "Send invite"}</button></div>
       </form>
       {notice && <p className="studio-organizer-notice" role="status">{notice}</p>}
       {error && <p className="studio-organizer-error" role="alert">{error}</p>}
-      {people.status === "loading" ? <p role="status">Loading accounts…</p> : people.status === "error" ? <p role="alert">{people.message}</p> : people.data.length ? <ul>
+      {canAssignExisting && <>
+        <form onSubmit={(e) => { e.preventDefault(); setRefresh((value) => value + 1); }}>
+          <label htmlFor="competition-organizer-search">Or add an existing account</label>
+          <div><input id="competition-organizer-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name or email" /><button type="submit">Search</button></div>
+        </form>
+        {people.status === "loading" ? <p role="status">Loading accounts…</p> : people.status === "error" ? <p role="alert">{people.message}</p> : people.data.length ? <ul>
         {people.data.map((person) => {
           const assigned = person.roles.some((role) => role.role === "organizer" && role.scope_type === "event" && role.scope_id === event.id);
           const global = person.roles.some((role) => (role.role === "organizer" && role.scope_type === "global") || role.role === "platform_admin");
           return <li key={person.id}><span><strong>{person.name}</strong><small>{person.email}</small></span>{assigned ? <b>Added</b> : global ? <b>Already has full access</b> : <button type="button" disabled={busy === person.id} onClick={() => void add(person)}>{busy === person.id ? "Adding…" : "Add organizer"}</button>}</li>;
         })}
-      </ul> : <p>No accounts found. Organizers must already have an ArewaVanta account.</p>}
+        </ul> : <p>No accounts found.</p>}
+      </>}
     </div>
   </details>;
 }

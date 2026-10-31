@@ -6,6 +6,7 @@ import CompetitionManager from "./CompetitionManager";
 import DirectoryManager from "./DirectoryManager";
 import ResultManager from "./ResultManager";
 import CaptainInvite from "./CaptainInvite";
+import CompetitionOrganizerInvite from "./CompetitionOrganizerInvite";
 import {
   ForgotPasswordPage,
   ResetPasswordPage,
@@ -53,6 +54,7 @@ function renderRoute() {
   else if (path === "/manage/competitions") page = <CompetitionManager />;
   else if (path === "/manage/directory") page = <DirectoryManager />;
   else if (path === "/captain-invite") page = <CaptainInvite />;
+  else if (path === "/competition-organizer-invite") page = <CompetitionOrganizerInvite />;
   else if (path === "/forgot-password") page = <ForgotPasswordPage />;
   else if (path === "/reset-password") page = <ResetPasswordPage />;
   else if (path === "/competitions") page = <CompetitionListing />;
@@ -88,6 +90,7 @@ function renderRoute() {
 
   const privateRoute = path.startsWith("/manage/") || [
     "/captain-invite",
+    "/competition-organizer-invite",
     "/forgot-password",
     "/reset-password",
   ].includes(path);
