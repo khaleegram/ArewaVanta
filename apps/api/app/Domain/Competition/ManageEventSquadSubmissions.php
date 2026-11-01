@@ -168,8 +168,8 @@ final class ManageEventSquadSubmissions
         if ($event->skipped_at !== null) {
             throw ValidationException::withMessages(['event_id' => 'This week is not playing. Choose another week for squad entries.']);
         }
-        $firstDate = $event->days()->orderBy('sort_order')->value('event_date');
-        if ($firstDate === null || CarbonImmutable::parse($firstDate, $event->timezone)->lessThan(CarbonImmutable::today($event->timezone))) {
+        $lastDate = $event->days()->max('event_date');
+        if ($lastDate === null || CarbonImmutable::parse($lastDate, $event->timezone)->lessThan(CarbonImmutable::today($event->timezone))) {
             throw ValidationException::withMessages(['event_id' => 'Squad entries are closed because the competition date has passed.']);
         }
         if (CompetitionMatch::query()->whereHas('day', fn ($query) => $query->where('event_id', $event->id))

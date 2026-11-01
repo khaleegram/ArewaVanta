@@ -109,7 +109,8 @@ body { background: #f6f5ef; color: #202a22; }
 .manage-workspace-squads, .manage-workspace-games,
 .manage-workspace-lineup li, .manage-workspace-series-settings > div,
 .manage-workspace-end-confirm, .directory-clan, .directory-player-list,
-.directory-submissions, .directory-squad, .directory-player-row,
+.directory-submissions, .directory-weekly-entry, .directory-no-weekly,
+.directory-squad, .directory-player-row,
 .directory-opportunity, .directory-past-submissions > div,
 .results-schedule, .results-list, .results-squad {
   background-color: #fffefa;
@@ -123,6 +124,10 @@ body { background: #f6f5ef; color: #202a22; }
 .manage-workspace-week-off, .directory-clan-head span,
 .directory-squad span, .directory-squad-players, .directory-pager,
 .directory-player-row a, .directory-submission-state,
+.directory-submission-help, .directory-weekly-cadence,
+.directory-weekly-event > span, .directory-weekly-help,
+.directory-no-weekly span, .directory-other-competitions summary,
+.directory-past-submissions summary,
 .results-heading > p:last-child, .results-title p, .results-state,
 .results-participate small, .results-squad-body { color: #526054; }
 .manage-workspace-squads { background: #e8f0e5; border-color: #c7d7c2; }
@@ -147,6 +152,18 @@ body { background: #f6f5ef; color: #202a22; }
 .manage-page .manage-workspace-squad-tabs button[aria-pressed="true"] { background: #31583a; color: #fffefa; box-shadow: none; }
 .manage-page .manage-workspace-entries-link { background: #cfe0c8; color: #203a28; }
 .manage-page .manage-workspace-results-link { background: #31583a; border-color: #31583a; color: #fffefa; }
+.manage-page .directory-submissions { color: #26352a; }
+.manage-page .directory-submissions-heading strong,
+.manage-page .directory-weekly-event > strong,
+.manage-page .directory-no-weekly strong { color: #26352a; }
+.manage-page .directory-weekly-kicker { color: #a94334; }
+.manage-page .directory-event-link { color: #203a28; text-decoration-color: #a94334; }
+.manage-page .directory-weekly-entry { background: #f5f7f1; }
+.manage-page .directory-submission-status { color: #31583a; }
+.manage-page .directory-weekly-actions .directory-lineup-action,
+.manage-page .directory-weekly-actions .directory-secondary-action { color: #31583a; }
+.manage-page .directory-weekly-actions .directory-primary-action { color: #fffefa; }
+.manage-page .directory-other-competitions > summary span { background: #e8eee5; color: #31583a; }
 .manage-page .manage-workspace-settings > a { color: #31583a; border-color: #d0dbce; }
 .manage-workspace-series-status { color: #26352a; }
 .manage-workspace-series-status b { background: #dce9d8; color: #31583a; }
@@ -182,6 +199,30 @@ body { background: #f6f5ef; color: #202a22; }
 .directory-clan-tag { color: #a63f30 !important; border-color: #d9b7ae; }
 .directory-squad button, .directory-player-row button, .directory-add,
 .directory-clan-head button, .directory-person button { color: #a94334; }
+.manage-page .directory-clan { background: #fffefa; border-color: #d8dfd4; border-left-color: #d9553e; }
+.manage-page .directory-clan-head { background: #203a28; color: #f5f4ed; }
+.manage-page .directory-clan-kicker { color: #ef9a80; }
+.manage-page .directory-clan-title h2 { color: #fffefa; }
+.manage-page .directory-clan-count { color: #dce7d8; }
+.manage-page .directory-clan-head button { color: #f0a18b; }
+.manage-page .directory-clan-tag { background: #31583a; color: #fffefa !important; border-color: #668263; }
+.manage-page .directory-squads { border-color: #d8dfd4; }
+.manage-page .directory-squad { background: #f1f5ee; border-color: #d4dfd1; border-left-color: #648060; }
+.manage-page .directory-squad-index { background: #31583a; color: #fffefa; }
+.manage-page .directory-squad-kicker,
+.manage-page .directory-roster-kicker { color: #60745d; }
+.manage-page .directory-squad-identity h3 { color: #26352a; }
+.manage-page .directory-squad-tag { color: #59675b; }
+.manage-page .directory-squad-topline .directory-roster-manage { background: #fffefa; border-color: #cbd8c7; color: #31583a; }
+.manage-page .directory-roster { border-color: #d8dfd4; }
+.manage-page .directory-roster-heading strong { color: #26352a; }
+.manage-page .directory-roster-count { background: #e4eee1; border-color: #cbd8c7; color: #405544; }
+.manage-page .directory-player-chip { background: #fffefa; border-color: #d4dfd1; color: #26352a; }
+.manage-page .directory-player-chip-mark { background: #e4eee1; color: #31583a; }
+.manage-page .directory-player-chip-name { color: #26352a; }
+.manage-page .directory-roster-empty,
+.manage-page .directory-roster-state { color: #59675b; }
+.manage-page .directory-roster-state button { background: #fffefa; border-color: #cbd8c7; color: #a94334; }
 .results-games button { background: #fffefa; border-color: #d0dbce; color: #26352a; }
 .results-games button[aria-pressed="true"] { background: #f7e9e4; border-color: #d9826d; }
 .manage-page .results-placement input, .manage-page .results-kills input { background: #fffefa; color: #26352a; }

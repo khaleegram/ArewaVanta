@@ -26,22 +26,47 @@ final class EventSquadSubmissionController extends Controller
             ->whereHas('event', fn ($query) => $query->where('visibility', 'public'))
             ->where('squad_id', $squad->id)->orderByDesc('submitted_at')->get();
         $known = $submissions->keyBy('event_id');
-        $today = CarbonImmutable::today('Africa/Lagos')->toDateString();
         $events = CompetitionEvent::query()->with('days')
+            ->with(['squadEntries' => fn ($query) => $query->where('status', 'active')])
             ->withCount(['squadEntries as squad_count' => fn ($query) => $query->where('status', 'active')])
             ->where('visibility', 'public')->whereNull('skipped_at')->get()
-            ->filter(fn (CompetitionEvent $event): bool => ($event->days->sortBy('sort_order')->first()?->event_date?->toDateString() ?? '') >= $today)
-            ->map(fn (CompetitionEvent $event): array => [
-                'id' => $event->id,
-                'title' => $event->title,
-                'slug' => $event->slug,
-                'competition_type' => $event->competition_type,
-                'start_date' => $event->days->sortBy('sort_order')->first()?->event_date->toDateString(),
-                'squad_capacity' => $event->squad_capacity,
-                'squad_count' => $event->squad_count,
-                'status' => $known->get($event->id)?->status,
-                'submission_id' => $known->get($event->id)?->id,
-            ])->sortBy('start_date')->values();
+            ->filter(function (CompetitionEvent $event): bool {
+                $lastDate = $event->days->max(fn ($day): string => $day->event_date->toDateString());
+
+                return $lastDate !== null && CarbonImmutable::parse($lastDate, $event->timezone)
+                    ->greaterThanOrEqualTo(CarbonImmutable::today($event->timezone));
+            });
+        $weeklyEvents = $events->filter(fn (CompetitionEvent $event): bool => $event->series_id !== null)
+            ->groupBy('series_id')
+            ->map(fn ($weeks) => $weeks->sortBy(fn (CompetitionEvent $event): string =>
+                $event->days->min(fn ($day): string => $day->event_date->toDateString()) ?? '9999-12-31'
+            )->first());
+        $events = $events->filter(fn (CompetitionEvent $event): bool => $event->series_id === null)
+            ->concat($weeklyEvents)->sortBy(fn (CompetitionEvent $event): string =>
+                $event->days->min(fn ($day): string => $day->event_date->toDateString()) ?? '9999-12-31'
+            )
+            ->map(function (CompetitionEvent $event) use ($known, $squad): array {
+                $startDate = $event->days->min(fn ($day): string => $day->event_date->toDateString());
+                $endDate = $event->days->max(fn ($day): string => $day->event_date->toDateString());
+
+                return [
+                    'id' => $event->id,
+                    'title' => $event->title,
+                    'slug' => $event->slug,
+                    'series_id' => $event->series_id,
+                    'competition_type' => $event->competition_type,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'squad_capacity' => $event->squad_capacity,
+                    'squad_count' => $event->squad_count,
+                    'status' => $known->get($event->id)?->status,
+                    'submission_id' => $known->get($event->id)?->id,
+                    'slot_number' => $known->get($event->id)?->status === 'selected'
+                        ? $event->squadEntries->firstWhere('squad_id', $squad->id)?->slot_number
+                        : null,
+                    'can_submit' => ! $event->days()->whereHas('matches', fn ($query) => $query->whereNotNull('current_published_revision_id'))->exists(),
+                ];
+            })->values();
 
         return response()->json(['data' => [
             'squad_id' => $squad->id,

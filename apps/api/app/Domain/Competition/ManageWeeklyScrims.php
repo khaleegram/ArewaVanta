@@ -28,7 +28,13 @@ final class ManageWeeklyScrims
             $series = $event->series_id === null ? null : CompetitionSeries::query()->lockForUpdate()->findOrFail($event->series_id);
             $event = CompetitionEvent::query()->lockForUpdate()->findOrFail($event->id);
             if ($action === 'start') {
-                return $this->ensureRecurring($event);
+                $event = $this->ensureRecurring($event);
+                if ($event->series_id !== null) {
+                    $this->generate($event->series);
+                }
+
+                return $event->fresh(['series.events.days', 'season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers',
+                    'days.matches.squadEntries.squad.clan.squads:id,clan_id', 'squadEntries.squad.clan.squads:id,clan_id']);
             } else {
                 if ($series === null) {
                     throw ValidationException::withMessages(['action' => 'Enable weekly recurrence first.']);
@@ -61,7 +67,6 @@ final class ManageWeeklyScrims
             if ($series !== null) {
                 $this->generate($series);
             }
-
             return $event->fresh(['series.events.days', 'season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers',
                 'days.matches.squadEntries.squad.clan.squads:id,clan_id', 'squadEntries.squad.clan.squads:id,clan_id']);
         });
@@ -89,7 +94,6 @@ final class ManageWeeklyScrims
                 $event->series_id = $series->id;
                 $event->series_week_date = $first->toDateString();
                 $event->save();
-                $this->generate($series);
             }
 
             return $event->fresh(['series.events.days', 'season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers',
@@ -105,60 +109,71 @@ final class ManageWeeklyScrims
                 return 0;
             }
             $today = CarbonImmutable::today($series->timezone);
+            if (! $today->isMonday()) {
+                return 0;
+            }
             $next = CarbonImmutable::parse($series->next_week_date->toDateString(), $series->timezone);
             if ($next->lessThan($today)) {
                 $next = $next->addWeeks((int) ceil($next->diffInDays($today) / 7));
             }
-            $created = 0;
-            while ($next->lessThanOrEqualTo($today->addDays(14))) {
-                if (! $series->events()->withTrashed()->whereDate('series_week_date', $next->toDateString())->exists()) {
-                    $source = $series->events()->where('series_week_date', '<', $next->toDateString())
-                        ->whereHas('days')->reorder()->orderByDesc('series_week_date')->with('days.matches')->first();
-                    if ($source === null) {
-                        break;
-                    }
-                    $anchor = $source->days->min('event_date');
-                    $last = $source->days->max('event_date');
-                    if ($anchor->diffInDays($last) >= 7) {
-                        throw ValidationException::withMessages(['days' => 'Keep recurring scrim games within one seven-day week.']);
-                    }
-                    $week = $source->replicate(['slug', 'series_week_date', 'skipped_at', 'skip_source', 'skip_reason']);
-                    $week->unsetRelations();
-                    $week->id = (string) Str::ulid();
-                    $week->slug = Str::limit(Str::slug($source->title), 150, '').'-'.$next->toDateString().'-'.strtolower($week->id);
-                    $week->series_week_date = $next->toDateString();
-                    $week->save();
-                    foreach ($source->days as $sourceDay) {
-                        $day = $sourceDay->replicate()->unsetRelations();
-                        $day->event_id = $week->id;
-                        $day->event_date = $next->addDays((int) $anchor->diffInDays($sourceDay->event_date))->toDateString();
-                        $day->save();
-                        foreach ($sourceDay->matches as $sourceMatch) {
-                            $match = $sourceMatch->replicate(['current_published_revision_id', 'result_status'])->unsetRelations();
-                            $match->event_day_id = $day->id;
-                            $match->save();
-                        }
-                    }
-                    $seriesEventIds = $series->events()->pluck('id');
-                    DB::table('role_assignments')->where('role', Role::Organizer->value)
-                        ->where('scope_type', RoleScope::Event->value)->whereIn('scope_id', $seriesEventIds)
-                        ->whereNotIn('user_id', DB::table('role_assignments')->select('user_id')
-                            ->where('role', Role::Organizer->value)->where('scope_type', RoleScope::Global->value)->where('scope_id', '*'))
-                        ->get(['user_id', 'assigned_by'])->each(function (object $assignment) use ($week): void {
-                            DB::table('role_assignments')->insertOrIgnore([
-                                'id' => (string) Str::ulid(), 'user_id' => $assignment->user_id,
-                                'role' => Role::Organizer->value, 'scope_type' => RoleScope::Event->value,
-                                'scope_id' => $week->id, 'assigned_by' => $assignment->assigned_by,
-                                'created_at' => now(), 'updated_at' => now(),
-                            ]);
-                        });
-                    $created++;
-                }
+            // Keep only one active occurrence ahead. The Monday scheduler creates the
+            // coming weekend after the previous one has finished, rather than staging
+            // several empty weeks for captains to choose between.
+            while ($series->events()->withTrashed()->whereDate('series_week_date', $next->toDateString())->exists()) {
                 $next = $next->addWeek();
             }
+            if ($next->greaterThan($today->addDays(6))) {
+                if ($next->toDateString() !== $series->next_week_date->toDateString()) {
+                    $series->forceFill(['next_week_date' => $next->toDateString()])->save();
+                }
+
+                return 0;
+            }
+
+            $source = $series->events()->where('series_week_date', '<', $next->toDateString())
+                ->whereHas('days')->reorder()->orderByDesc('series_week_date')->with('days.matches')->first();
+            if ($source === null) {
+                return 0;
+            }
+            $anchor = $source->days->min('event_date');
+            $last = $source->days->max('event_date');
+            if ($anchor->diffInDays($last) >= 7) {
+                throw ValidationException::withMessages(['days' => 'Keep recurring scrim games within one seven-day week.']);
+            }
+            $week = $source->replicate(['slug', 'series_week_date', 'skipped_at', 'skip_source', 'skip_reason']);
+            $week->unsetRelations();
+            $week->id = (string) Str::ulid();
+            $week->slug = Str::limit(Str::slug($source->title), 150, '').'-'.$next->toDateString().'-'.strtolower($week->id);
+            $week->series_week_date = $next->toDateString();
+            $week->save();
+            foreach ($source->days as $sourceDay) {
+                $day = $sourceDay->replicate()->unsetRelations();
+                $day->event_id = $week->id;
+                $day->event_date = $next->addDays((int) $anchor->diffInDays($sourceDay->event_date))->toDateString();
+                $day->save();
+                foreach ($sourceDay->matches as $sourceMatch) {
+                    $match = $sourceMatch->replicate(['current_published_revision_id', 'result_status'])->unsetRelations();
+                    $match->event_day_id = $day->id;
+                    $match->save();
+                }
+            }
+            $seriesEventIds = $series->events()->pluck('id');
+            DB::table('role_assignments')->where('role', Role::Organizer->value)
+                ->where('scope_type', RoleScope::Event->value)->whereIn('scope_id', $seriesEventIds)
+                ->whereNotIn('user_id', DB::table('role_assignments')->select('user_id')
+                    ->where('role', Role::Organizer->value)->where('scope_type', RoleScope::Global->value)->where('scope_id', '*'))
+                ->get(['user_id', 'assigned_by'])->each(function (object $assignment) use ($week): void {
+                    DB::table('role_assignments')->insertOrIgnore([
+                        'id' => (string) Str::ulid(), 'user_id' => $assignment->user_id,
+                        'role' => Role::Organizer->value, 'scope_type' => RoleScope::Event->value,
+                        'scope_id' => $week->id, 'assigned_by' => $assignment->assigned_by,
+                        'created_at' => now(), 'updated_at' => now(),
+                    ]);
+                });
+            $next = $next->addWeek();
             $series->forceFill(['next_week_date' => $next->toDateString()])->save();
 
-            return $created;
+            return 1;
         });
     }
 

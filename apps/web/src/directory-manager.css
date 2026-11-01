@@ -33,7 +33,7 @@
 }
 .directory-clans {
   display: grid;
-  gap: 10px;
+  gap: 16px;
 }
 .directory-clan {
   background: #182017;
@@ -44,20 +44,51 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 15px;
-  padding: 17px 19px;
+  gap: 18px;
+  padding: 18px 20px;
+  background: #202a22;
+  color: #f5f4ed;
 }
-.directory-clan-head h2 {
-  font: 700 24px var(--display);
+.directory-clan-identity {
+  min-width: 0;
+}
+.directory-clan-kicker,
+.directory-squad-kicker,
+.directory-roster-kicker {
+  display: block;
+  margin: 0;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  line-height: 1.3;
+}
+.directory-clan-kicker {
+  color: #ef8d75;
+}
+.directory-clan-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.directory-clan-title h2 {
+  min-width: 0;
+  margin: 0;
+  color: #fffefa;
+  font: 700 22px/1.2 var(--display);
   text-transform: uppercase;
-  margin: 4px 0;
+  overflow-wrap: anywhere;
 }
-.directory-clan-head span {
+.directory-clan-count {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 7px;
+  color: #d5dfd0;
   font-size: 11px;
-  color: #b8c6af;
 }
 .directory-clan-head button,
-.directory-squad button,
+.directory-squad-topline button,
 .directory-player-row button,
 .directory-player-row a {
   background: none;
@@ -68,9 +99,156 @@
   white-space: nowrap;
 }
 .directory-squads {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
   border-top: 1px solid #35432e;
 }
-.directory-squad,
+.directory-squad {
+  display: grid;
+  min-width: 0;
+  border: 1px solid #35432e;
+  border-left: 3px solid #71876b;
+  background: #121912;
+}
+.directory-squad-topline {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 11px 13px;
+}
+.directory-squad-index {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  background: #31583a;
+  color: #fffefa;
+  font: 800 13px/1 var(--display);
+}
+.directory-squad-identity {
+  flex: 1;
+  min-width: 0;
+}
+.directory-squad-kicker {
+  color: #a5b89f;
+}
+.directory-squad-identity h3 {
+  margin: 3px 0 0;
+  color: #f5f4ed;
+  font-size: 15px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.directory-squad-tag {
+  display: inline-flex;
+  margin-top: 4px;
+  color: #e7ad9d;
+  font-size: 10px;
+  font-weight: 800;
+}
+.directory-squad-topline .directory-roster-manage {
+  flex: none;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #526b43;
+  color: #e7ad9d;
+  font-size: 11px;
+}
+.directory-roster {
+  min-width: 0;
+  padding: 11px 13px 13px;
+  border-top: 1px solid #35432e;
+}
+.directory-roster-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.directory-roster-heading > div {
+  min-width: 0;
+}
+.directory-roster-kicker {
+  color: #a5b89f;
+}
+.directory-roster-heading strong {
+  display: block;
+  margin-top: 2px;
+  color: #f2f3ed;
+  font-size: 12px;
+}
+.directory-roster-count {
+  flex: none;
+  padding: 4px 8px;
+  border: 1px solid #43513e;
+  color: #c9d4c4;
+  font-size: 10px;
+  font-weight: 800;
+}
+.directory-player-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.directory-player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 10px 4px 5px;
+  border: 1px solid #35432e;
+  background: #1c261b;
+  color: #f2f3ed;
+}
+.directory-player-chip-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 23px;
+  height: 23px;
+  background: #314b32;
+  color: #e9a18c;
+  font-size: 9px;
+  font-weight: 900;
+}
+.directory-player-chip-name {
+  min-width: 0;
+  color: #f2f3ed;
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.directory-roster-empty,
+.directory-roster-state {
+  margin: 0;
+  color: #bdc9b7;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.directory-roster-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.directory-roster-state button {
+  flex: none;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid #526b43;
+  background: transparent;
+  color: #e7ad9d;
+  font-size: 11px;
+  font-weight: 800;
+}
 .directory-player-row {
   display: flex;
   align-items: center;
@@ -79,31 +257,12 @@
   padding: 8px 18px;
   border-bottom: 1px solid #35432e;
 }
-.directory-squad {
-  flex-wrap: wrap;
-}
-.directory-squad > div {
-  flex: 1;
-  min-width: 0;
-}
 .directory-squad > .directory-squad-entries {
-  flex: 1 0 100%;
   min-width: 0;
+  padding: 0 13px 11px;
 }
-.directory-squad strong,
-.directory-squad span {
-  display: block;
-  overflow-wrap: anywhere;
-}
-.directory-squad strong,
 .directory-player-row strong {
   font-size: 13px;
-}
-.directory-squad-name {
-  display: flex !important;
-  align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
 }
 .directory-clan-tag {
   display: inline-flex !important;
@@ -117,22 +276,6 @@
   font-weight: 900;
   letter-spacing: .08em;
   line-height: 1;
-}
-.directory-squad span {
-  font-size: 11px;
-  color: #a9b8a1;
-  margin-top: 4px;
-}
-.directory-squad-players {
-  margin-top: 6px;
-  color: #c7d3bf;
-  font-size: 12px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.directory-squad-players span {
-  display: inline;
-  font-size: inherit;
 }
 .directory-add {
   margin: 4px 18px;
@@ -224,8 +367,10 @@
 }
 .directory-submissions {
   margin: 10px 0 3px;
-  padding: 11px;
+  padding: 14px;
   border: 1px solid #3e5038;
+  border-left: 3px solid #d85a43;
+  border-radius: 10px;
   background: #131a12;
   color: #dce4d5;
   font-size: 11px;
@@ -244,7 +389,24 @@
   gap: 9px;
 }
 .directory-submissions-heading {
-  margin-bottom: 5px;
+  margin-bottom: 10px;
+}
+.directory-submissions-heading > div {
+  display: grid;
+  gap: 3px;
+}
+.directory-weekly-kicker {
+  color: #d85a43;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.directory-submissions-heading strong {
+  font-size: 15px;
+}
+.directory-weekly-cadence {
+  color: #aebba6;
+  font-size: 10px;
 }
 .directory-submissions-heading button {
   min-height: 32px !important;
@@ -287,7 +449,89 @@
 .directory-submission-status {
   color: #91b87a;
   font-weight: 800;
-  white-space: nowrap;
+  line-height: 1.45;
+}
+.directory-weekly-entry {
+  padding: 13px;
+  border: 1px solid #3a4933;
+  border-radius: 8px;
+  background: #1a2418;
+}
+.directory-weekly-event {
+  display: grid;
+  gap: 4px;
+}
+.directory-weekly-event > a {
+  font-size: 14px;
+  font-weight: 850;
+}
+.directory-weekly-event > strong {
+  font-size: 12px;
+}
+.directory-weekly-event > span {
+  color: #aebba6;
+  font-size: 10px;
+}
+.directory-weekly-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 11px;
+}
+.directory-weekly-actions button {
+  min-height: 40px !important;
+  padding: 0 12px;
+  border: 1px solid #52674a !important;
+  border-radius: 6px;
+  font-size: 11px !important;
+  font-weight: 800;
+}
+.directory-weekly-actions .directory-primary-action {
+  background: #31583a;
+  border-color: #31583a !important;
+  color: #fffefa;
+}
+.directory-weekly-actions .directory-lineup-action {
+  background: transparent;
+  color: #dce4d5;
+}
+.directory-weekly-help,
+.directory-no-weekly span {
+  display: block;
+  margin: 9px 0 0;
+  color: #b8c6af;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.directory-no-weekly {
+  padding: 12px;
+  border: 1px dashed #46583e;
+  border-radius: 8px;
+}
+.directory-no-weekly strong {
+  font-size: 12px;
+}
+.directory-other-competitions,
+.directory-past-submissions {
+  margin-top: 11px;
+  border-top: 1px solid #3a4933;
+  padding-top: 9px;
+}
+.directory-other-competitions > summary,
+.directory-past-submissions > summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  font-weight: 800;
+}
+.directory-other-competitions > summary span {
+  padding: 3px 7px;
+  border-radius: 20px;
+  background: #2a3826;
+  font-size: 10px;
 }
 .directory-past-submissions {
   margin-top: 8px;
@@ -326,16 +570,34 @@
 }
 @media (max-width: 430px) {
   .directory-clan-head,
-  .directory-squad,
   .directory-player-row {
     padding-inline: 13px;
   }
-  .directory-squad,
   .directory-player-row {
     gap: 10px;
   }
   .directory-actions .manage-primary {
     flex: 1;
+  }
+  .directory-submissions {
+    padding: 11px;
+  }
+  .directory-weekly-cadence {
+    max-width: 90px;
+    text-align: right;
+    line-height: 1.4;
+  }
+  .directory-weekly-entry {
+    padding: 11px;
+  }
+  .directory-weekly-actions {
+    align-items: stretch;
+  }
+  .directory-weekly-actions button {
+    width: 100%;
+  }
+  .directory-weekly-actions .directory-submission-status {
+    width: 100%;
   }
 }
 .directory-clan-actions {
@@ -393,4 +655,60 @@
 }
 .directory-clan-head h2 {
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .directory-clan-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 13px;
+    padding: 16px;
+  }
+  .directory-clan-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .directory-clan-actions button {
+    min-width: 0;
+    padding-inline: 8px;
+    white-space: normal;
+  }
+  .directory-squads {
+    gap: 9px;
+    padding: 9px;
+  }
+  .directory-squad-topline {
+    gap: 9px;
+    padding: 10px;
+  }
+  .directory-squad-topline .directory-roster-manage {
+    min-height: 36px;
+    padding-inline: 8px;
+    font-size: 10px;
+  }
+  .directory-roster {
+    padding: 10px;
+  }
+  .directory-player-chips {
+    gap: 6px;
+  }
+  .directory-player-chip {
+    max-width: 100%;
+  }
+  .directory-player-chip-name {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 360px) {
+  .directory-squad-topline {
+    flex-wrap: wrap;
+  }
+  .directory-squad-identity {
+    flex-basis: calc(100% - 52px);
+  }
+  .directory-squad-topline .directory-roster-manage {
+    width: 100%;
+  }
 }

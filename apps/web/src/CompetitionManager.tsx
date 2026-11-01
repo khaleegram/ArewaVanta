@@ -712,7 +712,7 @@ function ScrimRecurrenceControls({ token, event, onUpdated }: { token: string; e
         <span className={`studio-series-state is-${recurring.state}`}><strong><i />{recurring.state === "active" ? "Every week" : recurring.state === "paused" ? "Paused" : "Ended"}</strong><small>{recurring.state === "ended" ? "Results retained" : recurring.state === "active" ? "Prepared Mondays" : "No end date"}</small></span>
       </div>
       {recurring.state !== "ended" && <details className="manage-workspace-series-settings"><summary>Manage weekly schedule <Icon name="chevron" /></summary><div>
-        <p>Upcoming weekends are prepared every Monday. Each week has its own squad submissions, slots and results.</p>
+        <p>The next weekend is prepared on Monday after the previous weekend ends. Captains submit once for the weekend and can update their players on Saturday or Sunday.</p>
         <label>Reason <span>Optional, visible to players</span><input maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Taking a break this weekend" /></label>
         <div className="manage-workspace-series-actions">
           {recurring.state === "active" && !hasResults && <button type="button" disabled={busy} onClick={() => change(event.skipped_at ? "restore" : "skip")}>{event.skipped_at ? "Play this week" : "Skip this week"}</button>}

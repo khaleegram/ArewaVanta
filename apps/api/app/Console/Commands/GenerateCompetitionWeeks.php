@@ -11,14 +11,13 @@ final class GenerateCompetitionWeeks extends Command
 {
     protected $signature = 'competitions:generate-weeks';
 
-    protected $description = 'Prepare upcoming weekly scrims with fresh squad entries and empty results';
+    protected $description = 'Prepare the next weekly scrim on Monday with fresh entries and empty results';
 
     public function handle(ManageWeeklyScrims $manager): int
     {
         $created = 0;
-        CompetitionEvent::query()->where('competition_type', 'scrim')->whereNull('series_id')->eachById(function (CompetitionEvent $event) use ($manager, &$created): void {
-            $prepared = $manager->ensureRecurring($event);
-            $created += $prepared->series->events->count() - 1;
+        CompetitionEvent::query()->where('competition_type', 'scrim')->whereNull('series_id')->eachById(function (CompetitionEvent $event) use ($manager): void {
+            $manager->ensureRecurring($event);
         });
         CompetitionSeries::query()->whereNull('paused_at')->whereNull('ended_at')->eachById(function (CompetitionSeries $series) use ($manager, &$created): void {
             $created += $manager->generate($series);

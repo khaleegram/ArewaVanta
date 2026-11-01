@@ -389,12 +389,16 @@ export type CaptainSquadSubmissions = {
     id: Id;
     title: string;
     slug: string;
+    series_id: Id | null;
     competition_type: "scrim" | "league" | "tournament" | null;
     start_date: string | null;
+    end_date: string | null;
     squad_capacity: number;
     squad_count: number;
     status: "pending" | "selected" | "not_selected" | "withdrawn" | null;
     submission_id: Id | null;
+    slot_number: number | null;
+    can_submit: boolean;
   }[];
   submissions: {
     id: Id;

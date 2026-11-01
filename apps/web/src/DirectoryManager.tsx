@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type {
   ManageClan,
@@ -19,7 +19,7 @@ import {
 import { Icon } from "./ui";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
-import { formatDate, squadIdentity, submissionStatusLabel } from "./presentation";
+import { formatDateRange, squadIdentity, submissionStatusLabel } from "./presentation";
 import "./directory-manager.css";
 
 type Squad = ManageClan["squads"][number];
@@ -78,10 +78,39 @@ function SquadPlayers({ token, squadId }: { token: string; squadId: string }) {
     return () => controller.abort();
   }, [token, squadId, retry]);
   return (
-    <div className="directory-squad-players">
-      {roster.status === "loading" ? "Loading players…" : roster.status === "error" ? (
-        <><span>Players didn’t load.</span> <button type="button" onClick={() => setRetry((value) => value + 1)}>Retry</button></>
-      ) : roster.data.length ? roster.data.map((player) => player.ign).join(", ") : "No players yet"}
+    <div className="directory-roster">
+      <div className="directory-roster-heading">
+        <div>
+          <span className="directory-roster-kicker">SQUAD ROSTER</span>
+          <strong>Players</strong>
+        </div>
+        {roster.status === "ready" && (
+          <span className="directory-roster-count">
+            {roster.data.length} {roster.data.length === 1 ? "player" : "players"}
+          </span>
+        )}
+      </div>
+      {roster.status === "loading" ? (
+        <p className="directory-roster-empty">Loading roster…</p>
+      ) : roster.status === "error" ? (
+        <div className="directory-roster-state">
+          <span>Players didn’t load.</span>
+          <button type="button" onClick={() => setRetry((value) => value + 1)}>Try again</button>
+        </div>
+      ) : roster.data.length ? (
+        <ul className="directory-player-chips" aria-label="Players in this squad">
+          {roster.data.map((player) => (
+            <li className="directory-player-chip" key={player.membership_id}>
+              <span className="directory-player-chip-mark" aria-hidden="true">
+                {Array.from(player.ign.trim()).slice(0, 2).join("").toUpperCase()}
+              </span>
+              <span className="directory-player-chip-name">{player.ign}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="directory-roster-empty">No players added to this squad yet.</p>
+      )}
     </div>
   );
 }
@@ -92,15 +121,32 @@ function nextSquadName(clan: ManageClan): string {
   }, 0);
   return `Squad ${Math.max(clan.squads.length, highest) + 1}`;
 }
-function SquadSubmissions({ token, squadId }: { token: string; squadId: string }) {
-  const [open, setOpen] = useState(false);
+function SquadSubmissions({ token, squadId, onManageRoster }: { token: string; squadId: string; onManageRoster: () => void }) {
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [inView, setInView] = useState(false);
   const [data, setData] = useState<Load<CaptainSquadSubmissions>>({ status: "loading" });
   const [refresh, setRefresh] = useState(0);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   useEffect(() => {
-    if (!open) return;
+    const section = sectionRef.current;
+    if (!section || inView) return;
+    if (!("IntersectionObserver" in window)) {
+      setInView(true);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setInView(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: "240px" });
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, [inView]);
+  useEffect(() => {
+    if (!inView) return;
     const controller = new AbortController();
     setData({ status: "loading" });
     api.squadEventSubmissions(token, squadId, controller.signal)
@@ -109,7 +155,7 @@ function SquadSubmissions({ token, squadId }: { token: string; squadId: string }
         if (!controller.signal.aborted) setData({ status: "error", message: message(err) });
       });
     return () => controller.abort();
-  }, [open, token, squadId, refresh]);
+  }, [inView, token, squadId, refresh]);
 
   async function submit(eventId: string) {
     setBusy(eventId);
@@ -140,54 +186,76 @@ function SquadSubmissions({ token, squadId }: { token: string; squadId: string }
       setBusy("");
     }
   }
-
-  if (!open)
-    return (
-      <button className="directory-submit-toggle" type="button" onClick={() => setOpen(true)}>
-        Submit to competition
-      </button>
-    );
+  const weeklyEvents = data.status === "ready"
+    ? data.data.opportunities.filter((event) => event.series_id)
+    : [];
+  const otherEvents = data.status === "ready"
+    ? data.data.opportunities.filter((event) => !event.series_id)
+    : [];
 
   return (
-    <section className="directory-submissions" aria-label="Competition squad submissions">
+    <section ref={sectionRef} className="directory-submissions" aria-label="Weekly scrim and competition squad submissions">
       <div className="directory-submissions-heading">
-        <strong>Competition entries</strong>
-        <button type="button" onClick={() => setOpen(false)} aria-label="Close competition entries">×</button>
+        <div>
+          <span className="directory-weekly-kicker">SQUAD ENTRY</span>
+          <strong>This week’s scrim</strong>
+        </div>
+        <span className="directory-weekly-cadence">New week every Monday</span>
       </div>
-      <p className="directory-submission-help">Submitted squads wait for the organizer to assign a slot. Only selected squads appear on the public competition page.</p>
       {notice && <p className="directory-submission-notice" role="status">{notice}</p>}
       {error && <p className="directory-submission-error" role="alert">{error}</p>}
-      {data.status === "loading" ? <p>Loading upcoming competitions…</p> : data.status === "error" ? (
+      {!inView || data.status === "loading" ? <p>Loading this week’s scrim…</p> : data.status === "error" ? (
         <div className="directory-submission-state">
           <span>{data.message}</span>
           <button type="button" onClick={() => setRefresh((value) => value + 1)}>Try again</button>
         </div>
       ) : (
         <>
-          {data.data.opportunities.length ? data.data.opportunities.map((event) => {
-            const canSubmit = event.status === null || event.status === "not_selected" || event.status === "withdrawn";
-            const statusLabel = submissionStatusLabel(event.status, "captain");
+          {weeklyEvents.length ? weeklyEvents.map((event) => {
+            const canSubmit = event.can_submit && (event.status === null || event.status === "not_selected" || event.status === "withdrawn");
             return (
-              <div className="directory-opportunity" key={event.id}>
-                <div>
-                  <strong><a className="directory-event-link" href={`/competitions/${encodeURIComponent(event.slug)}`}>{event.title}</a></strong>
-                  <span>{formatDate(event.start_date)} · {event.squad_count} of {event.squad_capacity} slots filled · {statusLabel}</span>
+              <article className="directory-weekly-entry" key={event.id}>
+                <div className="directory-weekly-event">
+                  <a className="directory-event-link" href={`/competitions/${encodeURIComponent(event.slug)}`}>{event.title}</a>
+                  <strong>{formatDateRange(event.start_date, event.end_date)}</strong>
+                  <span>{event.squad_count} of {event.squad_capacity} slots filled</span>
                 </div>
-                {event.status === "pending" && event.submission_id ? (
-                  <button type="button" disabled={busy === event.id} onClick={() => withdraw(event.submission_id!, event.id)}>{busy === event.id ? "…" : "Withdraw"}</button>
-                ) : canSubmit ? (
-                  <button type="button" disabled={busy === event.id} onClick={() => submit(event.id)}>{busy === event.id ? "Sending…" : event.status ? "Submit again" : "Submit"}</button>
-                ) : <span className="directory-submission-status">Slot confirmed</span>}
-              </div>
+                <div className="directory-weekly-actions">
+                  {event.status === "selected" ? (
+                    <span className="directory-submission-status">{event.slot_number ? `Slot ${event.slot_number} confirmed` : "Slot confirmed"}</span>
+                  ) : event.status === "pending" ? (
+                    <>
+                      <span className="directory-submission-status">Waiting for organizer to assign a slot</span>
+                      {event.can_submit && event.submission_id && <button type="button" className="directory-secondary-action" disabled={busy === event.id} onClick={() => withdraw(event.submission_id!, event.id)}>{busy === event.id ? "…" : "Withdraw"}</button>}
+                    </>
+                  ) : canSubmit ? (
+                    <button type="button" className="directory-primary-action" disabled={busy === event.id} onClick={() => submit(event.id)}>{busy === event.id ? "Submitting…" : event.status ? "Submit this week again" : "Submit this squad for the weekend"}</button>
+                  ) : <span className="directory-submission-status">Results have started · entries are closed</span>}
+                  <button type="button" className="directory-lineup-action" onClick={onManageRoster}>Update Saturday / Sunday players</button>
+                </div>
+                <p className="directory-weekly-help">Submit once for this weekend. You can still change the players on Saturday or Sunday; roster updates are saved for the match sheets.</p>
+              </article>
             );
-          }) : <p>No upcoming competitions are open for squad entries.</p>}
+          }) : <div className="directory-no-weekly"><strong>No scrim is open this weekend.</strong><span>When weekly scrims are active, the next entry appears here on Monday after the weekend ends.</span></div>}
+          {otherEvents.length > 0 && (
+            <details className="directory-other-competitions">
+              <summary>Other competitions <span>{otherEvents.length}</span></summary>
+              {otherEvents.map((event) => {
+                const canSubmit = event.can_submit && (event.status === null || event.status === "not_selected" || event.status === "withdrawn");
+                return <div className="directory-opportunity" key={event.id}>
+                  <div><strong><a className="directory-event-link" href={`/competitions/${encodeURIComponent(event.slug)}`}>{event.title}</a></strong><span>{formatDateRange(event.start_date, event.end_date)} · {submissionStatusLabel(event.status, "captain")}</span></div>
+                  {event.status === "pending" && event.submission_id && event.can_submit ? <button type="button" disabled={busy === event.id} onClick={() => withdraw(event.submission_id!, event.id)}>{busy === event.id ? "…" : "Withdraw"}</button> : canSubmit ? <button type="button" disabled={busy === event.id} onClick={() => submit(event.id)}>{busy === event.id ? "Submitting…" : "Submit"}</button> : event.status === "selected" ? <span className="directory-submission-status">Slot confirmed</span> : <span className="directory-submission-status">Entries closed</span>}
+                </div>;
+              })}
+            </details>
+          )}
           {data.data.submissions.some((submission) => !data.data.opportunities.some((event) => event.id === submission.event.id)) && (
-            <div className="directory-past-submissions">
-              <strong>Previous entries</strong>
+            <details className="directory-past-submissions">
+              <summary>Previous entries</summary>
               {data.data.submissions.filter((submission) => !data.data.opportunities.some((event) => event.id === submission.event.id)).map((submission) => (
                 <div key={submission.id}><span>{submission.event.title}</span><small>{submissionStatusLabel(submission.status, "captain")}</small></div>
               ))}
-            </div>
+            </details>
           )}
         </>
       )}
@@ -446,14 +514,14 @@ export default function DirectoryManager() {
                     .map((clan) => (
                       <article className="directory-clan" key={clan.id}>
                         <div className="directory-clan-head">
-                          <div>
-                            <p className="manage-eyebrow">
-                              {clan.tag || "Clan"}
-                            </p>
-                            <h2>{clan.name}</h2>
-                            <span>
-                              {clan.squads.length}{" "}
-                              {clan.squads.length === 1 ? "squad" : "squads"}
+                          <div className="directory-clan-identity">
+                            <p className="directory-clan-kicker">CLAN</p>
+                            <div className="directory-clan-title">
+                              <h2>{clan.name}</h2>
+                              {clan.tag && <span className="directory-clan-tag">{clan.tag}</span>}
+                            </div>
+                            <span className="directory-clan-count">
+                              {clan.squads.length} {clan.squads.length === 1 ? "squad" : "squads"}
                             </span>
                           </div>
                           <div className="directory-clan-actions">
@@ -475,34 +543,35 @@ export default function DirectoryManager() {
                           </div>
                         </div>
                         <div className="directory-squads">
-                          {clan.squads.map((squad) => (
-                            <div className="directory-squad" key={squad.id}>
-                              <div>
-                                <strong className="directory-squad-name">
-                                  {squadIdentity({
-                                    name: squad.name,
-                                    squadNumber: squad.squad_number,
-                                    clanTag: clan.tag,
-                                    clanName: clan.name,
-                                    clanSquadCount: clan.squad_count ?? clan.squads.length,
-                                  })}
-                                </strong>
-                                <SquadPlayers token={session.token} squadId={squad.id} />
-                              </div>
-                              <button
-                                onClick={() =>
-                                  setView({ kind: "roster", clan, squad })
-                                }
-                              >
-                                Roster
-                              </button>
-                              {session.user.roles.some((role) => role.role === "clan_captain" && role.scope_id === clan.id) && (
-                                <div className="directory-squad-entries">
-                                  <SquadSubmissions token={session.token} squadId={squad.id} />
+                          {clan.squads.map((squad, index) => {
+                            const number = squad.squad_number ?? index + 1;
+                            return (
+                              <article className="directory-squad" key={squad.id}>
+                                <div className="directory-squad-topline">
+                                  <span className="directory-squad-index" aria-hidden="true">
+                                    {String(number).padStart(2, "0")}
+                                  </span>
+                                  <div className="directory-squad-identity">
+                                    <span className="directory-squad-kicker">SQUAD</span>
+                                    <h3>{squad.name || `Squad ${number}`}</h3>
+                                    {squad.tag && <span className="directory-squad-tag">{squad.tag}</span>}
+                                  </div>
+                                  <button
+                                    className="directory-roster-manage"
+                                    onClick={() => setView({ kind: "roster", clan, squad })}
+                                  >
+                                    Edit match-day squad
+                                  </button>
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                                {session.user.roles.some((role) => role.role === "clan_captain" && role.scope_id === clan.id) && (
+                                  <div className="directory-squad-entries">
+                                    <SquadSubmissions token={session.token} squadId={squad.id} onManageRoster={() => setView({ kind: "roster", clan, squad })} />
+                                  </div>
+                                )}
+                                <SquadPlayers token={session.token} squadId={squad.id} />
+                              </article>
+                            );
+                          })}
                         </div>
                         <button
                           className="directory-add"
@@ -964,8 +1033,7 @@ function Roster({
           <span>.</span>
         </h1>
         <p>
-          Players listed here can be selected when you enter results. Past
-          results stay unchanged.
+          Update this lineup any time on Saturday or Sunday. Changes are available on that day’s match sheets; saved results stay unchanged.
         </p>
       </div>
       {success && (
