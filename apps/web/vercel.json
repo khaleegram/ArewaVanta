@@ -11,6 +11,7 @@
     { "source": "/leaderboard", "destination": "/index.html" },
     { "source": "/manage/:path*", "destination": "/index.html" },
     { "source": "/captain-invite", "destination": "/index.html" },
+    { "source": "/competition-organizer-invite", "destination": "/index.html" },
     { "source": "/forgot-password", "destination": "/index.html" },
     { "source": "/reset-password", "destination": "/index.html" },
     { "source": "/competitions/:slug", "destination": "/index.html" },
@@ -26,6 +27,10 @@
     },
     {
       "source": "/captain-invite",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/competition-organizer-invite",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
     },
     {
