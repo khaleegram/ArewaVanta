@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import LiveHome from "./LiveHome";
 import LiveLeaderboard from "./LiveLeaderboard";
 import CompetitionManager from "./CompetitionManager";
+import OrganizerManager from "./OrganizerManager";
 import DirectoryManager from "./DirectoryManager";
 import ResultManager from "./ResultManager";
 import CaptainInvite from "./CaptainInvite";
@@ -35,6 +36,7 @@ import "./public-match.css";
 import "./rankings-page.css";
 import "./public-people-pages.css";
 import "./rankings-arena.css";
+import "./organizer-manager.css";
 import { applyPageSeo } from "./seo";
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
@@ -54,6 +56,7 @@ function renderRoute() {
   else if (managerCompetitionMatch) page = <CompetitionManager workspaceEventId={decodeURIComponent(managerCompetitionMatch[1])} />;
   else if (path === "/manage/competitions") page = <CompetitionManager />;
   else if (path === "/manage/directory") page = <DirectoryManager />;
+  else if (path === "/manage/organizers") page = <OrganizerManager />;
   else if (path === "/captain-invite") page = <CaptainInvite />;
   else if (path === "/competition-organizer-invite") page = <CompetitionOrganizerInvite />;
   else if (path === "/forgot-password") page = <ForgotPasswordPage />;

@@ -44,8 +44,8 @@ final class CompetitionOrganizerInvitationController extends Controller
         $token = bin2hex(random_bytes(32));
         $url = rtrim((string) config('app.frontend_url'), '/').'/competition-organizer-invite#'.urlencode($token);
         try {
-            DB::transaction(function () use ($event, $request, $email, $token, $url): void {
-                DB::table('event_organizer_invitations')->where('event_id', $event->id)->where('email', $email)->whereNull('accepted_at')->delete();
+            DB::transaction(function () use ($event, $request, $email, $token, $url, $seriesEventIds): void {
+                DB::table('event_organizer_invitations')->whereIn('event_id', $seriesEventIds)->where('email', $email)->whereNull('accepted_at')->delete();
                 DB::table('event_organizer_invitations')->insert([
                     'event_id' => $event->id, 'email' => $email, 'token_hash' => hash('sha256', $token),
                     'invited_by' => $request->user()->id, 'expires_at' => now()->addDays(7),

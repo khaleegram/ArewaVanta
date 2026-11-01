@@ -57,3 +57,7 @@ alues, launch procedure, cost estimates, DNS, TLS, backup, and rollback guidance
 ### Squad and individual kill recording
 
 `events.track_player_kills` controls result entry. Scrims default to squad totals; leagues and tournaments default to individual player kills. Organizers can change it in competition details. For recurring scrims the setting applies across the series and is inherited by new weeks. Squad-only results accept placement and `team_kills` without requiring players or memberships. Individual results derive squad kills from selected player kills. Switching the setting preserves saved squad scores and existing player records; public player rankings, profiles and match breakdowns exclude individual statistics while tracking is disabled. Player ranking responses also include best-game kills, avoiding one profile request per ranking row.
+
+### Organizer workspace
+
+The management navigation includes `/manage/organizers` alongside competitions and the clan/player directory. A competition selector groups weekly scrims into one series. The protected `GET /api/v1/manage/events/{event}/organizers` endpoint lists users with competition or global organizer access and outstanding invitations, with expiry status and no invitation secrets. Resending an invitation replaces pending links across that series. Event-scoped organizers can open their assigned competitions and organizer workspace; creating competitions still requires global organizer or administrator access.

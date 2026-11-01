@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\CaptainInvitationController;
 use App\Http\Controllers\Api\V1\Manage\AdminActivityController;
 use App\Http\Controllers\Api\V1\Manage\AuditController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionEventController;
+use App\Http\Controllers\Api\V1\Manage\CompetitionOrganizerController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionOrganizerInvitationController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionSquadsController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionTemplateController;
@@ -125,6 +126,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/events/{event}', [EventQueriesController::class, 'show'])
             ->name('events.show');
         Route::post('/events/{event}/organizer-invitations', [CompetitionOrganizerInvitationController::class, 'send'])->middleware('throttle:10,1')->name('events.organizer-invitations.store');
+        Route::get('/events/{event}/organizers', CompetitionOrganizerController::class)->name('events.organizers.index');
         Route::get('/events/{event}/submissions', [EventSquadSubmissionController::class, 'forEvent'])->name('events.submissions.index');
         Route::patch('/events/{event}/submissions/{submission}', [EventSquadSubmissionController::class, 'decide'])->name('events.submissions.update');
         Route::get('/events/{event}/export/results', [EventExportController::class, 'results'])->name('events.export.results');

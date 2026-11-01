@@ -4,6 +4,7 @@ import type {
   AuthSession,
   CaptainSquadSubmissions,
   CompetitionTemplate,
+  CompetitionOrganizerTeam,
   CreateEventInput,
   EventStandings,
   EventSubmissionReview,
@@ -150,6 +151,8 @@ export const api = {
       `/manage/events/${key(eventId)}/organizer-invitations`,
       { token, method: "POST", body: { email } },
     ),
+  competitionOrganizers: (token: string, eventId: string, signal?: AbortSignal) =>
+    request<ApiData<CompetitionOrganizerTeam>>(`/manage/events/${key(eventId)}/organizers`, { token, signal }),
   inspectCompetitionOrganizerInvitation: (token: string, signal?: AbortSignal) =>
     request<ApiData<{ event_id: string; competition: string; email: string; existing_account: boolean }>>(
       "/competition-organizer-invitations/inspect",

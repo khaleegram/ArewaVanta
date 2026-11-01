@@ -1,0 +1,216 @@
+/* Dedicated organizer workspace. */
+.crew-page { font-family: Manrope, Arial, sans-serif; color: #253e31; padding-top: 16px; }
+.crew-page button, .crew-page input, .crew-page select { font: inherit; }
+.crew-page a { color: inherit; text-decoration: none; }
+.crew-page :is(button, input, select, a, summary):focus-visible { outline: 3px solid #b28a43; outline-offset: 3px; }
+.crew-page .icon { width: 18px; height: 18px; flex-shrink: 0; }
+.crew-team-icon { display: block; width: 27px; height: 27px; flex-shrink: 0; }
+.crew-heading { display: flex; align-items: center; justify-content: space-between; gap: 25px; margin-bottom: 28px; }
+.crew-eyebrow { display: block; font-size: 9px; font-weight: 750; letter-spacing: 1.4px; color: #7d876e; }
+.studio-shell .crew-heading h1 { font: 800 38px/1.2 Manrope, Arial, sans-serif; letter-spacing: -1.6px; text-transform: none; color: #263e30; margin: 9px 0; }
+.crew-heading h1 > span { color: #b29459; }
+.crew-heading p { color: #728171; font-size: 12px; line-height: 1.8; margin: 0; }
+.crew-invite-shortcut { display: flex; align-items: center; justify-content: center; gap: 9px; padding: 12px 17px; min-height: 45px; border: 1px solid #d6dfd0; border-radius: 10px; background: #fffefa; color: #325d40; font-size: 11px !important; font-weight: 750 !important; cursor: pointer; }
+.crew-invite-shortcut:disabled { opacity: .5; cursor: default; }
+.crew-competition { display: flex; align-items: center; gap: 15px; padding: 16px 18px; background: #e9eee5; border: 1px solid #d6dfcf; border-radius: 13px; margin-bottom: 25px; }
+.crew-competition-icon { display: grid; place-items: center; width: 43px; height: 43px; border-radius: 11px; color: #fff3cb; background: #285f43; flex-shrink: 0; }
+.crew-competition-icon .icon { width: 21px; height: 21px; }
+.crew-competition label { min-width: 0; flex: 1; max-width: 420px; }
+.crew-competition label > span { display: block; font-size: 8px; font-weight: 750; letter-spacing: 1.1px; color: #75846a; margin-bottom: 5px; }
+.crew-competition select { min-width: 0; width: 100%; min-height: 28px; border: 0; background: transparent; color: #244e34; font-size: 14px; font-weight: 750; padding: 0 10px 0 0; cursor: pointer; }
+.crew-series-label { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #617659; border: 1px solid #cfdcc9; border-radius: 6px; padding: 6px 9px; white-space: nowrap; }
+.crew-series-label > span { width: 5px; height: 5px; border-radius: 50%; background: #5d965f; }
+.crew-competition > a { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 750; color: #57724f; margin-left: auto; min-height: 44px; }
+.crew-competition > a .icon { width: 14px; height: 14px; }
+.crew-layout { display: grid; grid-template-columns: minmax(0, 1fr) 326px; gap: 24px; align-items: start; }
+.crew-team { min-width: 0; background: #fffefa; border: 1px solid #dce3d6; border-radius: 17px; overflow: hidden; box-shadow: 0 3px 14px #304d2f04; }
+.crew-team-heading { display: flex; justify-content: space-between; align-items: center; gap: 15px; padding: 24px; }
+.crew-team-heading > div:first-child { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.crew-section-icon { width: 38px; height: 39px; border-radius: 11px; background: #edf1e8; color: #537b4e; display: grid; place-items: center; flex-shrink: 0; }
+.crew-section-icon .crew-team-icon { width: 23px; height: 23px; }
+.studio-shell .crew-page h2 { margin: 0; font: 800 16px/1.5 Manrope, Arial, sans-serif; letter-spacing: -.4px; text-transform: none; color: #2e4836; }
+.crew-team-heading p { color: #8a9680; font-size: 10px; line-height: 1.7; margin: 5px 0 0; }
+.crew-team-avatars { display: flex; flex-shrink: 0; padding-left: 6px; }
+.crew-avatar { display: inline-flex; align-items: center; justify-content: center; width: 43px; height: 43px; border-radius: 13px; flex-shrink: 0; background: #e7eddd; color: #577243; font-weight: 800; font-size: 13px; letter-spacing: -.5px; }
+.crew-avatar-1 { background: #e9e5d9; color: #917445; }
+.crew-avatar-2 { background: #e1ebe7; color: #57776c; }
+.crew-avatar-3 { background: #eee3da; color: #926e54; }
+.crew-team-avatars .crew-avatar { width: 27px; height: 27px; font-size: 8px; border: 2px solid #fffefa; border-radius: 50%; margin-left: -7px; }
+.crew-tabs { display: flex; align-items: center; gap: 22px; padding: 0 24px; border-bottom: 1px solid #e3e9db; }
+.crew-tabs > button { cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 47px; padding: 0 0 13px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; font-size: 12px; font-weight: 700; color: #819079; }
+.crew-tabs > button[aria-selected=true] { color: #34643d; border-color: #34643d; }
+.crew-tabs > button > span { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 19px; border-radius: 5px; background: #f1f2e9; color: #819075; font-size: 9px; }
+.crew-tabs > button[aria-selected=true] > span { background: #e7efdd; color: #567948; }
+.crew-tabs > small { margin-left: auto; font-size: 8px; color: #8d9782; padding-bottom: 12px; }
+.crew-member-list, .crew-invitation-list { margin: 0; padding: 0 24px; list-style: none; }
+.crew-member-list > li, .crew-invitation-list > li { display: flex; align-items: center; gap: 13px; min-height: 106px; padding: 20px 0; border-bottom: 1px solid #e9ede2; }
+.crew-member-list > li:last-child, .crew-invitation-list > li:last-child { border-bottom: 0; }
+.crew-person { min-width: 0; flex: 1; }
+.crew-person > strong { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; font-size: 12px; line-height: 1.7; color: #324f3b; font-weight: 750; overflow-wrap: anywhere; }
+.crew-person > strong > span { display: inline-block; font-size: 8px; font-weight: 700; color: #7a866d; background: #eef0e5; border-radius: 4px; padding: 0 5px; }
+.crew-person > span { display: block; font-size: 10px; color: #7d8d73; line-height: 1.8; overflow-wrap: anywhere; }
+.crew-person > small { display: block; font-size: 8px; color: #9aa38d; margin-top: 4px; line-height: 1.7; }
+.crew-active { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; color: #629057; padding: 5px 8px; border: 1px solid #e1ead8; background: #f5f8ef; border-radius: 6px; flex-shrink: 0; }
+.crew-active > i { display: block; width: 4px; height: 4px; border-radius: 50%; background: #7aa066; }
+.crew-invitation-icon { display: grid; place-items: center; width: 40px; height: 40px; background: #f3eedc; color: #aa8c42; border: 1px solid #e9dfc4; border-radius: 11px; flex-shrink: 0; }
+.crew-invitation-icon.is-expired { background: #efede6; border-color: #e0ddd0; color: #a3977a; }
+.crew-person > .crew-pending { color: #ad8b47; }
+.crew-person > .crew-expired { color: #9e8970; }
+.crew-resend { min-height: 40px; display: flex; align-items: center; gap: 7px; padding: 0 10px; background: #fffefa; border: 1px solid #dce3d2; border-radius: 8px; color: #658059; cursor: pointer; font-size: 9px !important; font-weight: 750 !important; }
+.crew-resend .icon { width: 13px; height: 13px; }
+.crew-resend:disabled { opacity: .5; cursor: default; }
+.crew-team-foot { display: flex; gap: 8px; align-items: flex-start; padding: 16px 24px; border-top: 1px solid #e4eadb; background: #f8f9f2; color: #849378; font-size: 9px; line-height: 1.8; }
+.crew-team-foot .icon { width: 14px; height: 14px; margin-top: 1px; color: #8ca17b; }
+.crew-search { display: flex; gap: 9px; align-items: center; margin: 16px 24px 0; padding: 0 11px; background: #f7f8f0; border: 1px solid #dde5d3; border-radius: 8px; }
+.crew-search .icon { width: 14px; height: 14px; color: #96a28a; }
+.crew-search input { min-width: 0; flex: 1; background: none; border: 0; padding: 13px 0; font-size: 11px; color: #3b5b3e; }
+.crew-state { display: flex; align-items: center; flex-direction: column; gap: 10px; padding: 45px 24px; text-align: center; color: #809072; font-size: 12px; line-height: 1.9; }
+.crew-state .crew-team-icon { color: #a5b297; width: 32px; height: 32px; }
+.crew-state p { max-width: 360px; margin: 0; }
+.crew-state a { color: #4f7d43; font-weight: 750; }
+.crew-state button { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 13px; border: 1px solid #d4e1c9; border-radius: 7px; background: #edf4e5; color: #517547; cursor: pointer; font-size: 10px; }
+.crew-invite { min-width: 0; border: 1px solid #d7e0ce; border-radius: 17px; background: #fffefa; overflow: hidden; }
+.crew-invite-intro { position: relative; isolation: isolate; padding: 25px 25px 21px; background: #ecf1e4; border-bottom: 1px solid #e3e9d8; overflow: hidden; }
+.crew-invite-intro::before { content: ''; z-index: -1; position: absolute; width: 230px; height: 230px; border: 1px solid #c7d9b150; border-radius: 50%; top: -80px; right: -130px; }
+.crew-invite-intro::after { content: ''; z-index: -1; position: absolute; width: 160px; height: 160px; border: 1px solid #c7d9b180; border-radius: 50%; top: -40px; right: -95px; }
+.crew-invite-icon { display: grid; place-items: center; position: relative; width: 48px; height: 48px; border: 1px solid #d5e1c9; border-radius: 14px; background: #f9fbf4; color: #668852; margin-bottom: 20px; box-shadow: 0 3px 8px #3b5f2c07; }
+.crew-invite-icon > i { display: grid; place-items: center; position: absolute; bottom: -4px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: #517844; color: #fffdf3; border: 2px solid #edf2e5; }
+.crew-invite-icon > i .icon { width: 10px; height: 10px; }
+.crew-invite-intro .crew-eyebrow { color: #8a9c73; font-size: 8px; letter-spacing: 1.1px; }
+.studio-shell .crew-page .crew-invite h2 { font-size: 26px; line-height: 1.16; letter-spacing: -1px; color: #385c3b; margin: 9px 0 12px; }
+.crew-invite-intro > p { margin: 0; font-size: 10px; line-height: 1.9; color: #829376; max-width: 225px; }
+.crew-invite-form { display: block; padding: 22px 24px 0; }
+.crew-invite-form > label { display: block; font-weight: 750; color: #4f6d48; font-size: 10px; margin-bottom: 9px; }
+.crew-invite-form > input { display: block; width: 100%; min-height: 47px; padding: 12px 13px; background: #fffefa; color: #325439; border: 1px solid #d4dfcb; border-radius: 9px; font-size: 12px; }
+.crew-invite-form > input::placeholder { color: #a2ad96; }
+.crew-invite-form > p { font-size: 9px; color: #9aa68c; line-height: 1.7; margin: 8px 0 18px; }
+.crew-invite-form > button { display: flex; justify-content: space-between; align-items: center; min-height: 47px; gap: 12px; width: 100%; padding: 12px 15px; border: 0; border-radius: 9px; color: #fffdf3; background: #38683e; font-size: 11px; font-weight: 750; cursor: pointer; }
+.crew-invite-form > button:hover { background: #2e5934; }
+.crew-invite-form > button:disabled { opacity: .55; cursor: default; }
+.crew-invite-form > button .icon { width: 16px; height: 16px; }
+.crew-access { border-top: 1px solid #e6ebde; margin: 22px 24px 0; }
+.crew-access > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; list-style: none; cursor: pointer; color: #8c9b7d; font-size: 9px; }
+.crew-access summary::-webkit-details-marker { display: none; }
+.crew-access summary > .icon { width: 12px; height: 12px; }
+.crew-access[open] summary > .icon { transform: rotate(180deg); }
+.crew-access > div { padding-bottom: 20px; }
+.crew-access h3 { font-size: 9px; font-weight: 750; color: #68805a; margin: 0 0 12px; }
+.crew-access ul { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 5px; padding: 0; margin: 0; list-style: none; }
+.crew-access li { display: flex; gap: 5px; align-items: center; color: #80916f; font-size: 8px; }
+.crew-access li > .icon { width: 11px; height: 11px; color: #7e9a6b; }
+.crew-access p { border-top: 1px solid #e8ecdf; padding-top: 14px; color: #9aa58a; font-size: 9px; line-height: 1.8; margin: 17px 0 0; }
+.crew-feedback { display: flex; align-items: flex-start; gap: 7px; margin: 15px 24px 0; padding: 11px; background: #f0f6e9; border: 1px solid #d5e6c7; border-radius: 8px; color: #5c8747; font-size: 10px; line-height: 1.8; overflow-wrap: anywhere; }
+.crew-feedback .icon { width: 14px; height: 14px; margin-top: 2px; }
+.crew-feedback-error { background: #fbf1e9; border-color: #ebd6c3; color: #a16b47; }
+/* Strong text contrast and a distinct invitation panel. */
+.crew-heading p { color: #627166; font-size: 14px; }
+.crew-eyebrow { color: #68765f; }
+.crew-competition label > span { color: #65735e; font-size: 9px; }
+.crew-competition select { font-size: 15px; }
+.crew-series-label, .crew-competition > a { color: #526d4b; font-size: 11px; }
+.studio-shell .crew-page h2 { font-size: 18px; }
+.crew-team-heading p { font-size: 12px; color: #6b7867; }
+.crew-tabs > button { font-size: 13px; color: #677560; }
+.crew-tabs > button > span { font-size: 10px; color: #65765b; }
+.crew-tabs > small { color: #6b7963; font-size: 10px; }
+.crew-person > strong { font-size: 14px; color: #2d4536; }
+.crew-person > span { font-size: 12px; color: #647260; }
+.crew-person > small { font-size: 10px; color: #72806a; }
+.crew-person > strong > span { color: #627259; font-size: 9px; }
+.crew-active { color: #477638; font-size: 10px; }
+.crew-person > .crew-pending { color: #946c29; }
+.crew-person > .crew-expired { color: #856c50; }
+.crew-resend { font-size: 11px !important; color: #47693d; }
+.crew-team-foot { color: #687c5b; font-size: 11px; }
+.crew-state { color: #66775c; font-size: 13px; }
+.crew-search input { color: #3b5739; font-size: 12px; }
+.crew-invite-intro { background: #21553f; border-color: #1d4938; }
+.crew-invite-intro::before, .crew-invite-intro::after { border-color: #e2edcc15; }
+.crew-invite-intro .crew-eyebrow { color: #bfd3b1; font-size: 9px; }
+.studio-shell .crew-page .crew-invite h2 { color: #fff9e7; font-size: 29px; }
+.crew-invite-intro > p { color: #d2dfcb; font-size: 12px; }
+.crew-invite-form > label { font-size: 12px; color: #415f3b; }
+.crew-invite-form > input { font-size: 14px; }
+.crew-invite-form > input::placeholder { color: #798971; }
+.crew-invite-form > p { color: #72826a; font-size: 11px; }
+.crew-invite-form > button { font-size: 13px; background: #255c40; }
+.crew-access > summary { color: #65775a; font-size: 11px; }
+.crew-access h3 { font-size: 11px; color: #526c44; }
+.crew-access li { color: #607655; font-size: 10px; }
+.crew-access p { font-size: 10px; color: #6e7d62; }
+.crew-feedback { font-size: 12px; color: #4a733b; }
+.crew-feedback-error { color: #915a37; }
+@media (max-width: 850px) {
+  .crew-layout { grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; }
+  .crew-team-heading { padding-inline: 18px; }
+  .crew-team-avatars { display: none; }
+  .crew-member-list, .crew-invitation-list { padding-inline: 18px; }
+  .crew-tabs { padding-inline: 18px; gap: 20px; }
+  .crew-tabs > small { display: none; }
+  .crew-active { font-size: 8px; padding: 4px 6px; }
+}
+@media (max-width: 680px) {
+  .manage-page .manage-bar .manage-wrap > span { display: none; }
+  .manage-page .manage-bar .manage-wrap { gap: 0; }
+  .manage-page .manage-bar .manage-nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(85px, 1fr)); width: 100%; border: 0; padding: 0; gap: 5px; }
+  .manage-page .manage-nav a { justify-content: center; font-size: 11px; padding: 0 4px; min-height: 48px; }
+  .crew-page { padding-top: 13px; }
+  .crew-heading { align-items: flex-start; gap: 10px; margin-bottom: 21px; }
+  .studio-shell .crew-heading h1 { font-size: 30px; letter-spacing: -1.1px; margin: 8px 0; }
+  .crew-eyebrow { font-size: 7px; letter-spacing: 1px; }
+  .crew-heading p { font-size: 11px; }
+  .crew-invite-shortcut { font-size: 10px !important; gap: 5px; padding: 9px 11px; min-height: 42px; margin-top: 24px; }
+  .crew-invite-shortcut .icon { width: 13px; height: 13px; }
+  .crew-competition { padding: 13px; gap: 11px; flex-wrap: wrap; margin-bottom: 18px; border-radius: 11px; }
+  .crew-competition-icon { width: 37px; height: 39px; border-radius: 10px; }
+  .crew-competition label { max-width: none; flex-basis: calc(100% - 50px); }
+  .crew-competition select { font-size: 12px; }
+  .crew-competition label > span { font-size: 7px; }
+  .crew-series-label { margin-left: 48px; font-size: 8px; padding: 4px 7px; }
+  .crew-competition > a { font-size: 9px; min-height: 28px; margin-left: auto; }
+  .crew-layout { display: flex; flex-direction: column; gap: 18px; }
+  .crew-layout > * { width: 100%; }
+  .crew-team { border-radius: 14px; }
+  .crew-team-heading { padding: 20px 17px; gap: 10px; }
+  .studio-shell .crew-page .crew-team h2 { font-size: 15px; }
+  .crew-team-heading p { font-size: 9px; }
+  .crew-section-icon { width: 34px; height: 36px; }
+  .crew-team-heading > div:first-child { gap: 10px; }
+  .crew-team-avatars { display: flex; }
+  .crew-tabs { padding-inline: 17px; }
+  .crew-tabs > button { font-size: 11px; }
+  .crew-member-list, .crew-invitation-list { padding-inline: 17px; }
+  .crew-member-list > li, .crew-invitation-list > li { min-height: 95px; padding: 17px 0; gap: 10px; }
+  .crew-avatar { width: 36px; height: 39px; border-radius: 10px; font-size: 11px; }
+  .crew-person > strong { font-size: 13px; }
+  .crew-person > span { font-size: 11px; }
+  .crew-person > small { font-size: 10px; }
+  .crew-active { padding: 4px 6px; font-size: 8px; }
+  .crew-resend { font-size: 8px !important; gap: 4px; padding-inline: 8px; }
+  .crew-resend .icon { width: 11px; height: 11px; }
+  .crew-invitation-list .crew-person > strong { font-size: 12px; }
+  .crew-invitation-icon { width: 32px; height: 35px; border-radius: 9px; }
+  .crew-invitation-icon .icon { width: 15px; height: 15px; }
+  .crew-team-foot { padding: 14px 17px; font-size: 10px; }
+  .crew-invite { border-radius: 14px; }
+  .crew-invite-intro { padding: 21px 21px 18px 83px; }
+  .crew-invite-icon { position: absolute; top: 24px; left: 20px; margin: 0; width: 44px; height: 46px; }
+  .crew-invite-intro .crew-eyebrow { font-size: 7px; }
+  .studio-shell .crew-page .crew-invite h2 { font-size: 24px; margin: 7px 0; }
+  .crew-invite h2 br { display: none; }
+  .crew-invite-intro > p { max-width: 100%; font-size: 11px; }
+  .crew-invite-form { padding: 20px 21px 0; }
+  .crew-invite-form > input { font-size: 16px; }
+  .crew-invite-form > button { min-height: 48px; font-size: 12px; }
+  .crew-access { margin-inline: 21px; margin-top: 18px; }
+  .crew-access > summary { min-height: 48px; font-size: 10px; }
+  .crew-access li { font-size: 9px; }
+  .crew-feedback { margin-inline: 21px; }
+}
+@media (max-width: 380px) {
+  .crew-heading { flex-wrap: wrap; }
+  .crew-invite-shortcut { margin-top: 0; min-height: 40px; }
+  .crew-team-avatars { display: none; }
+  .crew-invitation-list .crew-invitation-icon { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .crew-page * { scroll-behavior: auto; } }

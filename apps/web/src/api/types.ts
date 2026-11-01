@@ -233,6 +233,11 @@ export type User = {
   }[];
 };
 export type AuthSession = { token: string; user: User };
+export type CompetitionOrganizerTeam = {
+  event: { id: Id; title: string; series_id: Id | null };
+  members: { id: Id | number; name: string; email: string; access: "global" | "competition" }[];
+  invitations: { id: number; email: string; sent_at: string; expires_at: string; status: "pending" | "expired" }[];
+};
 export type CompetitionTemplate = {
   id: Id;
   name: string;
