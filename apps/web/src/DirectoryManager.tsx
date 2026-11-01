@@ -21,6 +21,7 @@ import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
 import { formatDateRange, squadIdentity, submissionStatusLabel } from "./presentation";
 import "./directory-manager.css";
+import "./directory-compact.css";
 
 type Squad = ManageClan["squads"][number];
 type View =
@@ -78,18 +79,7 @@ function SquadPlayers({ token, squadId }: { token: string; squadId: string }) {
     return () => controller.abort();
   }, [token, squadId, retry]);
   return (
-    <div className="directory-roster">
-      <div className="directory-roster-heading">
-        <div>
-          <span className="directory-roster-kicker">SQUAD ROSTER</span>
-          <strong>Players</strong>
-        </div>
-        {roster.status === "ready" && (
-          <span className="directory-roster-count">
-            {roster.data.length} {roster.data.length === 1 ? "player" : "players"}
-          </span>
-        )}
-      </div>
+    <div className="directory-inline-roster" aria-label="Squad players">
       {roster.status === "loading" ? (
         <p className="directory-roster-empty">Loading roster…</p>
       ) : roster.status === "error" ? (
@@ -101,9 +91,6 @@ function SquadPlayers({ token, squadId }: { token: string; squadId: string }) {
         <ul className="directory-player-chips" aria-label="Players in this squad">
           {roster.data.map((player) => (
             <li className="directory-player-chip" key={player.membership_id}>
-              <span className="directory-player-chip-mark" aria-hidden="true">
-                {Array.from(player.ign.trim()).slice(0, 2).join("").toUpperCase()}
-              </span>
               <span className="directory-player-chip-name">{player.ign}</span>
             </li>
           ))}
@@ -112,6 +99,69 @@ function SquadPlayers({ token, squadId }: { token: string; squadId: string }) {
         <p className="directory-roster-empty">No players added to this squad yet.</p>
       )}
     </div>
+  );
+}
+function ClanCard({
+  clan, token, initiallyOpen, canEditCaptains, canSubmit, busy, onEdit, onCaptains, onAddSquad, onRoster,
+}: {
+  clan: ManageClan;
+  token: string;
+  initiallyOpen: boolean;
+  canEditCaptains: boolean;
+  canSubmit: boolean;
+  busy: boolean;
+  onEdit: () => void;
+  onCaptains: () => void;
+  onAddSquad: () => void;
+  onRoster: (squad: Squad) => void;
+}) {
+  const [expanded, setExpanded] = useState(initiallyOpen);
+  const [panel, setPanel] = useState<"squads" | "entry">("squads");
+  const [selectedSquadId, setSelectedSquadId] = useState(clan.squads[0]?.id ?? "");
+  const selectedSquad = clan.squads.find((squad) => squad.id === selectedSquadId) ?? clan.squads[0];
+  const bodyId = `clan-${clan.id}-body`;
+
+  return (
+    <article className="directory-compact-clan">
+      <div className="directory-compact-head">
+        <button type="button" className="directory-clan-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setExpanded(!expanded)}>
+          <span className="directory-clan-avatar" aria-hidden="true">{Array.from(clan.tag || clan.name).slice(0, 3).join("")}</span>
+          <span className="directory-clan-label"><strong>{clan.name}</strong><span>{clan.tag && <b>{clan.tag}</b>}{clan.squads.length} {clan.squads.length === 1 ? "squad" : "squads"}</span></span>
+          <Icon name="chevron" className={expanded ? "is-expanded" : ""} />
+        </button>
+      </div>
+      {expanded && (
+        <div id={bodyId} className="directory-clan-body">
+          <div className="directory-clan-toolbar">
+            <div className="directory-clan-views" aria-label={`${clan.name} sections`}>
+              {canSubmit ? <button type="button" aria-pressed={panel === "squads"} onClick={() => setPanel("squads")}>Squads & players</button> : <strong className="directory-section-label">Squads & players</strong>}
+              {canSubmit && clan.squads.length > 0 && <button type="button" aria-pressed={panel === "entry"} onClick={() => setPanel("entry")}>Weekend entry</button>}
+            </div>
+            <div className="directory-clan-tools">
+              {canEditCaptains && <button type="button" onClick={onCaptains}>Team captains</button>}
+              <button type="button" disabled={busy} onClick={onEdit}>Edit clan</button>
+              <button type="button" className="directory-add-squad" onClick={onAddSquad}><Icon name="plus" />Add squad</button>
+            </div>
+          </div>
+          {panel === "squads" ? (
+            <div className="directory-squad-rows">
+              {clan.squads.length === 0 ? <div className="directory-clan-empty"><strong>Your first squad starts here.</strong><p>Add a squad, then add its players.</p><button type="button" onClick={onAddSquad}>Add squad <Icon name="plus" /></button></div> : clan.squads.map((squad, index) => (
+                <div className="directory-squad-row" key={squad.id}>
+                  <div className="directory-squad-row-name"><span className="directory-row-number">{String(squad.squad_number ?? index + 1).padStart(2, "0")}</span><strong>{squad.name || `Squad ${index + 1}`}</strong>{squad.tag && <small>{squad.tag}</small>}</div>
+                  <SquadPlayers token={token} squadId={squad.id} />
+                  <button type="button" className="directory-edit-players" onClick={() => onRoster(squad)}>Edit players <Icon name="arrow" /></button>
+                </div>
+              ))}
+            </div>
+          ) : selectedSquad && (
+            <div className="directory-clan-entry">
+              <div className="directory-entry-squad"><label htmlFor={`clan-${clan.id}-entry-squad`}>Submit squad</label><select id={`clan-${clan.id}-entry-squad`} value={selectedSquad.id} onChange={(event) => setSelectedSquadId(event.target.value)}>{clan.squads.map((squad) => <option key={squad.id} value={squad.id}>{squad.name}</option>)}</select></div>
+              <SquadSubmissions key={selectedSquad.id} token={token} squadId={selectedSquad.id} onManageRoster={() => onRoster(selectedSquad)} />
+            </div>
+          )}
+        </div>
+      )}
+    </article>
   );
 }
 function nextSquadName(clan: ManageClan): string {
@@ -187,20 +237,19 @@ function SquadSubmissions({ token, squadId, onManageRoster }: { token: string; s
     }
   }
   const weeklyEvents = data.status === "ready"
-    ? data.data.opportunities.filter((event) => event.series_id)
+    ? data.data.opportunities.filter((event) => event.competition_type === "scrim")
     : [];
   const otherEvents = data.status === "ready"
-    ? data.data.opportunities.filter((event) => !event.series_id)
+    ? data.data.opportunities.filter((event) => event.competition_type !== "scrim")
     : [];
 
   return (
     <section ref={sectionRef} className="directory-submissions" aria-label="Weekly scrim and competition squad submissions">
       <div className="directory-submissions-heading">
         <div>
-          <span className="directory-weekly-kicker">SQUAD ENTRY</span>
-          <strong>This week’s scrim</strong>
+          <strong>Next weekly scrim</strong>
         </div>
-        <span className="directory-weekly-cadence">New week every Monday</span>
+        <span className="directory-weekly-cadence">Submit any time before results are published</span>
       </div>
       {notice && <p className="directory-submission-notice" role="status">{notice}</p>}
       {error && <p className="directory-submission-error" role="alert">{error}</p>}
@@ -233,10 +282,10 @@ function SquadSubmissions({ token, squadId, onManageRoster }: { token: string; s
                   ) : <span className="directory-submission-status">Results have started · entries are closed</span>}
                   <button type="button" className="directory-lineup-action" onClick={onManageRoster}>Update Saturday / Sunday players</button>
                 </div>
-                <p className="directory-weekly-help">Submit once for this weekend. You can still change the players on Saturday or Sunday; roster updates are saved for the match sheets.</p>
+                <p className="directory-weekly-help">Submit each squad once per weekend. You can change its players on Saturday or Sunday.</p>
               </article>
             );
-          }) : <div className="directory-no-weekly"><strong>No scrim is open this weekend.</strong><span>When weekly scrims are active, the next entry appears here on Monday after the weekend ends.</span></div>}
+          }) : <div className="directory-no-weekly"><strong>No upcoming weekly scrim is scheduled yet.</strong><span>Once the next weekend is prepared, it will appear here. Captains can submit any time before results are published.</span></div>}
           {otherEvents.length > 0 && (
             <details className="directory-other-competitions">
               <summary>Other competitions <span>{otherEvents.length}</span></summary>
@@ -267,6 +316,7 @@ export default function DirectoryManager() {
   const [checking, setChecking] = useState(true);
   const [authError, setAuthError] = useState("");
   const [view, setView] = useState<View>({ kind: "list" });
+  const [focusedClanId, setFocusedClanId] = useState("");
   const [tab, setTab] = useState<"clans" | "players">("clans");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
@@ -382,6 +432,10 @@ export default function DirectoryManager() {
     setView({ kind: "list" });
     setRefresh((x) => x + 1);
   }
+  const visibleClans = clans.status === "ready" ? clans.data.filter((clan) =>
+    `${clan.name} ${clan.tag} ${clan.squads.map((squad) => `${squad.name} ${squad.tag ?? ""}`).join(" ")}`
+      .toLowerCase().includes(search.toLowerCase()),
+  ) : [];
   return (
     <Shell section="directory" session={session} onLogout={logout}>
       {checking ? (
@@ -408,7 +462,7 @@ export default function DirectoryManager() {
         />
       ) : (
         <>
-          <div className="manage-page-heading">
+          <div className="manage-page-heading directory-page-heading">
             <div>
               <p className="manage-eyebrow">
                 {captainOnly ? "CLAN CAPTAIN WORKSPACE" : "ORGANIZER WORKSPACE"}
@@ -439,7 +493,8 @@ export default function DirectoryManager() {
               </button>
             )}
           </div>
-          <div className="directory-tabs" aria-label="Directory section">
+          <div className="directory-controls">
+          {global && <div className="directory-tabs" aria-label="Directory section">
             <button
               aria-pressed={tab === "clans"}
               onClick={() => {
@@ -464,7 +519,7 @@ export default function DirectoryManager() {
                 Players
               </button>
             )}
-          </div>
+          </div>}
           <form
             className="directory-search"
             onSubmit={(e) => {
@@ -476,7 +531,7 @@ export default function DirectoryManager() {
             <label>
               <span className="sr-only">Search {tab}</span>
               <input
-                placeholder={`Search ${tab}`}
+                placeholder={tab === "clans" ? "Find a clan or squad…" : "Search players…"}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 maxLength={100}
@@ -484,6 +539,7 @@ export default function DirectoryManager() {
             </label>
             <button type="submit">Search</button>
           </form>
+          </div>
           {success && (
             <div className="manage-success" role="status">
               {success}
@@ -504,90 +560,24 @@ export default function DirectoryManager() {
                   retry={() => setRefresh((x) => x + 1)}
                 />
               ) : (
-                <div className="directory-clans">
-                  {clans.data
-                    .filter((clan) =>
-                      `${clan.name} ${clan.tag}`
-                        .toLowerCase()
-                        .includes(search.toLowerCase()),
-                    )
-                    .map((clan) => (
-                      <article className="directory-clan" key={clan.id}>
-                        <div className="directory-clan-head">
-                          <div className="directory-clan-identity">
-                            <p className="directory-clan-kicker">CLAN</p>
-                            <div className="directory-clan-title">
-                              <h2>{clan.name}</h2>
-                              {clan.tag && <span className="directory-clan-tag">{clan.tag}</span>}
-                            </div>
-                            <span className="directory-clan-count">
-                              {clan.squads.length} {clan.squads.length === 1 ? "squad" : "squads"}
-                            </span>
-                          </div>
-                          <div className="directory-clan-actions">
-                            {teamCaptainAccess && (
-                              <button
-                                onClick={() =>
-                                  setView({ kind: "captains", clan })
-                                }
-                              >
-                                Team captains
-                              </button>
-                            )}
-                            <button
-                              disabled={busy}
-                              onClick={() => openClan(clan)}
-                            >
-                              Edit clan
-                            </button>
-                          </div>
-                        </div>
-                        <div className="directory-squads">
-                          {clan.squads.map((squad, index) => {
-                            const number = squad.squad_number ?? index + 1;
-                            return (
-                              <article className="directory-squad" key={squad.id}>
-                                <div className="directory-squad-topline">
-                                  <span className="directory-squad-index" aria-hidden="true">
-                                    {String(number).padStart(2, "0")}
-                                  </span>
-                                  <div className="directory-squad-identity">
-                                    <span className="directory-squad-kicker">SQUAD</span>
-                                    <h3>{squad.name || `Squad ${number}`}</h3>
-                                    {squad.tag && <span className="directory-squad-tag">{squad.tag}</span>}
-                                  </div>
-                                  <button
-                                    className="directory-roster-manage"
-                                    onClick={() => setView({ kind: "roster", clan, squad })}
-                                  >
-                                    Edit match-day squad
-                                  </button>
-                                </div>
-                                {session.user.roles.some((role) => role.role === "clan_captain" && role.scope_id === clan.id) && (
-                                  <div className="directory-squad-entries">
-                                    <SquadSubmissions token={session.token} squadId={squad.id} onManageRoster={() => setView({ kind: "roster", clan, squad })} />
-                                  </div>
-                                )}
-                                <SquadPlayers token={session.token} squadId={squad.id} />
-                              </article>
-                            );
-                          })}
-                        </div>
-                        <button
-                          className="directory-add"
-                          onClick={() =>
-                              setView({ kind: "squad", clan })
-                          }
-                        >
-                          + Add squad
-                        </button>
-                      </article>
+                <div className="directory-clans directory-compact">
+                  <div className="directory-compact-summary"><span>{visibleClans.length} {visibleClans.length === 1 ? "clan" : "clans"}</span><span>{visibleClans.reduce((total, clan) => total + clan.squads.length, 0)} squads</span></div>
+                  {visibleClans.map((clan) => (
+                      <ClanCard
+                        key={`${clan.id}-${search}`}
+                        clan={clan}
+                        token={session.token}
+                        initiallyOpen={captainOnly || clans.data.length === 1 || focusedClanId === clan.id || search.length > 0}
+                        canEditCaptains={teamCaptainAccess}
+                        canSubmit={session.user.roles.some((role) => role.role === "clan_captain" && role.scope_id === clan.id)}
+                        busy={busy}
+                        onEdit={() => { setFocusedClanId(clan.id); openClan(clan); }}
+                        onCaptains={() => { setFocusedClanId(clan.id); setView({ kind: "captains", clan }); }}
+                        onAddSquad={() => { setFocusedClanId(clan.id); setView({ kind: "squad", clan }); }}
+                        onRoster={(squad) => { setFocusedClanId(clan.id); setView({ kind: "roster", clan, squad }); }}
+                      />
                     ))}
-                  {!clans.data.filter((clan) =>
-                    `${clan.name} ${clan.tag}`
-                      .toLowerCase()
-                      .includes(search.toLowerCase()),
-                  ).length && <Notice text="No clans found." />}
+                  {!visibleClans.length && <Notice text="No clans found." />}
                 </div>
               )}
             </>

@@ -13,6 +13,7 @@ use App\Models\Squad;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 final class EventSquadSubmissionController extends Controller
@@ -25,6 +26,12 @@ final class EventSquadSubmissionController extends Controller
         $submissions = EventSquadSubmission::query()->with(['event.days'])
             ->whereHas('event', fn ($query) => $query->where('visibility', 'public'))
             ->where('squad_id', $squad->id)->orderByDesc('submitted_at')->get();
+        $pastSubmissions = $submissions->filter(function (EventSquadSubmission $submission): bool {
+            $lastDate = $submission->event->days->max(fn ($day): string => $day->event_date->toDateString());
+
+            return $lastDate !== null && CarbonImmutable::parse($lastDate, $submission->event->timezone)
+                ->lessThan(CarbonImmutable::today($submission->event->timezone));
+        });
         $known = $submissions->keyBy('event_id');
         $events = CompetitionEvent::query()->with('days')
             ->with(['squadEntries' => fn ($query) => $query->where('status', 'active')])
@@ -32,16 +39,21 @@ final class EventSquadSubmissionController extends Controller
             ->where('visibility', 'public')->whereNull('skipped_at')->get()
             ->filter(function (CompetitionEvent $event): bool {
                 $lastDate = $event->days->max(fn ($day): string => $day->event_date->toDateString());
+                $today = CarbonImmutable::today($event->timezone);
 
                 return $lastDate !== null && CarbonImmutable::parse($lastDate, $event->timezone)
-                    ->greaterThanOrEqualTo(CarbonImmutable::today($event->timezone));
+                    ->greaterThanOrEqualTo($today);
             });
-        $weeklyEvents = $events->filter(fn (CompetitionEvent $event): bool => $event->series_id !== null)
-            ->groupBy('series_id')
+        $weeklyEvents = $events->filter(fn (CompetitionEvent $event): bool => $event->competition_type === 'scrim')
+            // Legacy weekly occurrences may not have series_id set. Group those by
+            // title too, so captains see the nearest upcoming weekend only.
+            ->groupBy(fn (CompetitionEvent $event): string => $event->series_id !== null
+                ? 'series:'.$event->series_id
+                : 'title:'.Str::of($event->title)->lower()->squish()->toString())
             ->map(fn ($weeks) => $weeks->sortBy(fn (CompetitionEvent $event): string =>
                 $event->days->min(fn ($day): string => $day->event_date->toDateString()) ?? '9999-12-31'
             )->first());
-        $events = $events->filter(fn (CompetitionEvent $event): bool => $event->series_id === null)
+        $events = $events->filter(fn (CompetitionEvent $event): bool => $event->competition_type !== 'scrim')
             ->concat($weeklyEvents)->sortBy(fn (CompetitionEvent $event): string =>
                 $event->days->min(fn ($day): string => $day->event_date->toDateString()) ?? '9999-12-31'
             )
@@ -72,7 +84,7 @@ final class EventSquadSubmissionController extends Controller
             'squad_id' => $squad->id,
             'clan' => ['name' => $squad->clan->name, 'tag' => $squad->clan->tag],
             'opportunities' => $events,
-            'submissions' => $submissions->map(fn (EventSquadSubmission $submission): array => [
+            'submissions' => $pastSubmissions->map(fn (EventSquadSubmission $submission): array => [
                 'id' => $submission->id,
                 'status' => $submission->status,
                 'submitted_at' => $submission->submitted_at?->toIso8601String(),
