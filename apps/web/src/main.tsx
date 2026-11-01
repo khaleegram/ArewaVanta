@@ -28,6 +28,7 @@ import "./styles.css";
 import "./home.css";
 import "./live-home.css";
 import "./light-theme.css";
+import "./results-manager.css";
 import "./competition-overview.css";
 import "./home-studio.css";
 import "./public-detail.css";
