@@ -142,6 +142,8 @@ final class ManageWeeklyScrims
                     $seriesEventIds = $series->events()->pluck('id');
                     DB::table('role_assignments')->where('role', Role::Organizer->value)
                         ->where('scope_type', RoleScope::Event->value)->whereIn('scope_id', $seriesEventIds)
+                        ->whereNotIn('user_id', DB::table('role_assignments')->select('user_id')
+                            ->where('role', Role::Organizer->value)->where('scope_type', RoleScope::Global->value)->where('scope_id', '*'))
                         ->get(['user_id', 'assigned_by'])->each(function (object $assignment) use ($week): void {
                             DB::table('role_assignments')->insertOrIgnore([
                                 'id' => (string) Str::ulid(), 'user_id' => $assignment->user_id,

@@ -30,15 +30,8 @@ final class CompetitionOrganizerInvitationController extends Controller
         $data = $request->validate(['email' => ['required', 'email', 'max:255']]);
         $email = Str::lower(trim($data['email']));
         $existing = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
-        $seriesEventIds = $event->series_id === null
-            ? [$event->id]
-            : CompetitionEvent::query()->where('series_id', $event->series_id)->pluck('id')->all();
-        if ($existing?->hasRole(Role::Organizer, RoleScope::Global, '*') || $existing?->isPlatformAdmin()
-            || ($existing !== null && RoleAssignment::query()->where('user_id', $existing->id)
-                ->where('role', Role::Organizer->value)
-                ->where('scope_type', RoleScope::Event->value)
-                ->whereIn('scope_id', $seriesEventIds)->exists())) {
-            throw ValidationException::withMessages(['email' => 'This account already has access to the competition.']);
+        if ($existing?->hasRole(Role::Organizer, RoleScope::Global, '*') || $existing?->isPlatformAdmin()) {
+            throw ValidationException::withMessages(['email' => 'This account already has organizer access.']);
         }
 
         $token = bin2hex(random_bytes(32));
@@ -93,12 +86,10 @@ final class CompetitionOrganizerInvitationController extends Controller
                 $user = User::query()->create(['name' => trim($data['name']), 'email' => $invitation->email, 'password' => $data['password']]);
                 $user->forceFill(['email_verified_at' => now()])->save();
             }
-            foreach ($eventIds as $eventId) {
-                RoleAssignment::query()->firstOrCreate(
-                    ['user_id' => $user->id, 'role' => Role::Organizer->value, 'scope_type' => RoleScope::Event->value, 'scope_id' => $eventId],
-                    ['assigned_by' => $invitation->invited_by],
-                );
-            }
+            RoleAssignment::query()->firstOrCreate(
+                ['user_id' => $user->id, 'role' => Role::Organizer->value, 'scope_type' => RoleScope::Global->value, 'scope_id' => '*'],
+                ['assigned_by' => $invitation->invited_by],
+            );
             DB::table('event_organizer_invitations')->whereIn('event_id', $eventIds)
                 ->where('email', $invitation->email)->whereNull('accepted_at')
                 ->update(['accepted_at' => now(), 'updated_at' => now()]);

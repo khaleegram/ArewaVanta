@@ -56,9 +56,10 @@ export default function CompetitionOrganizerInvite() {
     {state.status === "loading" ? <div className="manage-notice">Checking invitation…</div>
       : state.status === "error" ? <div className="manage-notice" role="alert">{state.message}</div>
         : <section className="manage-login">
-          <p className="manage-eyebrow">COMPETITION ORGANIZER INVITATION</p>
-          <h1>Join the organizers<span>.</span></h1>
-          <p>You’ve been invited to help manage <strong>{state.data.competition}</strong>.</p>
+          <p className="manage-eyebrow">AREWAVANTA ORGANIZER INVITATION</p>
+          <h1>Join the organizer team<span>.</span></h1>
+          <p>You’ve been invited to help run ArewaVanta. This invite was sent from <strong>{state.data.competition}</strong>.</p>
+          <p>Once accepted, you can manage all competitions, weekly scrims, clans, squads and results.</p>
           <form onSubmit={(e) => void accept(e)}>
             <label>Email<input value={state.data.email} disabled /></label>
             {!state.data.existing_account && <label>Your name<input required maxLength={255} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} /></label>}
