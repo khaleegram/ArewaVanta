@@ -9,11 +9,15 @@ import type {
   EventStandings,
   EventSubmissionReview,
   EventSummary,
+  EventCheckIn,
+  ClanMonthlyReport,
+  MatchParticipant,
   Id,
   ManageEvent,
   RecurrenceAction,
   ManageEventSummary,
   ManageClan,
+  ClanPlayer,
   ClanEditResponse,
   ManageSquad,
   ManagePlayer,
@@ -244,6 +248,12 @@ export const api = {
       query: { page },
       signal,
     }),
+  clanPlayers: (token: string, clanId: string, signal?: AbortSignal) =>
+    request<ApiData<ClanPlayer[]>>(`/manage/clans/${key(clanId)}/players`, { token, signal }),
+  createClanPlayer: (token: string, clanId: string, currentIgn: string, uid: string | null) =>
+    request<ApiData<ClanPlayer>>(`/manage/clans/${key(clanId)}/players`, {
+      token, method: "POST", body: { current_ign: currentIgn, uid },
+    }),
   createClan: (
     token: string,
     body: { name: string; tag: string; bio: string | null },
@@ -402,6 +412,8 @@ export const api = {
       token,
       signal,
     }),
+  eventCheckIn: (token: string, id: Id, signal?: AbortSignal) =>
+    request<ApiData<EventCheckIn>>(`/manage/events/${key(id)}/check-in`, { token, signal }),
   updateRecurrence: (token: string, eventId: Id, action: RecurrenceAction, reason?: string) =>
     request<ApiData<ManageEvent>>(`/manage/events/${key(eventId)}/recurrence`, {
       token, method: "PATCH", body: { action, ...(reason ? { reason } : {}) },
@@ -477,6 +489,10 @@ export const api = {
       `/manage/events/${key(eventId)}/submissions/${key(submissionId)}`,
       { token, method: "PATCH", body: { decision, ...(slotNumber === undefined ? {} : { slot_number: slotNumber }) } },
     ),
+  clanMonthlyReport: (token: string, clanId: Id, month: string, signal?: AbortSignal) =>
+    request<ApiData<ClanMonthlyReport>>(`/manage/clans/${key(clanId)}/reports/monthly`, { token, query: { month }, signal }),
+  matchParticipants: (token: string, matchId: Id, search: string, clanId?: Id, signal?: AbortSignal) =>
+    request<ApiData<MatchParticipant[]> & { meta: { has_more: boolean } }>(`/manage/matches/${key(matchId)}/players`, { token, query: { search, clan_id: clanId }, signal }),
   resultSheet: (token: string, matchId: Id, signal?: AbortSignal) =>
     request<ApiData<ResultSheet>>(
       `/manage/matches/${key(matchId)}/result-sheet`,
@@ -493,7 +509,7 @@ export const api = {
     request<ApiData<SavedResult>>(`/manage/matches/${key(matchId)}/results`, {
       method: "PUT",
       token,
-      body: { results, expected_lock_version: expectedLockVersion, expected_scoring_version_id: expectedScoringVersionId },
+      body: { results, patch_mode: true, expected_lock_version: expectedLockVersion, expected_scoring_version_id: expectedScoringVersionId },
       signal,
     }),
 };

@@ -41,6 +41,20 @@ export type SquadHistoryEntry = {
   scored_match_count: number;
 };
 export type PublicPlayer = { id: Id; current_ign: string };
+export type ClanPlayer = PublicPlayer & { squads: { id: Id; name: string }[] };
+export type EventCheckIn = {
+  generated_at: string;
+  event: {
+    id: Id; title: string; timezone: string; squad_capacity: number; squad_size: number;
+    days: { id: Id; date: string; label: string }[];
+  };
+  slots: {
+    slot_number: number | null;
+    squad: { id: Id; name: string; number: number };
+    clan: { name: string; tag: string | null };
+    players: { id: Id; ign: string }[];
+  }[];
+};
 export type ManageClan = {
   id: Id;
   name: string;
@@ -66,6 +80,7 @@ export type ManageSquad = {
 };
 export type ManagePlayer = {
   id: Id;
+  clan_id?: Id | null;
   current_ign: string;
   uid: string | null;
   uid_public: boolean;
@@ -200,11 +215,13 @@ export type PlayerProfile = {
   uid: string | null;
   appearances: number;
   total_kills: number;
+  recorded_games?: number;
+  unknown_scores?: number;
   kills_per_appearance: string | null;
   best_game_kills: number | null;
   match_history: {
     ign_snapshot: string;
-    kills: number;
+    kills: number | null;
     match_id: Id;
     match_index: number;
     map_label: string;
@@ -439,11 +456,11 @@ export type EventSubmissionReview = {
   }[];
 };
 export type MatchResultInput = {
-  team_kills?: number;
+  team_kills?: number | null;
   squad_id: Id;
   status?: "present" | "absent";
   placement?: number | null;
-  players: { player_id: Id; kills: number }[];
+  players: { player_id?: Id; ign?: string; kills: number | null }[];
 };
 export type SavedResult = {
   saved_at: string | null;
@@ -459,11 +476,15 @@ export type SavedResult = {
     participation_status: "present" | "absent";
     placement: number | null;
     team_kills: number;
+    team_kills_override?: number | null;
+    kills_confirmed?: boolean;
+    is_partial?: boolean;
+    unattributed_kills?: number;
     kill_points: string | null;
     placement_points: string | null;
     placement_multiplier: string | null;
     total_points: string;
-    players: { player_id: Id; ign: string; kills: number }[];
+    players: { player_id: Id; ign: string; kills: number | null }[];
   }[];
 };
 export type PublicMatchResult = {
@@ -501,10 +522,39 @@ export type ResultSheet = {
     squad_number?: number;
     tag: string | null;
     clan: string;
+    clan_id: Id;
     clan_tag: string;
     clan_squad_count?: number;
     slot_number: number | null;
     eligible_players: { id: Id; ign: string }[];
   }[];
   result: SavedResult | null;
+};
+
+export type MatchParticipant = { id: Id; ign: string; clan: string | null; clan_id: Id | null };
+export type MonthlySummary = {
+  appearances: number; games: number; match_days: number; absences: number;
+  wins: number; top_three: number; kills: number; attributed_kills: number; unattributed_kills: number;
+  points: string; average_placement: number | null; average_kills: number | null; win_rate: number | null;
+  best_placement: number | null; best_game_kills: number | null; players: number;
+  partial_results: number; missing_placements: number; unknown_player_scores: number;
+};
+export type MonthlyPlayer = {
+  id: Id; ign: string; appearances: number; recorded_games: number; kills: number;
+  best_game: number | null; wins: number; squad_ids: Id[]; average_kills: number | null;
+};
+export type MonthlyMatch = {
+  id: Id; date: string; game: number; map: string; event: string; event_id: Id; status: "present" | "absent";
+  placement: number | null; kills: number; kills_confirmed: boolean; points: string;
+  players: { id: Id; ign: string; kills: number | null }[];
+};
+export type ClanMonthlyReport = {
+  clan: { id: Id; name: string; tag: string; slug: string };
+  month: string; month_label: string; previous_month_label: string; timezone: string; generated_at: string;
+  summary: MonthlySummary; previous: MonthlySummary;
+  squads: { id: Id; name: string; number: number; slug: string; summary: MonthlySummary; previous: MonthlySummary; players: MonthlyPlayer[]; matches: MonthlyMatch[] }[];
+  players: MonthlyPlayer[];
+  timeline: { date: string; summary: MonthlySummary }[];
+  competitions: { id: Id; title: string; slug: string; summary: MonthlySummary }[];
+  notes: string[];
 };

@@ -21,6 +21,7 @@ final class MatchResultController extends Controller
             $request->validated('expected_lock_version'),
             $request->exists('expected_scoring_version_id'),
             $request->validated('expected_scoring_version_id'),
+            $request->boolean('patch_mode'),
         )))->response()->setStatusCode(200);
     }
 }

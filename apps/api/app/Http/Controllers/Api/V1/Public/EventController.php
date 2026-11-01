@@ -122,7 +122,7 @@ final class EventController extends Controller
             'skipped_at' => $event->skipped_at?->toIso8601String(),
             'skip_reason' => $event->skip_reason,
             'competition_type' => $event->competition_type,
-            'track_player_kills' => $event->track_player_kills,
+            'track_player_kills' => true,
             'squad_count' => $event->squad_count,
             'squad_capacity' => $event->squad_capacity,
             'slug' => $event->slug,

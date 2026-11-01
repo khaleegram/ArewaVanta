@@ -19,6 +19,11 @@ class Clan extends Model
         return $this->hasMany(Squad::class);
     }
 
+    public function players(): HasMany
+    {
+        return $this->hasMany(Player::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

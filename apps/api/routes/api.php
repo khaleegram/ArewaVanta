@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CaptainInvitationController;
 use App\Http\Controllers\Api\V1\Manage\AdminActivityController;
 use App\Http\Controllers\Api\V1\Manage\AuditController;
+use App\Http\Controllers\Api\V1\Manage\ClanMonthlyReportController;
+use App\Http\Controllers\Api\V1\Manage\ClanPlayerController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionEventController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionOrganizerController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionOrganizerInvitationController;
@@ -15,6 +17,7 @@ use App\Http\Controllers\Api\V1\Manage\EventQueriesController;
 use App\Http\Controllers\Api\V1\Manage\EventRecurrenceController;
 use App\Http\Controllers\Api\V1\Manage\EventScheduleController;
 use App\Http\Controllers\Api\V1\Manage\EventSquadSubmissionController;
+use App\Http\Controllers\Api\V1\Manage\MatchParticipantController;
 use App\Http\Controllers\Api\V1\Manage\MatchResultController;
 use App\Http\Controllers\Api\V1\Manage\MatchResultSheetController;
 use App\Http\Controllers\Api\V1\Manage\MatchScoringController;
@@ -98,6 +101,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/people/{user}/roles', [PeopleController::class, 'assign'])->name('people.roles.store');
         Route::delete('/people/{user}/roles/{assignment}', [PeopleController::class, 'revoke'])->name('people.roles.destroy');
         Route::get('/clans', [OrganizationController::class, 'index'])->name('clans.index');
+        Route::get('/clans/{clan}/players', [ClanPlayerController::class, 'index'])->name('clans.players.index');
+        Route::post('/clans/{clan}/players', [ClanPlayerController::class, 'store'])->name('clans.players.store');
         Route::post('/clans/{clan}/captain-invitations', [CaptainInvitationController::class, 'send'])->middleware('throttle:10,1');
         Route::post('/clans', [OrganizationController::class, 'registerClan'])->name('clans.store');
         Route::patch('/clans/{clan}', [DirectoryController::class, 'updateClan'])->name('clans.update');
@@ -131,6 +136,7 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/events/{event}/submissions/{submission}', [EventSquadSubmissionController::class, 'decide'])->name('events.submissions.update');
         Route::get('/events/{event}/export/results', [EventExportController::class, 'results'])->name('events.export.results');
         Route::get('/events/{event}/export/standings', [EventExportController::class, 'standings'])->name('events.export.standings');
+        Route::get('/events/{event}/check-in', [EventExportController::class, 'checkIn'])->name('events.check-in');
         Route::post('/events', CompetitionEventController::class)
             ->name('events.store');
         Route::patch('/events/{event}/recurrence', EventRecurrenceController::class)->name('events.recurrence.update');
@@ -142,6 +148,8 @@ Route::prefix('v1')->group(function (): void {
             ->name('events.squads.update');
         Route::put('/matches/{match}/squads', [CompetitionSquadsController::class, 'match'])
             ->name('matches.squads.update');
+        Route::get('/matches/{match}/players', MatchParticipantController::class);
+        Route::get('/clans/{clan}/reports/monthly', ClanMonthlyReportController::class);
         Route::get('/matches/{match}/result-sheet', MatchResultSheetController::class)
             ->name('matches.result-sheet.show');
         Route::patch('/matches/{match}/scoring', MatchScoringController::class)

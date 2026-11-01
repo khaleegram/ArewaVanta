@@ -1,0 +1,169 @@
+.monthly-page { --report-ink:#213f30; --report-muted:#687b6d; color:var(--report-ink); padding-bottom:32px; }
+.monthly-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:24px; font-size:13px; }
+.monthly-toolbar > div { display:flex; gap:8px; }
+.monthly-page button, .monthly-page select, .monthly-page input { font:inherit; }
+.monthly-toolbar button, .monthly-export { display:flex; gap:8px; align-items:center; justify-content:center; background:#fffefa; border:1px solid #cbd8c9; color:#24543d; padding:11px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; }
+.monthly-toolbar button:last-child { background:#21573e; color:white; border-color:#21573e; }
+.monthly-toolbar svg { width:17px; height:17px; }
+.monthly-page button:disabled { opacity:.5; cursor:wait; }
+.monthly-hero { background:#1d4332; background-image:linear-gradient(125deg,transparent 60%,#37563a50 60%,#37563a50 73%,transparent 73%); border-radius:16px; padding:30px 32px; color:#f6f6eb; border-bottom:4px solid #ef6343; }
+.monthly-brand { display:flex; align-items:center; gap:9px; }
+.monthly-brand img { width:25px; height:25px; }
+.monthly-brand strong { font-size:19px; letter-spacing:-1px; }
+.monthly-brand strong span { color:#ff7955; }
+.monthly-brand > span { margin-left:auto; font-size:9px; letter-spacing:2px; color:#cbd7bf; }
+.monthly-hero > p { margin:36px 0 8px; font-size:10px; letter-spacing:2px; color:#dfbb73; font-weight:750; }
+.manage-page .monthly-hero h1 { margin:0 0 14px; font-family:inherit; font-size:clamp(28px,4vw,45px); font-weight:800; line-height:1.15; letter-spacing:-1.3px; text-transform:none; color:#fffdf1; overflow-wrap:anywhere; }
+.monthly-hero h1 > span { color:#f47853; }
+.monthly-hero > div:last-child { display:flex; flex-wrap:wrap; gap:10px 16px; font-size:12px; color:#d1decc; }
+.monthly-hero > div:last-child > span + span { border-left:1px solid #789177; padding-left:16px; }
+.monthly-controls { display:flex; flex-wrap:wrap; align-items:center; gap:16px; padding:20px 0; }
+.monthly-controls label { display:grid; gap:5px; font-size:10px; font-weight:750; color:#586b5d; }
+.monthly-controls select, .monthly-controls input { background:white; border:1px solid #cfdbcc; border-radius:7px; padding:10px; color:#224632; font-size:13px; min-height:42px; min-width:0; }
+.monthly-controls > label { min-width:150px; }
+.monthly-controls > span { margin-left:auto; max-width:190px; font-size:11px; color:#6a7b6c; line-height:1.5; }
+.monthly-month { display:flex; align-items:flex-end; gap:5px; }
+.monthly-month button { width:33px; height:42px; border:1px solid #cfdbcc; background:#edf2e9; color:#2d553d; border-radius:7px; cursor:pointer; }
+.monthly-tabs { display:flex; gap:6px; border-bottom:1px solid #d4dfd0; margin-bottom:24px; }
+.monthly-tabs button { flex:1; padding:13px 10px; border:0; border-bottom:3px solid transparent; background:none; color:#6c7d6d; text-transform:capitalize; font-weight:700; font-size:13px; cursor:pointer; }
+.monthly-tabs button[aria-pressed=true] { border-color:#eb6243; color:#204f38; background:#eaf0e5; border-radius:7px 7px 0 0; }
+.monthly-section { display:none; }
+.monthly-section.is-active { display:block; }
+.monthly-kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.monthly-kpis article { border:1px solid #d5dfce; border-radius:10px; padding:20px; background:#fffef9; display:grid; gap:12px; }
+.monthly-kpis article > span { font-size:9px; font-weight:750; letter-spacing:1px; color:#69785f; }
+.monthly-kpis article > strong { font-size:34px; letter-spacing:-1.5px; line-height:1; }
+.monthly-kpis article > small { font-size:11px; color:#796a59; }
+.monthly-kpis small.is-up { color:#28764f; }
+.monthly-kpis small > span { display:block; color:#7b8375; font-size:9px; margin-top:5px; }
+.monthly-comparison-note { font-size:11px; color:#657760; margin:14px 0 22px; line-height:1.7; }
+.monthly-overview-grid, .monthly-squads { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.monthly-card { min-width:0; background:#fffefa; border:1px solid #d4dfce; border-radius:12px; padding:22px; margin-bottom:18px; }
+.monthly-card header > span, .monthly-section-title p { color:#b66c3e; font-size:9px; letter-spacing:1.5px; font-weight:750; }
+.manage-page .monthly-card h2, .manage-page .monthly-section-title h2, .manage-page .monthly-empty h2 { color:#254530; font-family:inherit; font-size:19px; line-height:1.4; margin:6px 0 20px; font-weight:750; text-transform:none; }
+.monthly-card header > a { color:#517854; font-size:11px; }
+.monthly-facts { margin:0; }
+.monthly-facts > div { display:flex; justify-content:space-between; align-items:center; gap:14px; padding:11px 0; border-bottom:1px solid #e9ede2; }
+.monthly-facts dt { font-size:12px; color:#67765f; }
+.monthly-facts dd { margin:0; font-size:14px; font-weight:750; }
+.monthly-muted { font-size:11px; color:#71816b; line-height:1.8; }
+.monthly-coverage { display:flex; align-items:center; gap:16px; }
+.monthly-coverage > strong { font-size:44px; font-weight:800; letter-spacing:-2px; }
+.monthly-coverage strong small { font-size:22px; }
+.monthly-coverage > span { max-width:210px; font-size:11px; color:#708068; line-height:1.6; }
+.monthly-card progress { width:100%; height:9px; margin:14px 0; accent-color:#44714c; }
+.monthly-bars { display:grid; gap:16px; }
+.monthly-bars > div { display:grid; grid-template-columns:96px 1fr 80px; gap:8px 16px; align-items:center; font-size:11px; }
+.monthly-bars > div > small { grid-column:2 / -1; color:#7a876f; }
+.monthly-bar-track { background:#edf1e7; height:14px; border-radius:3px; overflow:hidden; }
+.monthly-bar-track > i { display:block; background:linear-gradient(90deg,#2d5f43,#9daa69); height:100%; border-radius:3px; }
+.monthly-bars strong { text-align:right; font-size:14px; }
+.monthly-bars strong small { font-weight:400; font-size:10px; }
+.monthly-competitions > a { display:flex; justify-content:space-between; align-items:center; gap:14px; border-top:1px solid #e3e8da; padding:14px 0; font-size:13px; }
+.monthly-competitions > a > span { display:grid; gap:6px; }
+.monthly-competitions small { font-size:11px; color:#6b7b65; }
+.monthly-competitions b { white-space:nowrap; }
+.monthly-section-title { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:22px; }
+.monthly-section-title p { margin:0; }
+.manage-page .monthly-section-title h2 { margin:4px 0 0; }
+.monthly-section-title > span { font-size:11px; color:#7c846f; }
+.monthly-squad-score { display:flex; align-items:center; flex-wrap:wrap; gap:10px 22px; margin:22px 0; }
+.monthly-squad-score > strong { font-size:32px; letter-spacing:-1px; }
+.monthly-squad-score > strong small { margin-left:7px; font-size:10px; font-weight:400; letter-spacing:0; }
+.monthly-squad-score > span { font-size:12px; color:#6a795e; }
+.monthly-mini-players a { display:flex; justify-content:space-between; gap:10px; padding:8px 0; font-size:11px; border-top:1px solid #e7ecde; }
+.monthly-mini-players span { overflow-wrap:anywhere; }
+.monthly-mini-players b { white-space:nowrap; }
+.monthly-table-wrap { overflow:auto; background:#fffefa; border:1px solid #d4dfce; border-radius:12px; }
+.monthly-player-table { width:100%; border-collapse:collapse; font-size:12px; }
+.monthly-player-table th, .monthly-player-table td { padding:16px 12px; text-align:right; border-bottom:1px solid #e5ebdc; }
+.monthly-player-table thead th { font-size:10px; background:#e7eddf; color:#65775c; }
+.monthly-player-table th:first-child { text-align:left; }
+.monthly-player-table tbody th a { display:flex; align-items:center; gap:13px; font-size:12px; }
+.monthly-player-table tbody th a > small { color:#9a9c7d; font-size:10px; font-weight:400; }
+.monthly-player-table th span { overflow-wrap:anywhere; min-width:100px; }
+.monthly-player-table em { display:block; font-size:9px; font-style:normal; color:#9d7852; font-weight:400; margin-top:4px; }
+.monthly-ledger { display:grid; gap:12px; }
+.monthly-ledger article { display:grid; grid-template-columns:1fr auto; gap:12px; border:1px solid #d5dfcf; background:#fffefa; padding:18px 20px; border-radius:10px; }
+.monthly-ledger article > div:first-child { display:grid; gap:5px; font-size:13px; }
+.monthly-ledger-date { font-size:10px; color:#a47540; font-weight:700; }
+.monthly-ledger article small { font-size:10px; color:#728266; }
+.monthly-ledger-score { display:flex; gap:14px; align-items:center; font-size:12px; }
+.monthly-ledger-score strong { font-size:19px; }
+.monthly-ledger-players { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:7px; }
+.monthly-ledger-players a { display:flex; gap:12px; align-items:center; padding:7px 10px; border:1px solid #e3e9d8; border-radius:5px; font-size:11px; overflow-wrap:anywhere; }
+.monthly-ledger-players b { color:#92642c; }
+.monthly-edit-result { grid-column:1 / -1; justify-self:end; font-size:10px; color:#5a7b56; }
+.monthly-method { border-top:1px solid #d6dfcd; margin-top:28px; padding-top:18px; color:#75836c; font-size:10px; line-height:1.9; }
+.monthly-method strong { color:#4c6546; }
+.monthly-method ul { padding-left:16px; margin:10px 0; }
+.monthly-empty { background:#edf1e7; padding:24px; border-radius:10px; margin:16px 0; text-align:center; font-size:12px; line-height:1.8; }
+.monthly-empty svg { width:28px; margin:0 auto 12px; }
+.manage-page .monthly-empty h2 { margin:0 0 10px; }
+@media(max-width:650px) {
+ .monthly-toolbar { align-items:flex-start; font-size:11px; gap:10px; }
+ .monthly-toolbar button { padding:9px; font-size:10px; }
+ .monthly-toolbar > div { gap:5px; }
+ .monthly-hero { padding:22px; }
+ .monthly-brand > span { font-size:7px; letter-spacing:1px; }
+ .monthly-hero > p { margin-top:26px; }
+ .monthly-controls { gap:12px; }
+ .monthly-controls input, .monthly-controls select { font-size:16px; }
+ .monthly-controls > span { max-width:none; width:100%; margin:0; }
+ .monthly-controls > label { flex:1; min-width:95px; }
+ .monthly-month label { width:145px; }
+ .monthly-tabs button { font-size:11px; padding:12px 6px; }
+ .monthly-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+ .monthly-kpis article { padding:16px; }
+ .monthly-kpis article > strong { font-size:29px; }
+ .monthly-overview-grid, .monthly-squads { grid-template-columns:1fr; gap:0; }
+ .monthly-card { padding:18px; }
+ .monthly-bars > div { grid-template-columns:74px 1fr 63px; gap:7px 9px; font-size:10px; }
+ .monthly-section-title { gap:12px; }
+ .monthly-player-table th, .monthly-player-table td { padding:13px 8px; font-size:12px; }
+ .monthly-player-table tbody th a { gap:7px; font-size:12px; }
+ .monthly-player-table tbody th a > small { display:none; }
+ .monthly-ledger article { grid-template-columns:1fr; padding:16px; }
+ .monthly-ledger-score { justify-content:flex-start; }
+ .monthly-competitions > a { font-size:12px; }
+ .monthly-month button { width:28px; }
+}
+@page monthly-report { size:A4 portrait; margin:12mm; }
+@media print {
+ body:has(.monthly-page), body:has(.monthly-page) .manage-page { min-height:auto; background:white !important; color:black; }
+ body:has(.monthly-page) .manage-header, body:has(.monthly-page) .manage-bar, body:has(.monthly-page) .skip-link, body:has(.monthly-page) .pwa-install-card, body:has(.monthly-page) .pwa-ios-banner { display:none !important; }
+ body:has(.monthly-page) .manage-main { width:auto; max-width:none; margin:0; padding:0; }
+ .monthly-page { page:monthly-report; font-size:9pt; padding:0; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+ .monthly-toolbar, .monthly-controls, .monthly-tabs, .monthly-export, .monthly-edit-result { display:none !important; }
+ .monthly-section { display:block !important; margin:5mm 0; }
+ .monthly-hero { border-radius:0; padding:6mm; break-inside:avoid; }
+ .monthly-brand > span { font-size:6pt; }
+ .monthly-hero > p { margin-top:5mm; }
+ .manage-page .monthly-hero h1 { font-size:23pt; }
+ .monthly-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); gap:2mm; }
+ .monthly-kpis article { padding:3mm; }
+ .monthly-kpis article > strong { font-size:22pt; }
+ .monthly-kpis article > span { font-size:6pt; }
+ .monthly-overview-grid, .monthly-squads { grid-template-columns:repeat(2,minmax(0,1fr)); gap:3mm; }
+ .monthly-card, .monthly-ledger article { padding:4mm; margin-bottom:3mm; border-radius:2mm; break-inside:avoid; }
+ .monthly-card h2, .monthly-section-title h2 { font-size:13pt !important; }
+ .monthly-facts > div { padding:2mm 0; }
+ .monthly-facts dt, .monthly-muted, .monthly-comparison-note { font-size:7pt; }
+ .monthly-facts dd { font-size:9pt; }
+ .monthly-section-title { break-after:avoid; margin:5mm 0 3mm; }
+ .monthly-player-table { font-size:8pt; table-layout:fixed; }
+ .monthly-player-table th:first-child { width:40%; }
+ .monthly-player-table th, .monthly-player-table td { padding:3mm 2mm; }
+ .monthly-player-table tbody th a { font-size:8pt; }
+ .monthly-player-table th span { min-width:0; }
+ .monthly-table-wrap { overflow:visible; }
+ .monthly-player-table thead { display:table-header-group; }
+ .monthly-player-table tr { break-inside:avoid; }
+ .monthly-ledger { gap:2mm; }
+ .monthly-ledger article { grid-template-columns:1fr auto; }
+ .monthly-ledger-players a { font-size:7pt; padding:1.5mm; }
+ .monthly-method { font-size:7pt; }
+ .monthly-coverage > strong { font-size:27pt; }
+ .monthly-coverage > span { font-size:7pt; }
+ .monthly-page a { color:inherit; text-decoration:none; }
+}

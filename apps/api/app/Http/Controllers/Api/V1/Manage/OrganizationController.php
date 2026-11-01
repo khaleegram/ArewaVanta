@@ -160,19 +160,26 @@ final class OrganizationController extends Controller
             'joined_at' => ['sometimes', 'required', 'date', 'before_or_equal:now'],
         ]);
 
-        $membership = DB::transaction(function () use ($request, $squad, $data): SquadMembership {
+        $membership = DB::transaction(function () use ($request, $squad, $data, $permissions): SquadMembership {
             $squad = Squad::query()->lockForUpdate()->findOrFail($squad->id);
             if (isset($data['player_id'])) {
-                $player = Player::query()->where('status', 'active')->findOrFail($data['player_id']);
+                $player = Player::query()->where('status', 'active')->lockForUpdate()->findOrFail($data['player_id']);
+                if ($player->clan_id === null && $permissions->canManageAnyClan($request->user())
+                    && ! $player->squadMemberships()->whereNull('left_at')->whereHas('squad', fn ($query) => $query->where('clan_id', '!=', $squad->clan_id))->exists()) {
+                    $player->forceFill(['clan_id' => $squad->clan_id])->save();
+                }
+                if ($player->clan_id !== $squad->clan_id) {
+                    throw ValidationException::withMessages(['player_id' => 'Choose a player registered with this clan.']);
+                }
             } else {
                 $uid = isset($data['uid']) ? Str::upper(preg_replace('/\s+/u', '', trim($data['uid']))) : null;
                 if ($uid === '' || ($uid !== null && mb_strlen($uid) > 64)) {
                     throw ValidationException::withMessages(['uid' => 'Enter a valid UID of at most 64 characters.']);
                 }
                 if ($uid !== null && Player::query()->where('normalized_uid', $uid)->exists()) {
-                    throw ValidationException::withMessages(['uid' => 'This UID already belongs to a player. Add that existing player instead.']);
+                    throw ValidationException::withMessages(['uid' => 'This UID is already registered. Ask an organizer to check the player’s clan.']);
                 }
-                $player = Player::query()->create(['current_ign' => trim($data['current_ign']), 'normalized_uid' => $uid, 'status' => 'active']);
+                $player = Player::query()->create(['clan_id' => $squad->clan_id, 'current_ign' => trim($data['current_ign']), 'normalized_uid' => $uid, 'status' => 'active']);
             }
 
             if ($squad->memberships()->where('player_id', $player->id)->whereNull('left_at')->exists()) {

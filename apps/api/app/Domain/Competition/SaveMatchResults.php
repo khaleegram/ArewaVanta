@@ -10,6 +10,7 @@ use App\Models\CompetitionMatch;
 use App\Models\MatchPlayerResult;
 use App\Models\MatchResult;
 use App\Models\MatchSquadResult;
+use App\Models\Player;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -20,22 +21,18 @@ final class SaveMatchResults
     public function __construct(
         private readonly ScoringEngine $scoring,
         private readonly ResultPermissions $permissions,
-        private readonly EligibleMatchRoster $roster,
         private readonly AdminActivity $notifications,
     ) {}
 
     /** @param list<array<string, mixed>> $rows */
-    public function handle(User $actor, CompetitionMatch $match, array $rows, bool $checkVersion = false, ?int $expectedLockVersion = null, bool $checkScoringVersion = false, ?string $expectedScoringVersionId = null): MatchResult
+    public function handle(User $actor, CompetitionMatch $match, array $rows, bool $checkVersion = false, ?int $expectedLockVersion = null, bool $checkScoringVersion = false, ?string $expectedScoringVersionId = null, bool $patchMode = false): MatchResult
     {
-        return DB::transaction(function () use ($actor, $match, $rows, $checkVersion, $expectedLockVersion, $checkScoringVersion, $expectedScoringVersionId): MatchResult {
+        return DB::transaction(function () use ($actor, $match, $rows, $checkVersion, $expectedLockVersion, $checkScoringVersion, $expectedScoringVersionId, $patchMode): MatchResult {
             CompetitionEvent::query()->lockForUpdate()->findOrFail($match->day()->value('event_id'));
             $match = CompetitionMatch::query()->with(['day.event', 'squadEntries.squad', 'currentResult.squadResults.playerResults.player'])
                 ->lockForUpdate()->findOrFail($match->id);
             $event = $match->day->event;
             abort_unless($this->permissions->canManage($actor, $event), 403);
-            if ($event->skipped_at !== null) {
-                throw ValidationException::withMessages(['results' => 'This week is not playing. Restore it before entering results.']);
-            }
             $entries = $match->squadEntries->where('entry_status', 'expected');
             $input = collect($rows)->keyBy('squad_id');
             if ($input->keys()->diff($entries->pluck('squad_id'))->isNotEmpty()) {
@@ -43,7 +40,6 @@ final class SaveMatchResults
             }
 
             $rules = ScoringRules::fromArray($match->rules_snapshot['rules']);
-            $rosters = $event->track_player_kills ? $this->roster->forMatch($match) : collect();
             $previous = $match->currentResult;
             $legacyResult = $match->resultRecords()->whereIn('status', ['draft', 'revision_draft', 'submitted'])
                 ->where('revision_number', '>', $previous?->revision_number ?? 0)
@@ -76,77 +72,88 @@ final class SaveMatchResults
                 MatchSquadResult::query()->where('revision_id', $revision->id)->delete();
                 $revision->forceFill(['lock_version' => $revision->lock_version + 1, 'status' => 'published', 'authored_by' => $actor->id, 'published_at' => now(), 'rules_snapshot' => $match->rules_snapshot])->save();
             }
+            // Missing rows in a partial update keep their last saved values.
+            $previousRows = ($legacyResult ?? $previous)?->squadResults->keyBy('squad_id') ?? collect();
             $seenPlayers = [];
-            $placements = [];
-            $presentCount = 0;
-
             foreach ($entries as $entry) {
+                $previousResult = $previousRows->get($entry->squad_id);
                 $row = $input->get($entry->squad_id);
+                if ($row === null && $patchMode && $previousResult !== null) {
+                    $row = [
+                        'status' => $previousResult->participation_status,
+                        'placement' => $previousResult->placement,
+                        'team_kills' => $previousResult->team_kills_override,
+                        'players' => $previousResult->playerResults->map(fn ($player): array => [
+                            'player_id' => $player->player_id, 'kills' => $player->kills,
+                        ])->all(),
+                    ];
+                }
                 $status = $row === null ? 'absent' : ($row['status'] ?? 'present');
-                $players = $row['players'] ?? [];
-                $placement = $row['placement'] ?? null;
-                $teamKills = $row['team_kills'] ?? null;
-                $previousResult = $legacyResult?->squadResults->firstWhere('squad_id', $entry->squad_id)
-                    ?? $previous?->squadResults->firstWhere('squad_id', $entry->squad_id);
+                $present = $status === 'present';
+                $placement = $present ? ($row['placement'] ?? null) : null;
+                $teamKills = $present ? ($row['team_kills'] ?? null) : null;
+                $players = $present ? ($row['players'] ?? []) : [];
                 $previousPlayers = $previousResult?->playerResults->keyBy('player_id') ?? collect();
-                $members = $rosters->get($entry->squad_id, collect());
+                $resolved = [];
+                $individualKills = 0;
+                $allKillsKnown = $players !== [];
 
-                if ($status === 'absent' && ($placement !== null || $players !== [] || ($teamKills !== null && (int) $teamKills !== 0))) {
-                    throw ValidationException::withMessages(['results' => 'Absent squads cannot have a placement or kills.']);
-                }
-                if ($status === 'present') {
-                    if ($placement === null || $placement > $event->maximum_position || isset($placements[$placement])) {
-                        throw ValidationException::withMessages(['results' => 'Participating squads need unique placements within the event range.']);
-                    }
-                    if ($event->track_player_kills && count($players) < 1) {
-                        throw ValidationException::withMessages(['results' => 'A participating squad needs at least one player.']);
-                    }
-                    if (! $event->track_player_kills && ($teamKills === null || $players !== [])) {
-                        throw ValidationException::withMessages(['results' => 'This competition records squad kills. Enter total squad kills without individual players. Reload the sheet if this setting has changed.']);
-                    }
-                    $placements[$placement] = true;
-                    $presentCount++;
-                }
-
-                $kills = ! $event->track_player_kills && $status === 'present' ? (int) $teamKills : 0;
                 foreach ($players as $playerInput) {
-                    $playerId = $playerInput['player_id'];
-                    if (isset($seenPlayers[$playerId]) || (! $members->has($playerId) && ! $previousPlayers->has($playerId))) {
-                        throw ValidationException::withMessages(['results' => 'Each player must be added to their squad before they can play, and can play for only one squad in a match.']);
+                    if (filled($playerInput['player_id'] ?? null)) {
+                        // Actual match participants may be guests or last-minute substitutions.
+                        // Recording a guest never transfers their clan or permanent roster.
+                        $player = Player::query()->findOrFail($playerInput['player_id']);
+                    } else {
+                        $ign = trim($playerInput['ign'] ?? '');
+                        if ($ign === '') {
+                            continue;
+                        }
+                        // Reuse an exact clan name where unambiguous (including retried saves).
+                        $candidates = Player::query()->where('clan_id', $entry->squad->clan_id)
+                            ->where('current_ign', $ign)->get();
+                        $player = $candidates->count() === 1 ? $candidates->first() : Player::query()->create([
+                            'clan_id' => $entry->squad->clan_id, 'current_ign' => $ign, 'status' => 'active',
+                        ]);
                     }
-                    $seenPlayers[$playerId] = true;
-                    $kills += (int) $playerInput['kills'];
+                    if (isset($seenPlayers[$player->id])) {
+                        throw ValidationException::withMessages(['results' => $player->current_ign.' is selected twice. Move them to the squad they played for so their kills are counted once.']);
+                    }
+                    $seenPlayers[$player->id] = true;
+                    $playerKills = $playerInput['kills'] ?? null;
+                    $allKillsKnown = $allKillsKnown && $playerKills !== null;
+                    $individualKills += (int) $playerKills;
+                    $resolved[] = ['player' => $player, 'kills' => $playerKills];
                 }
-                if ($event->track_player_kills && $teamKills !== null && (int) $teamKills !== $kills) {
-                    throw ValidationException::withMessages(['results' => 'Squad kills must equal the sum of individual player kills.']);
-                }
+                // A provisional team total may be kept while player details are unknown.
+                // If individual kills exceed it, use their sum and leave a visible warning.
+                $kills = max($individualKills, (int) $teamKills);
                 try {
-                    $score = $status === 'present' ? $this->scoring->score($kills, (int) $placement, $rules) : null;
+                    $score = $present ? $this->scoring->score($kills, $placement, $rules) : null;
                 } catch (\InvalidArgumentException $exception) {
-                    throw ValidationException::withMessages(['results' => $exception->getMessage()]);
+                    throw ValidationException::withMessages(['results' => $exception->getMessage().' Leave the placement blank to save the other details now.']);
                 }
                 $result = MatchSquadResult::query()->create([
                     'revision_id' => $revision->id, 'match_id' => $match->id, 'squad_id' => $entry->squad_id,
                     'squad_name_snapshot' => $previousResult?->squad_name_snapshot ?? $entry->squad->name,
                     'participation_status' => $status, 'placement' => $placement, 'team_kills' => $kills,
+                    'team_kills_override' => $teamKills,
+                    'kills_confirmed' => ! $present || $teamKills !== null || $allKillsKnown,
                     'kill_points' => $score?->killPoints ?? '0', 'placement_points' => $score?->placementPoints,
                     'placement_multiplier' => $score?->placementMultiplier, 'total_points' => $score?->totalPoints ?? '0',
                 ]);
-                foreach ($players as $playerInput) {
-                    $old = $previousPlayers->get($playerInput['player_id']);
-                    $player = $old?->player ?? $members->get($playerInput['player_id'])->player;
+                foreach ($resolved as $participant) {
+                    $player = $participant['player'];
                     MatchPlayerResult::query()->create([
                         'revision_id' => $revision->id, 'match_squad_result_id' => $result->id,
-                        'player_id' => $player->id, 'ign_snapshot' => $old?->ign_snapshot ?? $player->current_ign,
-                        'kills' => $playerInput['kills'],
+                        'player_id' => $player->id,
+                        'ign_snapshot' => $previousPlayers->get($player->id)?->ign_snapshot ?? $player->current_ign,
+                        'kills' => $participant['kills'],
                     ]);
                 }
             }
-            if ($presentCount === 0) {
-                throw ValidationException::withMessages(['results' => 'Enter a result for at least one squad.']);
-            }
             $match->forceFill(['current_published_revision_id' => $revision->id, 'result_status' => 'published'])->save();
             $clanIds = $entries
+                ->when($patchMode, fn ($entries) => $entries->whereIn('squad_id', $input->keys()))
                 ->map(static fn ($entry) => $entry->squad?->clan_id)
                 ->filter()
                 ->unique()

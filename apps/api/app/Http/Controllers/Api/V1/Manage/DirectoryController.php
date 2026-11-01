@@ -10,8 +10,10 @@ use App\Models\Player;
 use App\Models\Squad;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 final class DirectoryController extends Controller
 {
@@ -81,7 +83,16 @@ final class DirectoryController extends Controller
     public function updatePlayer(Request $request, Player $player, OrganizationPermissions $permissions): JsonResponse
     {
         abort_unless($permissions->canManageAll($request->user()), 403);
-        $player->fill($this->validatedPlayer($request, $player))->save();
+        $player = DB::transaction(function () use ($request, $player): Player {
+            $player = Player::query()->lockForUpdate()->findOrFail($player->id);
+            $data = $this->validatedPlayer($request, $player);
+            if ($data['clan_id'] !== $player->clan_id && $player->squadMemberships()->whereNull('left_at')->exists()) {
+                throw ValidationException::withMessages(['clan_id' => 'Remove this player from their current squads before changing clans.']);
+            }
+            $player->fill($data)->save();
+
+            return $player;
+        });
         app(AdminActivity::class)->record($request->user(), $request->user()->name.' updated player '.$player->current_ign.'.');
 
         return response()->json(['data' => $this->playerData($player)]);
@@ -97,15 +108,17 @@ final class DirectoryController extends Controller
         $request->merge(['uid' => $uid === '' ? null : $uid]);
         $data = $request->validate([
             'current_ign' => ['required', 'string', 'max:100'],
+            'clan_id' => ['sometimes', 'nullable', 'ulid', Rule::exists('clans', 'id')],
             'uid' => ['nullable', 'bail', 'string', 'max:64', Rule::unique('players', 'normalized_uid')->ignore($player?->id)],
             'uid_public' => ['sometimes', 'boolean'],
         ]);
 
-        return ['current_ign' => $data['current_ign'], 'normalized_uid' => $data['uid'] ?? null, 'uid_public' => $data['uid_public'] ?? ($player?->uid_public ?? false)];
+        return ['clan_id' => $request->exists('clan_id') ? ($data['clan_id'] ?? null) : $player?->clan_id,
+            'current_ign' => $data['current_ign'], 'normalized_uid' => $data['uid'] ?? null, 'uid_public' => $data['uid_public'] ?? ($player?->uid_public ?? false)];
     }
 
     private function playerData(Player $player): array
     {
-        return ['id' => $player->id, 'current_ign' => $player->current_ign, 'uid' => $player->normalized_uid, 'uid_public' => $player->uid_public];
+        return ['id' => $player->id, 'clan_id' => $player->clan_id, 'current_ign' => $player->current_ign, 'uid' => $player->normalized_uid, 'uid_public' => $player->uid_public];
     }
 }

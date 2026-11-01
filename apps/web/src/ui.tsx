@@ -11,7 +11,8 @@ type IconName =
   | "close"
   | "chevron"
   | "plus"
-  | "check";
+  | "check"
+  | "print";
 
 export function Icon({
   name,
@@ -21,6 +22,7 @@ export function Icon({
   className?: string;
 }) {
   const paths = {
+    print: <><path d="M7 8V3h10v5M7 17H4V8h16v9h-3" /><path d="M7 14h10v7H7zM16 11h1" /></>,
     arrow: (
       <>
         <path d="M4 12h15M13 6l6 6-6 6" />

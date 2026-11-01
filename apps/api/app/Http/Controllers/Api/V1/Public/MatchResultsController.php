@@ -15,13 +15,6 @@ final class MatchResultsController extends Controller
         $this->loadPublicResult($match);
 
         $result = (new MatchResultResource($match->currentResult))->resolve(request());
-        if (! $match->day->event->track_player_kills) {
-            $result['results'] = array_map(static function (array $row): array {
-                $row['players'] = [];
-
-                return $row;
-            }, $result['results']);
-        }
 
         return response()->json(['data' => [
             'match' => [
@@ -43,7 +36,7 @@ final class MatchResultsController extends Controller
         $compare = static function ($left, $right): int {
             return BigDecimal::of($right->total_points)->compareTo($left->total_points)
                 ?: ($right->team_kills <=> $left->team_kills)
-                ?: ($left->placement <=> $right->placement);
+                ?: (($left->placement ?? PHP_INT_MAX) <=> ($right->placement ?? PHP_INT_MAX));
         };
         $rows = $match->currentResult->squadResults->where('participation_status', 'present')->sort($compare)->values();
         $previous = null;

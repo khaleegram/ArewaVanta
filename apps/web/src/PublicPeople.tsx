@@ -350,9 +350,10 @@ export function PlayerPage({ id }: { id: string }) {
             <section className="public-player-statline" aria-label="Player statistics">
               <div><strong>{player.data.appearances}</strong><span>Games</span></div>
               <div><strong>{player.data.total_kills}</strong><span>Total kills</span></div>
-              <div><strong>{player.data.kills_per_appearance ?? "—"}</strong><span>Average kills</span></div>
+              <div><strong>{player.data.kills_per_appearance ?? "—"}</strong><span>Avg. recorded kills</span></div>
               <div><strong>{player.data.best_game_kills ?? "—"}</strong><span>Best game</span></div>
             </section>
+            {!!player.data.unknown_scores && <p className="public-notice">Kills recorded for {player.data.recorded_games} of {player.data.appearances} games. Missing scores stay unknown and can be added later.</p>}
             <section className="public-player-history">
               <header><div><p className="public-kicker">RECENT MATCHES</p><h2>Game history<span>.</span></h2></div><span>{player.data.history_meta.total} games</span></header>
               {player.data.match_history.length ? (
@@ -365,7 +366,7 @@ export function PlayerPage({ id }: { id: string }) {
                         <small>Game {match.match_index} · {match.map_label} · {squadIdentity({ name: match.squad_name, squadNumber: match.squad_number, clanTag: match.clan_tag, clanName: match.clan_name, clanSquadCount: match.clan_squad_count })}</small>
                         {match.ign_snapshot !== player.data.current_ign && <small>Played as {match.ign_snapshot}</small>}
                       </span>
-                      <span className="public-player-match-kills"><strong>{match.kills}</strong><small>KILLS</small></span>
+                      <span className="public-player-match-kills"><strong>{match.kills ?? "?"}</strong><small>KILLS</small></span>
                       <Icon name="arrow" />
                     </a>
                   ))}

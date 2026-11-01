@@ -5,6 +5,8 @@ import LiveLeaderboard from "./LiveLeaderboard";
 import CompetitionManager from "./CompetitionManager";
 import OrganizerManager from "./OrganizerManager";
 import DirectoryManager from "./DirectoryManager";
+import ClanMonthlyReport from "./ClanMonthlyReport";
+import CompetitionCheckIn from "./CompetitionCheckIn";
 import ResultManager from "./ResultManager";
 import CaptainInvite from "./CaptainInvite";
 import CompetitionOrganizerInvite from "./CompetitionOrganizerInvite";
@@ -51,12 +53,16 @@ function renderRoute() {
   const personMatch = path.match(/^\/(clans|squads|players)\/([^/]+)$/);
   const managerResultsMatch = path.match(/^\/manage\/competitions\/([^/]+)\/results$/);
   const managerEntriesMatch = path.match(/^\/manage\/competitions\/([^/]+)\/entries$/);
+  const managerCheckInMatch = path.match(/^\/manage\/competitions\/([^/]+)\/check-in$/);
+  const monthlyReportMatch = path.match(/^\/manage\/clans\/([^/]+)\/reports$/);
   const managerCompetitionMatch = path.match(/^\/manage\/competitions\/([^/]+)$/);
   let page: React.ReactNode;
 
   if (path === "/leaderboard" || leaderboardShortLink) page = <LiveLeaderboard />;
   else if (managerResultsMatch) page = <ResultManager eventId={decodeURIComponent(managerResultsMatch[1])} />;
   else if (managerEntriesMatch) page = <CompetitionManager entriesEventId={decodeURIComponent(managerEntriesMatch[1])} />;
+  else if (managerCheckInMatch) page = <CompetitionCheckIn eventId={decodeURIComponent(managerCheckInMatch[1])} />;
+  else if (monthlyReportMatch) page = <ClanMonthlyReport clanId={decodeURIComponent(monthlyReportMatch[1])} />;
   else if (managerCompetitionMatch) page = <CompetitionManager workspaceEventId={decodeURIComponent(managerCompetitionMatch[1])} />;
   else if (path === "/manage/competitions") page = <CompetitionManager />;
   else if (path === "/manage/directory") page = <DirectoryManager />;

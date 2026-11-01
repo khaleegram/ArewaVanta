@@ -19,7 +19,7 @@ final class PlayerRankingsController extends Controller
             ->join('events', 'events.id', '=', 'event_days.event_id')
             ->whereColumn('matches.current_published_revision_id', 'revisions.id')
             ->where('revisions.status', 'published')->where('squad_results.participation_status', 'present')
-            ->where('events.track_player_kills', true)
+            ->whereNotNull('player_results.kills')
             ->where('events.visibility', 'public')->whereNull('events.deleted_at')->whereNull('event_days.deleted_at')->whereNull('matches.deleted_at')
             ->groupBy('players.id', 'players.current_ign')
             ->selectRaw('players.id, players.current_ign, COUNT(*) AS appearances, SUM(player_results.kills) AS total_kills, MAX(player_results.kills) AS best_game_kills, RANK() OVER (ORDER BY SUM(player_results.kills) DESC) AS rank')

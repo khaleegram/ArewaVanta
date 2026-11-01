@@ -105,9 +105,13 @@ final class BuildEventStandings
                     'scoring_preset' => $presetName,
                     'placement' => $result->placement,
                     'team_kills' => $result->team_kills,
+                    'kills_confirmed' => $result->kills_confirmed,
+                    'placement_pending' => $result->placement === null,
                     'total_points' => (string) BigDecimal::of($result->total_points)->strippedOfTrailingZeros(),
                 ];
-                $matchPlacements[$result->squad_id] = $result->placement;
+                if ($result->placement !== null) {
+                    $matchPlacements[$result->squad_id] = $result->placement;
+                }
                 $aggregates[$result->squad_id] = $aggregate;
             }
             $placementsByMatch[$match->id] = $matchPlacements;

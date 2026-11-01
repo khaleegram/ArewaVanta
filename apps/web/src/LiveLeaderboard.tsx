@@ -159,7 +159,7 @@ function PlayerBreakdown({ playerId }: { playerId: string }) {
               clanName: match.clan_name,
               clanSquadCount: match.clan_squad_count,
             })}</span>
-            <strong>{countLabel(match.kills, "kill")}</strong>
+            <strong>{match.kills === null ? "Kills pending" : countLabel(match.kills, "kill")}</strong>
           </div>
         ))}
       </div>
@@ -355,7 +355,7 @@ export default function LiveLeaderboard() {
       <section className="arena-hero" aria-labelledby="arena-title">
         <div className="arena-hero-art" aria-hidden="true"><span /><span /><Icon name={kind === "squads" ? "trophy" : "target"} /></div>
         <div className="arena-hero-copy"><span className="arena-eyebrow"><i /> AREWA CODM · THE RANKINGS</span><h1 id="arena-title">Every game.<br /><em>Make it count.</em></h1><p>{kind === "squads" ? "The squads, the wins, the race to the top. This is where the North keeps score." : "The sharpest aim. The biggest games. Meet the players making their mark."}</p></div>
-        <div className="arena-hero-stats"><div><span>{kind === "squads" ? "SQUADS IN THE RACE" : "RANKED PLAYERS"}</span><strong>{kind === "squads" ? (squadCount ?? "—") : players.status === "ready" ? players.data.total : "—"}<Icon name={kind === "squads" ? "trophy" : "target"} /></strong></div><p><span className="arena-status-dot" /> {kind === "squads" ? `${countLabel(completedGames, "game")} played${currentEvent ? ` · ${currentEvent.title}` : ""}` : "Across competitions with individual kills enabled"}</p></div>
+        <div className="arena-hero-stats"><div><span>{kind === "squads" ? "SQUADS IN THE RACE" : "RANKED PLAYERS"}</span><strong>{kind === "squads" ? (squadCount ?? "—") : players.status === "ready" ? players.data.total : "—"}<Icon name={kind === "squads" ? "trophy" : "target"} /></strong></div><p><span className="arena-status-dot" /> {kind === "squads" ? `${countLabel(completedGames, "game")} played${currentEvent ? ` · ${currentEvent.title}` : ""}` : "Recorded player kills across competitions"}</p></div>
       </section>
       <div className="arena-navigation"><Tabs kind={kind} onChange={changeKind} />{kind === "squads" && currentEvent && !seasonId && <div className="arena-share-strip"><div><small>SHARE THIS LIVE BOARD</small><a href={sharePath}>{shareUrl}</a></div><button type="button" onClick={copyShareLink}>Copy link <Icon name="arrow" /></button><span aria-live="polite">{shareMessage}</span></div>}</div>
       {kind === "squads" ? <section className="arena-filters" aria-label="Competition filters">
@@ -366,8 +366,8 @@ export default function LiveLeaderboard() {
         }}>{!groups.length && <option value="">{events.status === "loading" ? "Loading competitions…" : "No competitions yet"}</option>}{groups.map((group) => <option key={group.key} value={group.key}>{group.title}</option>)}{seasons.length > 0 && <optgroup label="Seasons">{seasons.map((season) => <option key={season.id} value={`season:${season.id}`}>{season.name}</option>)}</optgroup>}</select></span><Icon name="chevron" /></label>
         {currentGroup && !seasonId && <label className="arena-select arena-week"><Icon name="calendar" /><span><small>{currentGroup.weeks.length > 1 ? "WEEKEND" : "DATES"}</small><select aria-label="Competition weekend" value={event} onChange={(e) => { setEvent(e.target.value); setStandings({ status: "loading" }); setExpanded(null); setQuery(""); }}>{currentGroup.weeks.map((week) => <option key={week.id} value={week.slug}>{formatDateRange(week.start_date, week.end_date)}{week.skipped_at ? " · Not playing" : ""}</option>)}</select></span><Icon name="chevron" /></label>}
         {currentSeason && <span className="arena-filter-note">Combined season standings</span>}
-        {currentEvent?.track_player_kills === false && !seasonId && <span className="arena-filter-note"><Icon name="trophy" /> Squad kills + placement</span>}
-      </section> : <div className="arena-player-context"><Icon name="target" /><div><strong>Individual kills. Recognised.</strong><span>Only competitions recording individual player kills count here. Squad-only scrims are excluded.</span></div></div>}
+
+      </section> : <div className="arena-player-context"><Icon name="target" /><div><strong>Individual kills. Recognised.</strong><span>Recorded kills count across scrims and competitions. Missing player details can be added later.</span></div></div>}
       <section role="tabpanel" id="full-ranking-panel" aria-labelledby={`${kind}-ranking-tab`} tabIndex={0}>
         {kind === "squads" ? <>
           {events.status === "loading" && <Notice>Loading competitions…</Notice>}

@@ -7,7 +7,7 @@ final readonly class ScoreBreakdown
     public function __construct(
         public ScoringMode $mode,
         public int $teamKills,
-        public int $placement,
+        public ?int $placement,
         public string $killPoints,
         public ?string $placementPoints,
         public ?string $placementMultiplier,
@@ -15,7 +15,7 @@ final readonly class ScoreBreakdown
     ) {}
 
     /**
-     * @return array{mode: string, team_kills: int, placement: int, kill_points: string, placement_points: string|null, placement_multiplier: string|null, total_points: string}
+     * @return array{mode: string, team_kills: int, placement: int|null, kill_points: string, placement_points: string|null, placement_multiplier: string|null, total_points: string}
      */
     public function toArray(): array
     {

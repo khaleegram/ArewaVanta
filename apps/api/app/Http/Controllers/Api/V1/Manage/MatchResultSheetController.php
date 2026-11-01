@@ -24,7 +24,7 @@ final class MatchResultSheetController extends Controller
         abort_unless($permissions->canManage($request->user(), $event), 403);
 
         $eventSlots = $event->squadEntries()->where('status', 'active')->pluck('slot_number', 'squad_id');
-        $rosters = $event->track_player_kills ? $eligibleRoster->forMatch($match) : collect();
+        $rosters = $eligibleRoster->forMatch($match);
         $legacyResult = $match->resultRecords()->whereIn('status', ['draft', 'revision_draft', 'submitted'])
             ->where('revision_number', '>', $match->currentResult?->revision_number ?? 0)
             ->with(['squadResults.squad.clan.squads:id,clan_id', 'squadResults.playerResults'])->reorder()->orderByDesc('revision_number')->first();
@@ -37,7 +37,7 @@ final class MatchResultSheetController extends Controller
                 'slug' => $event->slug,
                 'timezone' => $event->timezone,
                 'squad_size' => $event->squad_size,
-                'track_player_kills' => $event->track_player_kills,
+                'track_player_kills' => true,
                 'maximum_position' => $event->maximum_position,
             ],
             'match' => [
@@ -63,6 +63,7 @@ final class MatchResultSheetController extends Controller
                     'squad_number' => $entry->squad->squad_number,
                     'tag' => $entry->squad->tag,
                     'clan' => $entry->squad->clan->name,
+                    'clan_id' => $entry->squad->clan_id,
                     'clan_tag' => $entry->squad->clan->tag,
                     'clan_squad_count' => $entry->squad->clan->squads->count(),
                     'slot_number' => $eventSlots->get($entry->squad_id) === null ? null : (int) $eventSlots->get($entry->squad_id),

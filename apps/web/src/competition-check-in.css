@@ -1,0 +1,99 @@
+.check-in-page { color: #253c30; }
+.check-in-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 28px; }
+.check-in-toolbar > a { color: #526b59; font-size: 12px; font-weight: 700; }
+.check-in-toolbar > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.check-in-toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 1px solid #cedaca; border-radius: 7px; background: #fffefa; color: #31583a; font-size: 12px; font-weight: 750; }
+.check-in-toolbar .check-in-print { background: #31583a; border-color: #31583a; color: white; }
+.check-in-toolbar button:disabled { opacity: .5; cursor: default; }
+.check-in-intro { margin-bottom: 24px; }
+.check-in-intro > p:first-child { color: #ae4c36; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.check-in-intro > p:last-child { color: #647569; font-size: 13px; }
+.check-in-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; margin-bottom: 18px; }
+.check-in-day { display: grid; gap: 6px; color: #526b59; font-size: 11px; font-weight: 700; }
+.check-in-day select { min-height: 44px; padding: 0 12px; border: 1px solid #cedaca; border-radius: 6px; background: #fffefa; color: #253c30; font: inherit; font-size: 12px; }
+.check-in-empty-toggle { display: flex; align-items: center; gap: 8px; color: #526b59; font-size: 12px; }
+.check-in-controls > span { max-width: 240px; margin-left: auto; color: #758275; font-size: 10px; line-height: 1.6; }
+.check-in-sheet { padding: 28px; border: 1px solid #d7e1d2; border-radius: 12px; background: #fffefa; }
+.check-in-sheet-header { display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; padding-bottom: 20px; border-bottom: 3px solid #c24f37; }
+.check-in-brand { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.check-in-brand img { width: 28px; height: 28px; object-fit: contain; }
+.check-in-brand > strong { color: #253c30; font-size: 21px; letter-spacing: -1px; }
+.check-in-brand strong span { color: #d34c34; }
+.check-in-sheet-header > span { align-self: center; color: #788475; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.manage-page .check-in-sheet-header > h2 { grid-column: 1 / -1; margin: 0; font-family: inherit; font-size: 24px; font-weight: 800; line-height: 1.3; color: #253c30; overflow-wrap: anywhere; }
+.check-in-sheet-header > p { grid-column: 1 / -1; margin: 0; color: #536958; font-size: 13px; font-weight: 700; }
+.check-in-sheet-header > small { grid-column: 1 / -1; color: #788475; font-size: 10px; }
+.check-in-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 20px 0 16px; }
+.check-in-summary > span { display: grid; gap: 4px; color: #748271; font-size: 10px; }
+.check-in-summary strong { color: #31583a; font-size: 25px; line-height: 1; font-variant-numeric: tabular-nums; }
+.check-in-summary strong small { font-size: 13px; font-weight: 500; }
+.check-in-vacancies, .check-in-no-teams { margin: 0 0 18px; color: #6d7b6b; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+.check-in-warning { padding: 10px; border: 1px solid #e2b99f; color: #924b31; font-size: 12px; }
+.check-in-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.check-in-slot { min-width: 0; padding: 14px; border: 1px solid #d7e1d2; border-radius: 9px; break-inside: avoid; page-break-inside: avoid; }
+.check-in-slot > header { display: flex; align-items: center; gap: 11px; margin-bottom: 12px; }
+.check-in-slot > header > div { flex: 1; min-width: 0; }
+.check-in-slot-number { display: grid; align-content: center; justify-items: center; flex: none; width: 43px; height: 49px; border-radius: 7px; background: #31583a; color: white; }
+.check-in-slot-number small { font-size: 7px; letter-spacing: .1em; }
+.check-in-slot-number b { font-size: 23px; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.check-in-slot header > div > small { color: #ae4c36; font-size: 9px; font-weight: 800; }
+.manage-page .check-in-slot h3 { margin: 2px 0 3px; color: #253c30; font-family: inherit; font-size: 13px; font-weight: 800; line-height: 1.35; overflow-wrap: anywhere; }
+.check-in-slot header p { margin: 0; color: #758275; font-size: 10px; }
+.check-in-roster-count { flex: none; color: #758275; font-size: 9px; }
+.check-in-slot ul { display: grid; gap: 9px; padding: 0; margin: 0; list-style: none; }
+.check-in-slot li label { display: flex; align-items: center; gap: 9px; color: #38513e; font-size: 11px; line-height: 1.5; }
+.check-in-slot li span { min-width: 0; overflow-wrap: anywhere; }
+.check-in-page input[type="checkbox"] { flex: none; width: 16px; height: 16px; margin: 0; accent-color: #31583a; }
+.check-in-slot > footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding-top: 11px; border-top: 1px solid #e1e8dd; font-size: 9px; color: #758275; }
+.check-in-slot footer label { display: flex; align-items: center; gap: 5px; }
+.check-in-slot footer > span { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 90px; }
+.check-in-slot footer i { flex: 1; border-bottom: 1px solid #c4cec0; height: 14px; }
+.check-in-missing-players { margin: 0; color: #a05336; font-size: 11px; line-height: 1.7; }
+.check-in-slot.is-vacant { background: #f8faf6; border-style: dashed; }
+.check-in-slot.is-vacant header { margin: 0; }
+.check-in-slot.is-vacant .check-in-slot-number { background: #e7eee3; color: #758275; }
+.check-in-signoff { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 24px; padding-top: 16px; border-top: 1px solid #d7e1d2; color: #62745e; font-size: 11px; }
+.check-in-signoff > span { display: flex; align-items: center; flex: 1; gap: 8px; min-width: 180px; }
+.check-in-signoff i { flex: 1; border-bottom: 1px solid #c4cec0; height: 18px; }
+.check-in-sheet-footer { margin: 18px 0 0; color: #889181; font-size: 9px; line-height: 1.6; }
+@media (max-width: 700px) {
+  .check-in-toolbar { align-items: start; flex-direction: column; margin-bottom: 20px; }
+  .check-in-toolbar > div { width: 100%; }
+  .check-in-toolbar button { flex: 1; padding-inline: 10px; }
+  .check-in-grid { grid-template-columns: 1fr; }
+  .check-in-sheet { padding: 16px; }
+  .check-in-sheet-header { grid-template-columns: 1fr; }
+  .check-in-sheet-header > span { font-size: 8px; }
+  .check-in-sheet-header > h2 { font-size: 20px; }
+  .check-in-controls > span { margin-left: 0; max-width: none; }
+}
+@page check-in { size: A4 portrait; margin: 12mm; }
+@media print {
+  body:has(.check-in-page), body:has(.check-in-page) .manage-page { min-height: auto; background: white !important; color: black; }
+  body:has(.check-in-page) .manage-header, body:has(.check-in-page) .manage-bar, body:has(.check-in-page) .skip-link, body:has(.check-in-page) .pwa-install-card,
+  .check-in-toolbar, .check-in-intro, .check-in-controls { display: none !important; }
+  body:has(.check-in-page) .manage-main { width: auto; max-width: none; margin: 0; padding: 0; }
+  .check-in-page { color: black; page: check-in; }
+  .check-in-sheet { padding: 0; border: 0; border-radius: 0; background: white; }
+  .check-in-sheet-header { grid-template-columns: 1fr auto; padding-bottom: 4mm; gap: 2mm; break-inside: avoid; }
+  .manage-page .check-in-sheet-header > h2 { font-size: 17pt; }
+  .check-in-sheet-header > span { font-size: 7pt; }
+  .check-in-sheet-header > small { font-size: 7pt; }
+  .check-in-summary { margin: 4mm 0; }
+  .check-in-summary strong { font-size: 18pt; }
+  .check-in-summary > span { font-size: 8pt; }
+  .check-in-vacancies { margin-bottom: 4mm; font-size: 8pt; }
+  .check-in-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4mm; }
+  .check-in-slot { padding: 3mm; border-color: #aaa; border-radius: 2mm; break-inside: avoid; page-break-inside: avoid; }
+  .check-in-slot > header { gap: 2.5mm; margin-bottom: 3mm; }
+  .check-in-slot-number, .check-in-slot.is-vacant .check-in-slot-number { width: 10mm; height: 12mm; background: white; border: 1px solid #555; color: black; }
+  .check-in-slot-number b { font-size: 17pt; }
+  .manage-page .check-in-slot h3 { color: black; font-size: 10pt; }
+  .check-in-slot ul { gap: 2mm; }
+  .check-in-slot li label { color: black; font-size: 9pt; }
+  .check-in-page input[type="checkbox"] { width: 3.5mm; height: 3.5mm; accent-color: black; }
+  .check-in-slot > footer { margin-top: 3mm; padding-top: 2mm; font-size: 7pt; }
+  .check-in-slot.is-vacant { background: white; }
+  .check-in-signoff { margin-top: 5mm; padding-top: 3mm; break-inside: avoid; }
+  .check-in-sheet-footer { padding-top: 2mm; font-size: 6.5pt; }
+}

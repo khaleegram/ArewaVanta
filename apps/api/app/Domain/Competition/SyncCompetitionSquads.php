@@ -143,6 +143,7 @@ final class SyncCompetitionSquads
         $rows = $current->squadResults->where('participation_status', 'present')->whereIn('squad_id', $squadIds)
             ->map(static fn ($result): array => [
                 'squad_id' => $result->squad_id, 'status' => 'present', 'placement' => $result->placement,
+                'team_kills' => $result->team_kills_override,
                 'players' => $result->playerResults->map(static fn ($player): array => ['player_id' => $player->player_id, 'kills' => $player->kills])->all(),
             ])->values()->all();
         if ($rows === []) {

@@ -54,7 +54,6 @@ type Form = {
   competition_type: "" | "scrim" | "league" | "tournament";
   score: string;
   squadCapacity: number;
-  trackPlayerKills: boolean;
   days: Day[];
 };
 export { tokenKey };
@@ -100,7 +99,6 @@ function fromEvent(event: ManageEvent, presets: ScoringPreset[]): Form {
     competition_type: event.competition_type ?? "",
     score: version?.id ?? "",
     squadCapacity: event.squad_capacity,
-    trackPlayerKills: event.track_player_kills ?? true,
     days: (event.days ?? []).map((day) => ({
       id: day.id,
       date: day.date,
@@ -649,6 +647,7 @@ function EventWorkspace({
       <div className="studio-actions">
         <a className="studio-action-primary" href={resultsUrl}>Enter results <Icon name="arrow" /></a>
         <a className="studio-action-secondary" href={entriesUrl}>Manage slots <Icon name="trophy" /></a>
+        <a className="studio-action-secondary studio-print-slots" href={`/manage/competitions/${encodeURIComponent(event.id)}/check-in`}>Print slots & players <Icon name="print" /></a>
       </div>
       </div>
       <div className="studio-columns">
@@ -836,6 +835,7 @@ function EventEntries({ token, event }: { token: string; event: ManageEvent }) {
         <p className="manage-eyebrow">SQUAD ENTRIES</p>
         <h1>{event.title}<span>.</span></h1>
         <p>Choose which submitted squads fill this competition’s slots.</p>
+        <a className="manage-secondary" href={`/manage/competitions/${encodeURIComponent(event.id)}/check-in`}><Icon name="print" />Print slots & players</a>
       </div>
       {notice && <div className="manage-success" role="status">{notice}</div>}
       {error && <div className="manage-error" role="alert">{error}</div>}
@@ -977,7 +977,6 @@ function EventForm({
                       .find((p) => p.slug === "aga-balanced")
                       ?.versions.at(-1)?.id ?? "",
                     squadCapacity: 25,
-                  trackPlayerKills: false,
                   days: standardDays(),
                 }),
         );
@@ -1059,7 +1058,7 @@ function EventForm({
         description: form.description.trim() || null,
         competition_type: form.competition_type || null,
         squad_capacity: form.squadCapacity,
-        track_player_kills: form.trackPlayerKills,
+        track_player_kills: true,
         ...(form.score ? { scoring_rule_version_id: form.score } : {}),
       };
       if (!current) {
@@ -1167,7 +1166,7 @@ function EventForm({
                 <select
                   value={form.competition_type}
                   onChange={(e) =>
-                    setForm((current) => current ? { ...current, competition_type: e.target.value as Form["competition_type"], ...(!initial ? { trackPlayerKills: e.target.value !== "scrim" } : {}) } : current)
+                    setForm((current) => current ? { ...current, competition_type: e.target.value as Form["competition_type"] } : current)
                   }
                 >
                   <option value="">Choose a type</option>
@@ -1213,11 +1212,7 @@ function EventForm({
               </label>
             </div>
             {form.competition_type === "scrim" && <p className="manage-weekly-default-note">Scrims continue every week automatically until you pause or end the series. Squad entries, slots and results are separate for each week.</p>}
-            <div className="competition-kill-setting">
-              <div className="competition-kill-setting-title"><Icon name="target" /><div><strong>Individual player kills</strong><span>{form.trackPlayerKills ? "Record each player’s kills and include them in player rankings." : "Record total squad kills and placement. Players can change between games."}</span></div></div>
-              <label className="competition-kill-switch"><input type="checkbox" role="switch" aria-label="Track individual player kills" aria-checked={form.trackPlayerKills} disabled={busy} checked={form.trackPlayerKills} onChange={(e) => update("trackPlayerKills", e.target.checked)} /><span aria-hidden="true" /><strong>{form.trackPlayerKills ? "On" : "Off"}</strong></label>
-              <p>Results entry: <strong>{form.trackPlayerKills ? "Placement + individual kills" : "Placement + squad kills"}</strong>{initial?.recurrence ? " · Applies to every week of this competition." : ""} Existing squad scores are preserved.</p>
-            </div>
+            <div className="competition-kill-setting"><div className="competition-kill-setting-title"><Icon name="target" /><div><strong>Player stats included</strong><span>Add or swap actual players while entering results. Save partial scores and fill in missing details anytime.</span></div></div></div>
             <details className="manage-advanced">
               <summary>How scoring works</summary>
               <div>

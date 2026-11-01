@@ -20,6 +20,7 @@ final class UpdateCompetitionEvent
     public function handle(User $actor, CompetitionEvent $event, array $data): CompetitionEvent
     {
         return DB::transaction(function () use ($actor, $event, $data): CompetitionEvent {
+            $data['track_player_kills'] = true;
             if (array_key_exists('track_player_kills', $data) && $event->series_id !== null) {
                 CompetitionSeries::query()->lockForUpdate()->findOrFail($event->series_id);
             }

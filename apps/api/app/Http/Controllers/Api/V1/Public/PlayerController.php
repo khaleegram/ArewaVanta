@@ -43,13 +43,12 @@ final class PlayerController extends Controller
             ->where('squad_results.participation_status', 'present')
             ->where('player_results.player_id', $player->id)
             ->where('events.visibility', 'public')
-            ->where('events.track_player_kills', true)
             ->whereNull('events.deleted_at')
             ->whereNull('event_days.deleted_at')
             ->whereNull('matches.deleted_at');
 
         $totals = (clone $publishedResults)
-            ->selectRaw('COUNT(*) AS appearances, COALESCE(SUM(player_results.kills), 0) AS total_kills, MAX(player_results.kills) AS best_game')
+            ->selectRaw('COUNT(*) AS appearances, COUNT(player_results.kills) AS recorded_games, COALESCE(SUM(player_results.kills), 0) AS total_kills, MAX(player_results.kills) AS best_game')
             ->first();
         $appearances = (int) $totals->appearances;
         $kills = (int) $totals->total_kills;
@@ -84,7 +83,9 @@ final class PlayerController extends Controller
             'uid' => $player->uid_public ? $player->normalized_uid : null,
             'appearances' => $appearances,
             'total_kills' => $kills,
-            'kills_per_appearance' => $appearances === 0 ? null : (string) BigDecimal::of($kills)->dividedBy($appearances, 2, RoundingMode::HalfUp),
+            'recorded_games' => (int) $totals->recorded_games,
+            'unknown_scores' => $appearances - (int) $totals->recorded_games,
+            'kills_per_appearance' => (int) $totals->recorded_games === 0 ? null : (string) BigDecimal::of($kills)->dividedBy((int) $totals->recorded_games, 2, RoundingMode::HalfUp),
             'best_game_kills' => $totals->best_game === null ? null : (int) $totals->best_game,
             'match_history' => $history->items(),
             'history_meta' => ['current_page' => $history->currentPage(), 'last_page' => $history->lastPage(), 'total' => $history->total()],

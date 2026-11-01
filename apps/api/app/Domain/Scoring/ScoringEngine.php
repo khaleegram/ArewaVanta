@@ -7,13 +7,13 @@ use InvalidArgumentException;
 
 final class ScoringEngine
 {
-    public function score(int $teamKills, int $placement, ScoringRules $rules): ScoreBreakdown
+    public function score(int $teamKills, ?int $placement, ScoringRules $rules): ScoreBreakdown
     {
         if ($teamKills < 0) {
             throw new InvalidArgumentException('Team kills cannot be negative.');
         }
 
-        if ($rules->mode === ScoringMode::KillsOnly
+        if ($placement !== null && $rules->mode === ScoringMode::KillsOnly
             && ($placement < 1 || $placement > $rules->maximumPosition)) {
             throw new InvalidArgumentException('Placement is outside the configured scoring range.');
         }
@@ -24,7 +24,11 @@ final class ScoringEngine
         $placementPoints = null;
         $placementMultiplier = null;
 
-        if ($rules->mode === ScoringMode::KillsOnly) {
+        if ($placement === null) {
+            // Additive / kills-only scores use known kills; no invented placement bonus.
+            // Multiplier scores wait for a placement before awarding a total.
+            $totalPoints = $rules->mode === ScoringMode::Multiplier ? BigDecimal::zero() : $killPoints;
+        } elseif ($rules->mode === ScoringMode::KillsOnly) {
             $totalPoints = $killPoints;
         } else {
             $tier = $rules->tierForPosition($placement);

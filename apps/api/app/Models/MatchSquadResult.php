@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['revision_id', 'match_id', 'squad_id', 'squad_name_snapshot', 'participation_status', 'placement', 'team_kills', 'kill_points', 'placement_points', 'placement_multiplier', 'total_points'])]
+#[Fillable(['revision_id', 'match_id', 'squad_id', 'squad_name_snapshot', 'participation_status', 'placement', 'team_kills', 'team_kills_override', 'kills_confirmed', 'kill_points', 'placement_points', 'placement_multiplier', 'total_points'])]
 class MatchSquadResult extends Model
 {
     use HasUlids;
@@ -18,6 +18,8 @@ class MatchSquadResult extends Model
         return [
             'placement' => 'integer',
             'team_kills' => 'integer',
+            'team_kills_override' => 'integer',
+            'kills_confirmed' => 'boolean',
             'kill_points' => 'decimal:4',
             'placement_points' => 'decimal:4',
             'placement_multiplier' => 'decimal:4',
