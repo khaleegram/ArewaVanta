@@ -38,6 +38,9 @@ export function canManageCompetitions(user: User | null | undefined): boolean {
 export function canAccessCompetitions(user: User | null | undefined): boolean {
   return !!user?.roles.some((role) => role.role === "platform_admin" || (role.role === "organizer" && (role.scope_type === "global" || role.scope_type === "event")));
 }
+export function canManageAnyClan(user: User | null | undefined): boolean {
+  return !!user?.roles.some((role) => role.role === "platform_admin" || role.role === "organizer");
+}
 type Game = {
   id: string | null;
   map_code: string;

@@ -11,6 +11,7 @@ import type {
 } from "./api/types";
 import {
   canManageCompetitions,
+  canManageAnyClan,
   Shell,
   SignIn,
   type Session,
@@ -275,7 +276,8 @@ export default function DirectoryManager() {
     setView({ kind: "list" });
   }
   const global = canManageCompetitions(session?.user);
-  const captainOnly = !!session && !global && session.user.roles.some(
+  const teamCaptainAccess = canManageAnyClan(session?.user);
+  const captainOnly = !!session && !teamCaptainAccess && session.user.roles.some(
     (role) => role.role === "clan_captain",
   );
   useEffect(() => {
@@ -455,15 +457,13 @@ export default function DirectoryManager() {
                             </span>
                           </div>
                           <div className="directory-clan-actions">
-                            {session.user.roles.some(
-                              (role) => role.role === "platform_admin",
-                            ) && (
+                            {teamCaptainAccess && (
                               <button
                                 onClick={() =>
                                   setView({ kind: "captains", clan })
                                 }
                               >
-                                Captains
+                                Team captains
                               </button>
                             )}
                             <button
@@ -1131,8 +1131,8 @@ function Roster({
     </>
   );
 }
-async function allPeople(token: string, signal: AbortSignal) {
-  const first = await api.managePeople(token, 1, "", signal);
+async function allPeople(token: string, signal: AbortSignal, clanId: string, search = "") {
+  const first = await api.managePeople(token, 1, search, signal, clanId);
   const pages = [first.data];
   for (let p = 2; p <= first.meta.last_page; p += 4)
     pages.push(
@@ -1140,7 +1140,7 @@ async function allPeople(token: string, signal: AbortSignal) {
         await Promise.all(
           Array.from(
             { length: Math.min(4, first.meta.last_page - p + 1) },
-            (_, i) => api.managePeople(token, p + i, "", signal),
+            (_, i) => api.managePeople(token, p + i, search, signal, clanId),
           ),
         )
       ).map((result) => result.data),
@@ -1162,6 +1162,7 @@ function Captains({
   const [refresh, setRefresh] = useState(0);
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
+  const [results, setResults] = useState<Load<ManagePerson[]> | null>(null);
   const [busy, setBusy] = useState<string | number | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -1184,14 +1185,28 @@ function Captains({
   useEffect(() => {
     const controller = new AbortController();
     setPeople({ status: "loading" });
-    allPeople(token, controller.signal)
+    allPeople(token, controller.signal, clan.id)
       .then((data) => setPeople({ status: "ready", data }))
       .catch((err) => {
         if (!controller.signal.aborted)
           setPeople({ status: "error", message: message(err) });
       });
     return () => controller.abort();
-  }, [token, refresh]);
+  }, [token, refresh, clan.id]);
+  useEffect(() => {
+    if (!search) {
+      setResults(null);
+      return;
+    }
+    const controller = new AbortController();
+    setResults({ status: "loading" });
+    allPeople(token, controller.signal, clan.id, search)
+      .then((data) => setResults({ status: "ready", data }))
+      .catch((err) => {
+        if (!controller.signal.aborted) setResults({ status: "error", message: message(err) });
+      });
+    return () => controller.abort();
+  }, [token, refresh, clan.id, search]);
   const assigned = (person: ManagePerson) =>
     person.roles.find(
       (role) =>
@@ -1199,6 +1214,8 @@ function Captains({
         role.scope_type === "clan" &&
         role.scope_id === clan.id,
     );
+  const isTeamCaptain = (person: ManagePerson) =>
+    person.roles.some((role) => role.role === "organizer" || role.role === "platform_admin");
   async function change(person: ManagePerson) {
     const role = assigned(person);
     if (
@@ -1221,24 +1238,25 @@ function Captains({
     }
   }
   const captains =
-    people.status === "ready" ? people.data.filter(assigned) : [];
-  const results =
-    people.status === "ready" && search
-      ? people.data.filter((p) =>
-          `${p.name} ${p.email}`.toLowerCase().includes(search.toLowerCase()),
-        )
+    people.status === "ready"
+      ? people.data.filter((person) => assigned(person) || isTeamCaptain(person))
       : [];
   function row(person: ManagePerson) {
     const role = assigned(person);
+    const teamCaptain = isTeamCaptain(person);
     return (
       <div className="directory-person" key={person.id}>
         <div>
           <strong>{person.name}</strong>
           <small>{person.email}</small>
         </div>
-        <button disabled={busy !== null} onClick={() => change(person)}>
-          {busy === person.id ? "Saving…" : role ? "Remove" : "+ Add"}
-        </button>
+        {teamCaptain ? (
+          <span className="directory-team-captain">Team captain</span>
+        ) : (
+          <button disabled={busy !== null} onClick={() => change(person)}>
+            {busy === person.id ? "Saving…" : role ? "Remove" : "+ Add"}
+          </button>
+        )}
       </div>
     );
   }
@@ -1250,9 +1268,12 @@ function Captains({
       <div className="manage-form-heading">
         <p className="manage-eyebrow">{clan.name}</p>
         <h1>
-          Clan captains<span>.</span>
+          Team captains<span>.</span>
         </h1>
-        <p>Captains can manage this clan and its squads.</p>
+        <p>
+          Team captains can manage every clan. Clan captains manage this clan and
+          its squads.
+        </p>
       </div>
       {success && (
         <div className="manage-success" role="status">
@@ -1286,7 +1307,7 @@ function Captains({
       <section className="manage-panel directory-find">
         <div className="manage-panel-heading">
           <div>
-            <h2>Invite a captain</h2>
+            <h2>Invite a clan captain</h2>
           </div>
           <p>
             Send an invitation to their email. They can set up their account and
@@ -1313,7 +1334,7 @@ function Captains({
       <section className="manage-panel directory-find">
         <div className="manage-panel-heading">
           <div>
-            <h2>Add a captain</h2>
+            <h2>Add a clan captain</h2>
           </div>
           <p>Find an existing account by name or email.</p>
         </div>
@@ -1328,6 +1349,7 @@ function Captains({
             <span className="sr-only">Search accounts</span>
             <input
               required
+              minLength={2}
               maxLength={100}
               placeholder="Search name or email"
               value={query}
@@ -1336,10 +1358,14 @@ function Captains({
           </label>
           <button>Search</button>
         </form>
+        {search && results?.status === "loading" && (
+          <Notice text="Searching accounts…" />
+        )}
+        {search && results?.status === "error" && <Notice text={results.message} />}
         {search &&
-          people.status === "ready" &&
-          (results.length ? (
-            <div className="directory-player-list">{results.map(row)}</div>
+          results?.status === "ready" &&
+          (results.data.length ? (
+            <div className="directory-player-list">{results.data.map(row)}</div>
           ) : (
             <Notice text="No accounts found." />
           ))}

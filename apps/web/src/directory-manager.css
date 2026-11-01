@@ -380,6 +380,17 @@
 .directory-person button:disabled {
   opacity: 0.5;
 }
+.directory-team-captain {
+  flex: none;
+  padding: 7px 10px;
+  border: 1px solid #526b43;
+  background: #263a29;
+  color: #d8e8c9;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 .directory-clan-head h2 {
   overflow-wrap: anywhere;
 }

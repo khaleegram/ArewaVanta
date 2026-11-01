@@ -205,11 +205,11 @@ export const api = {
       method: "POST",
       body: { current_ign, uid },
     }),
-  managePeople: (token: string, page = 1, search = "", signal?: AbortSignal) =>
+  managePeople: (token: string, page = 1, search = "", signal?: AbortSignal, clanId?: string) =>
     request<ApiPage<ManagePerson>>("/manage/people", {
       token,
       signal,
-      query: { page, search },
+      query: { page, search, clan_id: clanId },
     }),
   assignCaptain: (token: string, userId: string | number, clanId: string) =>
     request<ApiData<{ id: Id }>>(

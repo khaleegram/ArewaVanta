@@ -14,8 +14,15 @@ final class OrganizationPermissions
         return $user->isPlatformAdmin() || $user->hasRole(Role::Organizer, RoleScope::Global, '*');
     }
 
+    public function canManageAnyClan(User $user): bool
+    {
+        return $this->canManageAll($user)
+            || $user->roleAssignments()->where('role', Role::Organizer->value)->exists();
+    }
+
     public function canManageClan(User $user, Clan $clan): bool
     {
-        return $this->canManageAll($user) || $user->hasRole(Role::ClanCaptain, RoleScope::Clan, $clan->id);
+        return $this->canManageAnyClan($user)
+            || $user->hasRole(Role::ClanCaptain, RoleScope::Clan, $clan->id);
     }
 }

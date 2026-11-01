@@ -20,7 +20,7 @@ Events, days, and games use soft deletion. Their records and saved scores remain
 
 - **Platform admin:** manages platform roles and has organizer access.
 - **Organizer:** creates and edits competitions, squads, configurations, and results. Event-scoped assignments limit access to assigned competitions.
-- **Clan captain:** manages their own clan, squads, and roster.
+- **Clan captain:** manages their own clan, squads, and roster. Any organizer can manage all clans, squads, rosters, and captain assignments; the private captain-management UI presents organizers as “Team captain.”
 - **Visitor:** reads public competition results and rankings.
 
 Events are available immediately after creation. A result save validates squad assignment, participant eligibility, unique placements and players, and non-negative integer kills; it derives team kills and points on the server. A short roster is valid without a separate confirmation. Changes to squads, schedule, or scoring update the applicable results and standings without an approval chain.
@@ -37,7 +37,7 @@ Event and season standings sum current match scores without normalization. Tie-b
 
 `competitions:generate-weeks` runs hourly through Laravel's scheduler, preparing the next fourteen days without backfilling past weeks. Both Compose configurations include a scheduler process using the same application and database. Start that service with the API; other hosting setups must run Laravel's scheduler. Recurrence uses one API mutation, `PATCH /api/v1/manage/events/{event}/recurrence`, for start, pause, resume, end, skip and restore. These actions require global organizer/admin or organizer access scoped to that event. Captain submissions and result saves reject skipped weeks, which remain visible with a notice on the public competition page.
 
-Competition organizers can invite additional organizers for one event from its management screen. The API stores only a hash of each single-use invitation token, expires invitations after seven days, and grants the accepted account an event-scoped organizer role. `POST /api/v1/manage/events/{event}/organizer-invitations` sends the branded email; the public inspect and accept endpoints let the recipient create an account or prove an existing account with its password. An event-scoped role does not grant access to other competitions.
+Competition organizers can invite additional organizers for one event from its management screen. The API stores only a hash of each invitation token. Links remain active until accepted; resending does not invalidate links already sent, and accepting one marks all pending invites for that email and event series as used. The accepted account receives an event-scoped organizer role. `POST /api/v1/manage/events/{event}/organizer-invitations` sends the branded email; the public inspect and accept endpoints let the recipient create an account or prove an existing account with its password. An event-scoped role does not grant access to other competitions.
 
 ## Migration and test safety
 

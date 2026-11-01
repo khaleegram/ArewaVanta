@@ -41,8 +41,7 @@ final class CompetitionOrganizerController extends Controller
                 'id' => $invitation->id,
                 'email' => $invitation->email,
                 'sent_at' => CarbonImmutable::parse($invitation->created_at)->toIso8601String(),
-                'expires_at' => CarbonImmutable::parse($invitation->expires_at)->toIso8601String(),
-                'status' => CarbonImmutable::parse($invitation->expires_at)->isPast() ? 'expired' : 'pending',
+                'status' => 'pending',
             ])->values();
 
         return response()->json(['data' => [

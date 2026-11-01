@@ -53,9 +53,7 @@
 .crew-active { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; color: #629057; padding: 5px 8px; border: 1px solid #e1ead8; background: #f5f8ef; border-radius: 6px; flex-shrink: 0; }
 .crew-active > i { display: block; width: 4px; height: 4px; border-radius: 50%; background: #7aa066; }
 .crew-invitation-icon { display: grid; place-items: center; width: 40px; height: 40px; background: #f3eedc; color: #aa8c42; border: 1px solid #e9dfc4; border-radius: 11px; flex-shrink: 0; }
-.crew-invitation-icon.is-expired { background: #efede6; border-color: #e0ddd0; color: #a3977a; }
 .crew-person > .crew-pending { color: #ad8b47; }
-.crew-person > .crew-expired { color: #9e8970; }
 .crew-resend { min-height: 40px; display: flex; align-items: center; gap: 7px; padding: 0 10px; background: #fffefa; border: 1px solid #dce3d2; border-radius: 8px; color: #658059; cursor: pointer; font-size: 9px !important; font-weight: 750 !important; }
 .crew-resend .icon { width: 13px; height: 13px; }
 .crew-resend:disabled { opacity: .5; cursor: default; }
@@ -119,7 +117,6 @@
 .crew-person > strong > span { color: #627259; font-size: 9px; }
 .crew-active { color: #477638; font-size: 10px; }
 .crew-person > .crew-pending { color: #946c29; }
-.crew-person > .crew-expired { color: #856c50; }
 .crew-resend { font-size: 11px !important; color: #47693d; }
 .crew-team-foot { color: #687c5b; font-size: 11px; }
 .crew-state { color: #66775c; font-size: 13px; }

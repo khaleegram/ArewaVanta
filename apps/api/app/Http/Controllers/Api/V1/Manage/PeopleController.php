@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Manage;
 
+use App\Domain\Competition\OrganizationPermissions;
 use App\Domain\Notifications\AdminActivity;
 use App\Enums\Role;
 use App\Enums\RoleScope;
@@ -20,38 +21,66 @@ use Illuminate\Validation\ValidationException;
 
 final class PeopleController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, OrganizationPermissions $permissions): JsonResponse
     {
-        abort_unless($request->user()->isPlatformAdmin(), 403);
-        $filters = $request->validate(['search' => ['sometimes', 'nullable', 'string', 'max:100']]);
+        $actor = $request->user();
+        abort_unless($permissions->canManageAnyClan($actor), 403);
+        $filters = $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'clan_id' => ['sometimes', 'required', 'string', 'max:26', Rule::exists('clans', 'id')],
+        ]);
+        $clanId = $filters['clan_id'] ?? null;
+        if (! $actor->isPlatformAdmin()) {
+            abort_unless($clanId !== null, 403);
+        }
         $term = isset($filters['search']) ? Str::lower(trim($filters['search'])) : '';
+        if (! $actor->isPlatformAdmin() && $term !== '' && mb_strlen($term) < 2) {
+            throw ValidationException::withMessages(['search' => 'Enter at least two characters to search accounts.']);
+        }
         $users = User::query()->with('roleAssignments')
             ->when($term !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->whereRaw('LOWER(name) LIKE ?', ['%'.$term.'%'])
                 ->orWhereRaw('LOWER(email) LIKE ?', ['%'.$term.'%'])))
+            ->when(! $actor->isPlatformAdmin() && $term === '', fn ($query) => $query->whereHas('roleAssignments', fn ($roles) => $roles
+                ->where(function ($roles) use ($clanId): void {
+                    $roles->whereIn('role', [Role::Organizer->value, Role::PlatformAdmin->value])
+                        ->orWhere(fn ($captains) => $captains->where('role', Role::ClanCaptain->value)
+                            ->where('scope_type', RoleScope::Clan->value)->where('scope_id', $clanId));
+                })))
             ->orderBy('name')->paginate(20);
 
         return response()->json([
-            'data' => $users->getCollection()->map(static fn (User $user): array => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'roles' => $user->roleAssignments->whereIn('role', ['platform_admin', 'organizer', 'clan_captain'])->map(static fn (RoleAssignment $role): array => [
-                    'id' => $role->id, 'role' => $role->role, 'scope_type' => $role->scope_type, 'scope_id' => $role->scope_id,
-                ])->values(),
-            ])->values(),
+            'data' => $users->getCollection()->map(static function (User $user) use ($actor, $clanId): array {
+                $roles = $user->roleAssignments->filter(static fn (RoleAssignment $role): bool => $actor->isPlatformAdmin()
+                    || in_array($role->role, [Role::Organizer->value, Role::PlatformAdmin->value], true)
+                    || ($role->role === Role::ClanCaptain->value && $role->scope_type === RoleScope::Clan->value && $role->scope_id === $clanId));
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'roles' => $roles->map(static fn (RoleAssignment $role): array => [
+                        'id' => $role->id, 'role' => $role->role, 'scope_type' => $role->scope_type, 'scope_id' => $role->scope_id,
+                    ])->values(),
+                ];
+            })->values(),
             'meta' => ['current_page' => $users->currentPage(), 'last_page' => $users->lastPage(), 'total' => $users->total()],
         ]);
     }
 
-    public function assign(Request $request, User $user): JsonResponse
+    public function assign(Request $request, User $user, OrganizationPermissions $permissions): JsonResponse
     {
-        abort_unless($request->user()->isPlatformAdmin(), 403);
+        $actor = $request->user();
+        $platformAdmin = $actor->isPlatformAdmin();
+        abort_unless($platformAdmin || $permissions->canManageAnyClan($actor), 403);
         $data = $request->validate([
             'role' => ['required', Rule::enum(Role::class)],
             'scope_type' => ['required', Rule::enum(RoleScope::class)],
             'scope_id' => ['required', 'string', 'max:26'],
         ]);
+        if (! $platformAdmin && ($data['role'] !== Role::ClanCaptain->value || $data['scope_type'] !== RoleScope::Clan->value)) {
+            abort(403);
+        }
         $allowedScopes = match (Role::from($data['role'])) {
             Role::PlatformAdmin => [RoleScope::Global->value],
             Role::Organizer => [RoleScope::Global->value, RoleScope::Event->value],
@@ -90,10 +119,15 @@ final class PeopleController extends Controller
         ]], $assignment->wasRecentlyCreated ? 201 : 200);
     }
 
-    public function revoke(Request $request, User $user, RoleAssignment $assignment): JsonResponse
+    public function revoke(Request $request, User $user, RoleAssignment $assignment, OrganizationPermissions $permissions): JsonResponse
     {
-        abort_unless($request->user()->isPlatformAdmin(), 403);
+        $actor = $request->user();
+        $platformAdmin = $actor->isPlatformAdmin();
+        abort_unless($platformAdmin || $permissions->canManageAnyClan($actor), 403);
         abort_unless($assignment->user_id === $user->id, 404);
+        if (! $platformAdmin) {
+            abort_unless($assignment->role === Role::ClanCaptain->value && $assignment->scope_type === RoleScope::Clan->value, 403);
+        }
 
         DB::transaction(function () use ($request, $user, $assignment): void {
             if ($assignment->role === Role::PlatformAdmin->value && $assignment->scope_type === RoleScope::Global->value && $assignment->scope_id === '*') {

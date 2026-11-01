@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Competition\OrganizationPermissions;
 use App\Domain\Notifications\AdminActivity;
 use App\Enums\Role;
 use App\Enums\RoleScope;
@@ -21,9 +22,9 @@ use Illuminate\Validation\ValidationException;
 
 final class CaptainInvitationController extends Controller
 {
-    public function send(Request $request, Clan $clan): JsonResponse
+    public function send(Request $request, Clan $clan, OrganizationPermissions $permissions): JsonResponse
     {
-        abort_unless($request->user()->isPlatformAdmin(), 403);
+        abort_unless($permissions->canManageAnyClan($request->user()), 403);
         if (in_array(config('mail.default'), ['log', 'array'], true)) {
             return response()->json(['message' => 'Email delivery is not configured. Configure a mail service before sending invitations.'], 503);
         }
@@ -33,8 +34,7 @@ final class CaptainInvitationController extends Controller
         $url = rtrim((string) config('app.frontend_url'), '/').'/captain-invite#'.urlencode($token);
         try {
             DB::transaction(function () use ($clan, $request, $email, $token, $url): void {
-                DB::table('clan_captain_invitations')->where('clan_id', $clan->id)->where('email', $email)->whereNull('accepted_at')->delete();
-                DB::table('clan_captain_invitations')->insert(['clan_id' => $clan->id, 'email' => $email, 'token_hash' => hash('sha256', $token), 'invited_by' => $request->user()->id, 'expires_at' => now()->addDays(7), 'created_at' => now(), 'updated_at' => now()]);
+                DB::table('clan_captain_invitations')->insert(['clan_id' => $clan->id, 'email' => $email, 'token_hash' => hash('sha256', $token), 'invited_by' => $request->user()->id, 'expires_at' => null, 'created_at' => now(), 'updated_at' => now()]);
                 Mail::to($email)->send(new CaptainInvitation($clan->name, $url));
             });
         } catch (\Throwable $error) {
@@ -72,7 +72,9 @@ final class CaptainInvitationController extends Controller
                 $user->forceFill(['email_verified_at' => now()])->save();
             }
             RoleAssignment::query()->firstOrCreate(['user_id' => $user->id, 'role' => Role::ClanCaptain->value, 'scope_type' => RoleScope::Clan->value, 'scope_id' => $invitation->clan_id], ['assigned_by' => $invitation->invited_by]);
-            DB::table('clan_captain_invitations')->where('id', $invitation->id)->update(['accepted_at' => now(), 'updated_at' => now()]);
+            DB::table('clan_captain_invitations')->where('clan_id', $invitation->clan_id)
+                ->where('email', $invitation->email)->whereNull('accepted_at')
+                ->update(['accepted_at' => now(), 'updated_at' => now()]);
             app(AdminActivity::class)->record($user, $user->name.' accepted a clan captain invitation.');
 
             return $user;
@@ -83,11 +85,11 @@ final class CaptainInvitationController extends Controller
 
     private function find(string $token, bool $lock = false): object
     {
-        $query = DB::table('clan_captain_invitations')->where('token_hash', hash('sha256', $token))->whereNull('accepted_at')->where('expires_at', '>', now());
+        $query = DB::table('clan_captain_invitations')->where('token_hash', hash('sha256', $token))->whereNull('accepted_at');
         if ($lock) {
             $query->lockForUpdate();
         }
 
-        return $query->first() ?? throw ValidationException::withMessages(['token' => 'This invitation has expired or is no longer valid. Ask an admin for a new invitation.']);
+        return $query->first() ?? throw ValidationException::withMessages(['token' => 'This invitation was already used or the link is invalid. Ask an admin to resend it.']);
     }
 }

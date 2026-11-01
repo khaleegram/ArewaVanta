@@ -44,11 +44,10 @@ final class CompetitionOrganizerInvitationController extends Controller
         $token = bin2hex(random_bytes(32));
         $url = rtrim((string) config('app.frontend_url'), '/').'/competition-organizer-invite#'.urlencode($token);
         try {
-            DB::transaction(function () use ($event, $request, $email, $token, $url, $seriesEventIds): void {
-                DB::table('event_organizer_invitations')->whereIn('event_id', $seriesEventIds)->where('email', $email)->whereNull('accepted_at')->delete();
+            DB::transaction(function () use ($event, $request, $email, $token, $url): void {
                 DB::table('event_organizer_invitations')->insert([
                     'event_id' => $event->id, 'email' => $email, 'token_hash' => hash('sha256', $token),
-                    'invited_by' => $request->user()->id, 'expires_at' => now()->addDays(7),
+                    'invited_by' => $request->user()->id, 'expires_at' => null,
                     'created_at' => now(), 'updated_at' => now(),
                 ]);
                 Mail::to($email)->send(new CompetitionOrganizerInvitation($event->title, $url));
@@ -100,7 +99,9 @@ final class CompetitionOrganizerInvitationController extends Controller
                     ['assigned_by' => $invitation->invited_by],
                 );
             }
-            DB::table('event_organizer_invitations')->where('id', $invitation->id)->update(['accepted_at' => now(), 'updated_at' => now()]);
+            DB::table('event_organizer_invitations')->whereIn('event_id', $eventIds)
+                ->where('email', $invitation->email)->whereNull('accepted_at')
+                ->update(['accepted_at' => now(), 'updated_at' => now()]);
 
             return $user;
         });
@@ -110,11 +111,11 @@ final class CompetitionOrganizerInvitationController extends Controller
 
     private function find(string $token, bool $lock = false): object
     {
-        $query = DB::table('event_organizer_invitations')->where('token_hash', hash('sha256', $token))->whereNull('accepted_at')->where('expires_at', '>', now());
+        $query = DB::table('event_organizer_invitations')->where('token_hash', hash('sha256', $token))->whereNull('accepted_at');
         if ($lock) {
             $query->lockForUpdate();
         }
 
-        return $query->first() ?? throw ValidationException::withMessages(['token' => 'This invitation has expired or is no longer valid. Ask an organizer for a new invitation.']);
+        return $query->first() ?? throw ValidationException::withMessages(['token' => 'This invitation was already used or the link is invalid. Ask an organizer to resend it.']);
     }
 }

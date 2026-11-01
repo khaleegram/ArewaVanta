@@ -30,7 +30,7 @@ final class OrganizationController extends Controller
         $clanIds = $user->roleAssignments()->where('role', Role::ClanCaptain->value)
             ->where('scope_type', RoleScope::Clan->value)->pluck('scope_id');
         $clans = Clan::query()->with('squads')
-            ->when(! $permissions->canManageAll($user), fn ($query) => $query->whereIn('id', $clanIds))
+            ->when(! $permissions->canManageAnyClan($user), fn ($query) => $query->whereIn('id', $clanIds))
             ->orderBy('name')->paginate(20);
 
         return response()->json([
