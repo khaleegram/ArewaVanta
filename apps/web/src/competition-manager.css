@@ -1481,6 +1481,12 @@
   color: #f39b82;
   min-height: 44px;
 }
+.admin-alert-help {
+  color: #c4ceb9;
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 8px 0;
+}
 .admin-alert-items {
   max-height: 300px;
   overflow-y: auto;

@@ -12,10 +12,10 @@ Password recovery uses `POST /api/v1/auth/forgot-password` and `POST /api/v1/aut
 
 Use the shared email layout in `resources/views/emails/layout.blade.php` for transactional email. Keep the dark ArewaVanta palette, coral accents, readable mobile layout, and a plain-text alternative.
 
-Admins see clan and roster changes in the Activity menu. To enable browser push, configure `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` in `apps/api/.env`, clear cached Laravel configuration, and select **Enable browser push** in Activity. Generate a key pair locally with:
+Admins see administrative activity, and clan captains can receive alerts when a squad is selected, its slot changes, it is returned to review, or match results are published or updated. Signed-in users manage device subscriptions from the Activity menu. To enable browser push, configure `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` in `apps/api/.env`, clear cached Laravel configuration, and choose **Enable push notifications** in Activity. Generate a key pair locally with:
 
 ```sh
 docker compose exec api php -r 'require "vendor/autoload.php"; print_r(\Minishlink\WebPush\VAPID::createVapidKeys());'
 ```
 
-Keep the private key secret. Browser push requires a supported browser and HTTPS (or localhost); each admin must opt in on their own device. In-app activity remains available when push is not configured or delivery fails. Apply new migrations with `docker compose exec api php artisan migrate`.
+Keep the private key secret. Browser push requires a supported browser and HTTPS (or localhost); each user opts in on each device. On iPhone or iPad, install ArewaVanta from Safari’s Share menu using **Add to Home Screen**, open the installed app, then enable notifications from Activity. iOS/iPadOS 16.4 or later is required for Home Screen web push. In-app activity remains available when push is not configured or delivery fails. Apply new migrations with `docker compose exec api php artisan migrate`.

@@ -2,6 +2,7 @@
 
 namespace App\Domain\Competition;
 
+use App\Domain\Notifications\AdminActivity;
 use App\Domain\Scoring\ScoringEngine;
 use App\Domain\Scoring\ScoringRules;
 use App\Models\CompetitionEvent;
@@ -20,6 +21,7 @@ final class SaveMatchResults
         private readonly ScoringEngine $scoring,
         private readonly ResultPermissions $permissions,
         private readonly EligibleMatchRoster $roster,
+        private readonly AdminActivity $notifications,
     ) {}
 
     /** @param list<array<string, mixed>> $rows */
@@ -144,6 +146,18 @@ final class SaveMatchResults
                 throw ValidationException::withMessages(['results' => 'Enter a result for at least one squad.']);
             }
             $match->forceFill(['current_published_revision_id' => $revision->id, 'result_status' => 'published'])->save();
+            $clanIds = $entries
+                ->map(static fn ($entry) => $entry->squad?->clan_id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+            $this->notifications->notifyClanCaptains(
+                $clanIds,
+                'Match '.$match->match_index.' results for '.$event->title.' have been updated. Check your squad standings.',
+                '/leaderboard?type=squads&event='.rawurlencode($event->slug),
+                'results-'.$match->id,
+            );
 
             return $revision->load(['squadResults.squad.clan.squads:id,clan_id', 'squadResults.playerResults']);
         });

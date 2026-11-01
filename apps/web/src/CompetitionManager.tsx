@@ -168,9 +168,7 @@ export function Shell({
         <div className="manage-wrap manage-header-inner">
           <Brand href="/" />
           <div className="manage-head-actions">
-            {session?.user.roles.some(
-              (role) => role.role === "platform_admin",
-            ) && <AdminAlerts token={session.token} />}
+            {session && <AdminAlerts token={session.token} />}
             {overview ? <details className="studio-account" onKeyDown={(e) => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary aria-label="Account options"><Icon name="menu" /></summary><div>
               {session && <small>{session.user.name}</small>}
               <a href="/">View public site <Icon name="diagonal" /></a>

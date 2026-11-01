@@ -79,18 +79,21 @@ self.addEventListener("push", (event) => {
   try {
     if (event.data) data = { ...data, ...event.data.json() };
   } catch {}
+  const targetUrl = new URL(data.url || "/manage/directory", self.location.origin).href;
 
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: "/favicon-192.png",
       badge: "/favicon-48.png",
-      data: { url: "/manage/directory" },
+      ...(data.tag ? { tag: data.tag } : {}),
+      data: { url: targetUrl },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.openWindow(event.notification.data.url));
+  const targetUrl = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  event.waitUntil(self.clients.openWindow(targetUrl));
 });

@@ -100,6 +100,8 @@ final class ManageEventSquadSubmissions
                     throw ValidationException::withMessages(['slot_number' => 'That game-day slot is already assigned to another squad.']);
                 }
                 $activeIds = $event->squadEntries()->where('status', 'active')->pluck('squad_id')->all();
+                $previousSlot = $event->squadEntries()->where('status', 'active')
+                    ->where('squad_id', $submission->squad_id)->value('slot_number');
                 if (! in_array($submission->squad_id, $activeIds, true) && count($activeIds) >= $event->squad_capacity) {
                     throw ValidationException::withMessages(['decision' => 'All competition squad slots are filled.']);
                 }
@@ -115,20 +117,44 @@ final class ManageEventSquadSubmissions
                 );
                 $activity = $wasSelected ? 'changed the game-day slot for ' : 'assigned a competition slot to ';
                 $this->adminActivity->record($actor, $actor->name.' '.$activity.$submission->squad->clan->tag.' · '.$submission->squad->name.' for '.$event->title.'.');
+                if (! $wasSelected || $previousSlot === null || (int) $previousSlot !== $slotNumber) {
+                    $this->adminActivity->notifyClanCaptains(
+                        [$submission->squad->clan_id],
+                        'Your squad '.$submission->squad->name.' has been assigned slot '.$slotNumber.' for '.$event->title.'.',
+                        '/competitions/'.rawurlencode($event->slug),
+                        'slot-'.$event->id.'-'.$submission->squad_id,
+                    );
+                }
             } elseif ($decision === 'not_selected') {
                 if ($submission->status !== 'pending') {
                     throw ValidationException::withMessages(['decision' => 'Only pending submissions can be marked not selected.']);
                 }
                 $submission->fill(['status' => 'not_selected', 'decided_by' => $actor->id, 'decided_at' => now()])->save();
                 $this->adminActivity->record($actor, $actor->name.' marked '.$submission->squad->clan->tag.' · '.$submission->squad->name.' not selected for '.$event->title.'.');
+                $this->adminActivity->notifyClanCaptains(
+                    [$submission->squad->clan_id],
+                    'Your squad '.$submission->squad->name.' was not selected for '.$event->title.'.',
+                    '/competitions/'.rawurlencode($event->slug),
+                    'entry-'.$event->id.'-'.$submission->squad_id,
+                );
             } elseif ($decision === 'pending') {
                 if ($submission->status !== 'selected') {
                     throw ValidationException::withMessages(['decision' => 'Only an assigned squad can be returned to review.']);
                 }
+                $previousSlot = $event->squadEntries()->where('status', 'active')
+                    ->where('squad_id', $submission->squad_id)->value('slot_number');
                 $submission->fill(['status' => 'pending', 'decided_by' => null, 'decided_at' => null])->save();
                 $activeIds = $event->squadEntries()->where('status', 'active')->where('squad_id', '!=', $submission->squad_id)->pluck('squad_id')->all();
                 $this->syncSquads->forEvent($actor, $event, $activeIds);
                 $this->adminActivity->record($actor, $actor->name.' returned '.$submission->squad->clan->tag.' · '.$submission->squad->name.' to review for '.$event->title.'.');
+                $this->adminActivity->notifyClanCaptains(
+                    [$submission->squad->clan_id],
+                    $previousSlot === null
+                        ? 'Your squad '.$submission->squad->name.' was returned to review for '.$event->title.'.'
+                        : 'Slot '.$previousSlot.' for your squad '.$submission->squad->name.' was removed from '.$event->title.'.',
+                    '/competitions/'.rawurlencode($event->slug),
+                    'entry-'.$event->id.'-'.$submission->squad_id,
+                );
             } else {
                 throw ValidationException::withMessages(['decision' => 'Choose a valid squad entry action.']);
             }
