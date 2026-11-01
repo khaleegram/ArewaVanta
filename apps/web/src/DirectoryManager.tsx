@@ -13,10 +13,10 @@ import {
   canManageCompetitions,
   Shell,
   SignIn,
-  tokenKey,
   type Session,
 } from "./CompetitionManager";
 import { Icon } from "./ui";
+import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
 import { formatDate, squadIdentity, submissionStatusLabel } from "./presentation";
 import "./directory-manager.css";
@@ -211,7 +211,7 @@ export default function DirectoryManager() {
     Load<{ data: PublicPlayer[]; last: number }>
   >({ status: "loading" });
   useEffect(() => {
-    const token = sessionStorage.getItem(tokenKey);
+    const token = getStoredToken();
     if (!token) {
       setChecking(false);
       return;
@@ -223,7 +223,7 @@ export default function DirectoryManager() {
       .catch((e) => {
         if (!c.signal.aborted) {
           if (e instanceof ApiError && e.status === 401)
-            sessionStorage.removeItem(tokenKey);
+            clearStoredToken();
           setAuthError(message(e));
         }
       })
@@ -270,7 +270,7 @@ export default function DirectoryManager() {
       } catch {
         /* Clear local session even if offline. */
       }
-    sessionStorage.removeItem(tokenKey);
+    clearStoredToken();
     setSession(null);
     setView({ kind: "list" });
   }

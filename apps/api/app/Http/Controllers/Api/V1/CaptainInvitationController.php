@@ -78,7 +78,7 @@ final class CaptainInvitationController extends Controller
             return $user;
         });
 
-        return response()->json(['data' => ['token' => $user->createToken('arewavanta-web', ['*'], now()->addDays(30))->plainTextToken]])->header('Cache-Control', 'no-store');
+        return response()->json(['data' => ['token' => $user->createToken('arewavanta-web')->plainTextToken]])->header('Cache-Control', 'no-store');
     }
 
     private function find(string $token, bool $lock = false): object

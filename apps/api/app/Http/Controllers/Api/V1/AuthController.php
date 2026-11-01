@@ -40,7 +40,7 @@ final class AuthController extends Controller
 
             return $user;
         });
-        $token = $user->createToken($data['device_name'] ?? 'arewavanta-web', ['*'], now()->addDays(30));
+        $token = $user->createToken($data['device_name'] ?? 'arewavanta-web');
 
         return response()->json(['data' => ['token' => $token->plainTextToken, 'user' => $this->userData($user)]], 201);
     }
@@ -62,7 +62,6 @@ final class AuthController extends Controller
         $token = $user->createToken(
             $credentials['device_name'] ?? 'arewavanta-web',
             ['*'],
-            now()->addDays(30),
         );
 
         return response()->json([

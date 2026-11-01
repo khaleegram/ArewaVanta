@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api/client";
-import { Shell, tokenKey } from "./CompetitionManager";
+import { Shell } from "./CompetitionManager";
+import { storeToken } from "./authStorage";
 
 type Invite = { event_id: string; competition: string; email: string; existing_account: boolean };
 type State = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: Invite };
@@ -41,7 +42,7 @@ export default function CompetitionOrganizerInvite() {
         password,
         state.data.existing_account ? undefined : confirmation,
       );
-      sessionStorage.setItem(tokenKey, data.token);
+      storeToken(data.token);
       const target = `/manage/competitions/${encodeURIComponent(state.data.event_id)}`;
       window.history.pushState(null, "", target);
       window.dispatchEvent(new PopStateEvent("popstate"));

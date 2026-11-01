@@ -28,6 +28,9 @@
 .studio-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .studio-toolbar > :is(a,button) { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; background: none; color: #52645a; }
 .studio-toolbar > button { color: #315b43; padding: 0 12px; border: 1px solid #d9e0d5; border-radius: 8px; background: #fffefa; font-size: 11px; }
+.studio-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+.studio-toolbar > .studio-toolbar-actions > .studio-add-organizer { min-height: 44px; padding: 0 12px; border: 1px solid #c9d8c8; border-radius: 8px; color: #1e5941; background: #eaf1e6; }
+.studio-toolbar > .studio-toolbar-actions > .studio-add-organizer:hover { border-color: #1e5941; background: #e0ebdc; }
 .studio-toolbar > button .icon { width: 14px; height: 14px; }
 .studio-heading { display: flex; align-items: center; gap: 13px; margin-bottom: 18px; }
 .studio-heading > div { min-width: 0; }

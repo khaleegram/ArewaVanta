@@ -11,6 +11,7 @@ import type {
   User,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
+import { clearStoredToken, getStoredToken, storeToken, tokenKey } from "./authStorage";
 import AdminAlerts, { disableAdminPush } from "./AdminAlerts";
 import {
   competitionTypeLabel,
@@ -50,7 +51,7 @@ type Form = {
   squadCapacity: number;
   days: Day[];
 };
-export const tokenKey = "arewavanta-organizer-token";
+export { tokenKey };
 const errorMessage = (error: unknown) =>
   error instanceof ApiError
     ? error.message
@@ -222,7 +223,7 @@ export function SignIn({
     setError("");
     try {
       const { data } = await api.login(email.trim(), password);
-      sessionStorage.setItem(tokenKey, data.token);
+      storeToken(data.token);
       onSuccess(data);
     } catch (err) {
       setError(errorMessage(err));
@@ -359,7 +360,7 @@ export default function CompetitionManager({
       : { kind: "list" });
   const [notice, setNotice] = useState("");
   useEffect(() => {
-    const token = sessionStorage.getItem(tokenKey);
+    const token = getStoredToken();
     if (!token) {
       setChecking(false);
       return;
@@ -371,7 +372,7 @@ export default function CompetitionManager({
       .catch((err) => {
         if (!controller.signal.aborted) {
           if (err instanceof ApiError && err.status === 401)
-            sessionStorage.removeItem(tokenKey);
+            clearStoredToken();
           setNotice(errorMessage(err));
         }
       })
@@ -401,7 +402,7 @@ export default function CompetitionManager({
         /* Local sign out remains available. */
       }
     }
-    sessionStorage.removeItem(tokenKey);
+    clearStoredToken();
     setSession(null);
     setView({ kind: "list" });
     setNotice("");
@@ -623,7 +624,10 @@ function EventWorkspace({
     <div className="event-studio">
       <div className="studio-toolbar">
         <a href="/manage/competitions">← Competitions</a>
-        <button type="button" onClick={() => onEdit(event)}>Edit competition <Icon name="diagonal" /></button>
+        <div className="studio-toolbar-actions">
+          {canInviteOrganizers && <a className="studio-add-organizer" href="#competition-organizer-access">Add organizer</a>}
+          <button type="button" onClick={() => onEdit(event)}>Edit competition <Icon name="diagonal" /></button>
+        </div>
       </div>
       <header className="studio-heading">
         <span className="studio-emblem" aria-hidden="true"><Icon name="trophy" /></span>
@@ -709,7 +713,7 @@ function EventOrganizerAccess({ token, event, canAssignExisting }: { token: stri
       setBusy("");
     }
   }
-  return <section className="studio-organizer-access" aria-labelledby="competition-organizer-heading">
+  return <section className="studio-organizer-access" id="competition-organizer-access" aria-labelledby="competition-organizer-heading">
     <header className="studio-organizer-access-head"><div><span>TEAM ACCESS</span><h2 id="competition-organizer-heading">Add an organizer</h2></div><p>Invite someone to help run this competition. Weekly scrim access continues across the series.</p></header>
     <div className="studio-organizer-access-body">
       <form onSubmit={(e) => void invite(e)}>

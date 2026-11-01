@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type { ManageEvent, MatchResultInput, ResultSheet, SavedResult } from "./api/types";
-import { Shell, SignIn, tokenKey, type Session } from "./CompetitionManager";
+import { Shell, SignIn, type Session } from "./CompetitionManager";
+import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
 import { countLabel, formatDate, scoringLabel, squadIdentity } from "./presentation";
 import "./results-manager.css";
@@ -43,10 +44,10 @@ export default function ResultManager({ eventId }: { eventId: string }) {
   const [conflict, setConflict] = useState(false);
   const dirty = !!baseline && JSON.stringify(rows) !== baseline;
   useEffect(() => {
-    const token = sessionStorage.getItem(tokenKey);
+    const token = getStoredToken();
     if (!token) { setChecking(false); return; }
     const c = new AbortController();
-    api.me(token, c.signal).then(({data}) => setSession({token, user: data})).catch((e) => { if (!c.signal.aborted) { if (e instanceof ApiError && e.status === 401) sessionStorage.removeItem(tokenKey); setAuthError(errorText(e)); } }).finally(() => { if (!c.signal.aborted) setChecking(false); });
+    api.me(token, c.signal).then(({data}) => setSession({token, user: data})).catch((e) => { if (!c.signal.aborted) { if (e instanceof ApiError && e.status === 401) clearStoredToken(); setAuthError(errorText(e)); } }).finally(() => { if (!c.signal.aborted) setChecking(false); });
     return () => c.abort();
   }, []);
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function ResultManager({ eventId }: { eventId: string }) {
       setErrors(next);
     } finally { setSaving(false); }
   }
-  async function logout() { if (dirty && !window.confirm("Discard unsaved results and sign out?")) return; if (session) { await disableAdminPush(session.token).catch(() => {}); await api.logout(session.token).catch(() => {}); } sessionStorage.removeItem(tokenKey); setSession(null); }
+  async function logout() { if (dirty && !window.confirm("Discard unsaved results and sign out?")) return; if (session) { await disableAdminPush(session.token).catch(() => {}); await api.logout(session.token).catch(() => {}); } clearStoredToken(); setSession(null); }
   return <Shell session={session} onLogout={logout}>
     {checking ? <p className="manage-notice">Checking your session…</p> : !session ? <><SignIn onSuccess={setSession}/>{authError && <p className="manage-error">{authError}</p>}</> : event.status === "loading" ? <p className="manage-notice">Loading competition…</p> : event.status === "error" ? <div className="manage-notice">{event.message} <button onClick={() => setEventRetry((x) => x+1)}>Try again</button></div> : <>
       <a className="manage-back" href={`/manage/competitions/${encodeURIComponent(event.data.id)}`}>← {event.data.title}</a>
