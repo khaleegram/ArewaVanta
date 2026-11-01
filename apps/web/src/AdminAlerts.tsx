@@ -69,7 +69,7 @@ export default function AdminAlerts({ token }: { token: string }) {
     setError("");
     try {
       const reg = await navigator.serviceWorker.register(
-        "/notification-worker.js",
+        "/service-worker.js",
       );
       const existing = await reg.pushManager.getSubscription();
       if (existing) {

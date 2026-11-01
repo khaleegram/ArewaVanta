@@ -1,7 +1,14 @@
 import { useEffect } from "react";
 
 export const SITE_ORIGIN = "https://arewavanta.com";
-const DEFAULT_IMAGE = `${SITE_ORIGIN}/images/northern-force.webp`;
+const DEFAULT_IMAGE = `${SITE_ORIGIN}/images/arewavanta-social.png`;
+
+export function leaderboardSharePath(slug: string): string {
+  const code = slug.match(/-([a-z0-9]{8})$/i)?.[1];
+  return code
+    ? `/l/${code.toLowerCase()}`
+    : `/leaderboard?type=squads&event=${encodeURIComponent(slug)}`;
+}
 
 export type PageSeo = {
   title: string;
@@ -36,6 +43,9 @@ export function applyPageSeo(page: PageSeo) {
   meta('meta[property="og:description"]', "property", "og:description", page.description);
   meta('meta[property="og:url"]', "property", "og:url", canonical);
   meta('meta[property="og:image"]', "property", "og:image", image);
+  meta('meta[property="og:image:type"]', "property", "og:image:type", "image/png");
+  meta('meta[property="og:image:width"]', "property", "og:image:width", "1200");
+  meta('meta[property="og:image:height"]', "property", "og:image:height", "630");
   meta('meta[property="og:image:alt"]', "property", "og:image:alt", "ArewaVanta Call of Duty: Mobile Battle Royale community");
   meta('meta[name="twitter:card"]', "name", "twitter:card", "summary_large_image");
   meta('meta[name="twitter:title"]', "name", "twitter:title", page.title);
@@ -69,8 +79,8 @@ export function usePageSeo(page: PageSeo) {
 
 export const pageMetadata = {
   home: {
-    title: "Arewa CODM Scrims, Leagues & Tournaments in Nigeria | ArewaVanta",
-    description: "Join Arewa Call of Duty: Mobile Battle Royale scrims, leagues and tournaments in Nigeria. Find weekly scrims, schedules, squad standings, results and player rankings.",
+    title: "ArewaVanta | Arewa CODM Scrims & Tournaments in Nigeria",
+    description: "ArewaVanta connects the Arewa Call of Duty: Mobile (CODM) community in Nigeria with weekly Battle Royale scrims, tournaments, squad standings, match results and player rankings.",
     path: "/",
   },
   competitions: {

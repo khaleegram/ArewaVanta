@@ -16,7 +16,7 @@ import {
   squadIdentity,
 } from "./presentation";
 import { Brand, Icon } from "./ui";
-import { pageMetadata, usePageSeo } from "./seo";
+import { leaderboardSharePath, pageMetadata, usePageSeo } from "./seo";
 
 
 type Kind = "squads" | "players";
@@ -190,6 +190,8 @@ export default function LiveLeaderboard() {
   const [sort, setSort] = useState("rank");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [shareMessage, setShareMessage] = useState("");
+  const shortCode = window.location.pathname.match(/^\/l\/([a-z0-9]{8})$/i)?.[1]?.toLowerCase();
   useEffect(() => {
     const controller = new AbortController();
     setEvents({ status: "loading" });
@@ -199,8 +201,8 @@ export default function LiveLeaderboard() {
         setEvent((current) =>
           data.some((e) => e.slug === current)
             ? current
-            : ((data.find((e) => e.scored_match_count > 0) ?? data[0])?.slug ??
-              ""),
+            : (data.find((e) => shortCode && e.slug.toLowerCase().endsWith(`-${shortCode}`))?.slug ??
+              (data.find((e) => e.scored_match_count > 0) ?? data[0])?.slug ?? ""),
         );
         setSeasonId((current) =>
           current && data.some((e) => e.season?.id === current) ? current : "",
@@ -257,18 +259,36 @@ export default function LiveLeaderboard() {
     return () => controller.abort();
   }, [kind, playerPage, retry]);
   useEffect(() => {
+    if (events.status !== "ready") return;
     const p = new URLSearchParams();
-    p.set("type", kind);
-    if (seasonId) p.set("season", seasonId);
-    else if (event) p.set("event", event);
-    if (kind === "players" && playerPage > 1) p.set("page", String(playerPage));
-    if (kind === "squads" && query.trim()) p.set("q", query.trim());
-    window.history.replaceState(null, "", `/leaderboard?${p}`);
-  }, [kind, event, seasonId, playerPage, query]);
+    let path = "/leaderboard";
+    if (kind === "players") {
+      p.set("type", kind);
+      if (playerPage > 1) p.set("page", String(playerPage));
+    } else if (seasonId) {
+      p.set("season", seasonId);
+    } else if (event) {
+      path = leaderboardSharePath(event);
+      if (query.trim()) p.set("q", query.trim());
+    }
+    const search = p.size ? `?${p}` : "";
+    window.history.replaceState(null, "", `${path}${search}`);
+  }, [events.status, kind, event, seasonId, playerPage, query]);
   const currentEvent =
     events.status === "ready"
       ? events.data.find((e) => e.slug === event)
       : undefined;
+  const sharePath = currentEvent ? leaderboardSharePath(currentEvent.slug) : "";
+  const shareUrl = sharePath ? `${window.location.origin}${sharePath}` : "";
+  async function copyShareLink() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareMessage("Leaderboard link copied");
+    } catch {
+      window.prompt("Copy this leaderboard link", shareUrl);
+    }
+  }
   const seasons =
     events.status === "ready"
       ? [
@@ -337,7 +357,7 @@ export default function LiveLeaderboard() {
         <div className="arena-hero-copy"><span className="arena-eyebrow"><i /> AREWA CODM · THE RANKINGS</span><h1 id="arena-title">Every game.<br /><em>Make it count.</em></h1><p>{kind === "squads" ? "The squads, the wins, the race to the top. This is where the North keeps score." : "The sharpest aim. The biggest games. Meet the players making their mark."}</p></div>
         <div className="arena-hero-stats"><div><span>{kind === "squads" ? "SQUADS IN THE RACE" : "RANKED PLAYERS"}</span><strong>{kind === "squads" ? (squadCount ?? "—") : players.status === "ready" ? players.data.total : "—"}<Icon name={kind === "squads" ? "trophy" : "target"} /></strong></div><p><span className="arena-status-dot" /> {kind === "squads" ? `${countLabel(completedGames, "game")} played${currentEvent ? ` · ${currentEvent.title}` : ""}` : "Across competitions with individual kills enabled"}</p></div>
       </section>
-      <div className="arena-navigation"><Tabs kind={kind} onChange={changeKind} /><span>PLAY HARD. CLIMB HIGHER.</span></div>
+      <div className="arena-navigation"><Tabs kind={kind} onChange={changeKind} />{kind === "squads" && currentEvent && !seasonId && <div className="arena-share-strip"><div><small>SHARE THIS LIVE BOARD</small><a href={sharePath}>{shareUrl}</a></div><button type="button" onClick={copyShareLink}>Copy link <Icon name="arrow" /></button><span aria-live="polite">{shareMessage}</span></div>}</div>
       {kind === "squads" ? <section className="arena-filters" aria-label="Competition filters">
         <label className="arena-select"><Icon name="trophy" /><span><small>COMPETITION</small><select aria-label="Competition or season" value={seasonId ? `season:${seasonId}` : currentGroup?.key ?? ""} disabled={events.status !== "ready" || !events.data.length} onChange={(e) => {
           if (e.target.value.startsWith("season:")) setSeasonId(e.target.value.slice(7));

@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="page" x2="1" y2="1">
+      <stop stop-color="#122b20"/>
+      <stop offset="1" stop-color="#24543a"/>
+    </linearGradient>
+    <linearGradient id="panel" x2="0" y2="1">
+      <stop stop-color="#fffdf6"/>
+      <stop offset="1" stop-color="#f0eee3"/>
+    </linearGradient>
+    <linearGradient id="leader" x2="1" y2="1">
+      <stop stop-color="#285c40"/>
+      <stop offset="1" stop-color="#173d2d"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#page)"/>
+  <g fill="none" stroke="#d9e6ce" stroke-opacity=".07">
+    <circle cx="1080" cy="110" r="280" stroke-width="2"/>
+    <circle cx="1080" cy="110" r="225" stroke-width="2"/>
+    <circle cx="1080" cy="110" r="170" stroke-width="2"/>
+    <path d="M720 0h480M720 35h480M720 70h480M720 105h480M720 140h480"/>
+  </g>
+  <rect x="38" y="36" width="1124" height="558" rx="25" fill="url(#panel)"/>
+  <path d="M76 112 99 65h12l-23 47Zm23 0 12-24 12 24h12l-24-47-6 12 18 35Z" fill="#ed4d3b"/>
+  <text x="156" y="105" fill="#203b2d" font-family="DejaVu Sans, sans-serif" font-size="35" font-weight="700">arewavanta<tspan fill="#ed4d3b">.</tspan></text>
+  <rect x="786" y="70" width="332" height="42" rx="21" fill="#e5ecdf"/>
+  <circle cx="811" cy="91" r="5" fill="#df6048"/>
+  <text x="829" y="97" fill="#315f42" font-family="DejaVu Sans, sans-serif" font-size="13" font-weight="700" letter-spacing="1.6">NIGERIA'S AREWA CODM COMMUNITY</text>
+
+  <text x="78" y="199" fill="#3b6a4a" font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="700" letter-spacing="3">CALL OF DUTY: MOBILE · BATTLE ROYALE</text>
+  <text x="75" y="278" fill="#203b2d" font-family="DejaVu Sans, sans-serif" font-size="63" font-weight="800" letter-spacing="-2">THE AREWA</text>
+  <text x="75" y="349" fill="#203b2d" font-family="DejaVu Sans, sans-serif" font-size="63" font-weight="800" letter-spacing="-2">CODM ARENA<tspan fill="#ed4d3b">.</tspan></text>
+  <text x="79" y="394" fill="#65776a" font-family="DejaVu Sans, sans-serif" font-size="19">Weekly scrims, official results and a place to climb.</text>
+
+  <rect x="78" y="436" width="535" height="49" rx="10" fill="#1d5038"/>
+  <text x="101" y="467" fill="#fffdf6" font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="700" letter-spacing=".6">SCRIMS</text>
+  <circle cx="183" cy="460" r="3" fill="#ed7058"/>
+  <text x="200" y="467" fill="#fffdf6" font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="700" letter-spacing=".6">LEAGUES</text>
+  <circle cx="294" cy="460" r="3" fill="#ed7058"/>
+  <text x="311" y="467" fill="#fffdf6" font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="700" letter-spacing=".6">TOURNAMENTS</text>
+  <text x="79" y="542" fill="#617467" font-family="DejaVu Sans, sans-serif" font-size="14" font-weight="700" letter-spacing="1">SQUAD STANDINGS  ·  PLAYER RANKINGS  ·  MATCH RESULTS</text>
+
+  <rect x="676" y="158" width="436" height="352" rx="19" fill="url(#leader)"/>
+  <text x="709" y="201" fill="#f4cf77" font-family="DejaVu Sans, sans-serif" font-size="12" font-weight="700" letter-spacing="2">THE RACE TO THE TOP</text>
+  <text x="709" y="238" fill="#fffdf6" font-family="DejaVu Sans, sans-serif" font-size="25" font-weight="700">SQUAD LEADERBOARD</text>
+  <path d="M708 260h371" stroke="#ffffff" stroke-opacity=".2"/>
+  <g font-family="DejaVu Sans, sans-serif">
+    <rect x="704" y="277" width="385" height="56" rx="9" fill="#f4cf77"/>
+    <circle cx="733" cy="305" r="16" fill="#234d36"/>
+    <text x="733" y="310" fill="#fffdf6" font-size="12" font-weight="700" text-anchor="middle">01</text>
+    <text x="762" y="302" fill="#203b2d" font-size="14" font-weight="700">TOP SQUAD</text>
+    <text x="762" y="319" fill="#46634e" font-size="10">POINTS · KILLS · WINS</text>
+    <path d="M1050 290v30" stroke="#234d36" stroke-opacity=".2"/>
+    <text x="1070" y="311" fill="#203b2d" font-size="13" font-weight="700" text-anchor="end">#1</text>
+
+    <rect x="704" y="342" width="385" height="56" rx="9" fill="#ffffff" fill-opacity=".1"/>
+    <circle cx="733" cy="370" r="16" fill="#dbe6d9"/>
+    <text x="733" y="375" fill="#234d36" font-size="12" font-weight="700" text-anchor="middle">02</text>
+    <text x="762" y="367" fill="#fffdf6" font-size="14" font-weight="700">SQUAD STANDINGS</text>
+    <text x="762" y="384" fill="#bfd2c1" font-size="10">EVERY GAME COUNTS</text>
+    <text x="1070" y="376" fill="#fffdf6" font-size="13" font-weight="700" text-anchor="end">#2</text>
+
+    <rect x="704" y="407" width="385" height="56" rx="9" fill="#ffffff" fill-opacity=".1"/>
+    <circle cx="733" cy="435" r="16" fill="#d5b89c"/>
+    <text x="733" y="440" fill="#234d36" font-size="12" font-weight="700" text-anchor="middle">03</text>
+    <text x="762" y="432" fill="#fffdf6" font-size="14" font-weight="700">PLAYER RANKINGS</text>
+    <text x="762" y="449" fill="#bfd2c1" font-size="10">TRACK THE CLIMB</text>
+    <text x="1070" y="441" fill="#fffdf6" font-size="13" font-weight="700" text-anchor="end">#3</text>
+  </g>
+  <rect x="704" y="478" width="385" height="1" fill="#ffffff" fill-opacity=".2"/>
+  <text x="709" y="493" fill="#d4e2d4" font-family="DejaVu Sans, sans-serif" font-size="11" font-weight="700">AREWAVANTA.COM</text>
+  <circle cx="1072" cy="489" r="5" fill="#ed7058"/>
+</svg>

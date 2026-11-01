@@ -2,6 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    {
+      "source": "/l/:code",
+      "has": [{ "type": "header", "key": "user-agent", "value": ".*(bot|Bot|BOT|crawler|Crawler|spider|Spider|facebookexternalhit|WhatsApp|Twitterbot|LinkedInBot|Slackbot|TelegramBot|Discordbot|Pinterest|Embedly|vkShare|Line\/).*" }],
+      "destination": "/api/leaderboard-share?code=:code"
+    },
+    { "source": "/l/:code", "destination": "/index.html" },
     { "source": "/leaderboard", "destination": "/index.html" },
     { "source": "/manage/:path*", "destination": "/index.html" },
     { "source": "/captain-invite", "destination": "/index.html" },

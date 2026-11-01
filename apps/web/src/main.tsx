@@ -38,11 +38,14 @@ import "./public-people-pages.css";
 import "./rankings-arena.css";
 import "./organizer-manager.css";
 import { applyPageSeo } from "./seo";
+import PwaInstallPrompt from "./PwaInstallPrompt";
+import "./pwa-install.css";
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 
 function renderRoute() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  const leaderboardShortLink = /^\/l\/[a-z0-9]{8}$/i.test(path);
   const eventMatch = path.match(/^\/competitions\/([^/]+)(?:\/games\/([^/]+))?$/);
   const personMatch = path.match(/^\/(clans|squads|players)\/([^/]+)$/);
   const managerResultsMatch = path.match(/^\/manage\/competitions\/([^/]+)\/results$/);
@@ -50,7 +53,7 @@ function renderRoute() {
   const managerCompetitionMatch = path.match(/^\/manage\/competitions\/([^/]+)$/);
   let page: React.ReactNode;
 
-  if (path === "/leaderboard") page = <LiveLeaderboard />;
+  if (path === "/leaderboard" || leaderboardShortLink) page = <LiveLeaderboard />;
   else if (managerResultsMatch) page = <ResultManager eventId={decodeURIComponent(managerResultsMatch[1])} />;
   else if (managerEntriesMatch) page = <CompetitionManager entriesEventId={decodeURIComponent(managerEntriesMatch[1])} />;
   else if (managerCompetitionMatch) page = <CompetitionManager workspaceEventId={decodeURIComponent(managerCompetitionMatch[1])} />;
@@ -125,6 +128,7 @@ function renderRoute() {
       <React.Fragment key={`${window.location.pathname}${window.location.search}`}>
         {page}
       </React.Fragment>
+      <PwaInstallPrompt />
     </React.StrictMode>,
   );
 }
@@ -176,6 +180,10 @@ function handleInternalNavigation(event: MouseEvent) {
 document.addEventListener("click", handleInternalNavigation);
 window.addEventListener("popstate", renderRoute);
 renderRoute();
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js", { scope: "/" }).catch(() => {});
+}
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {

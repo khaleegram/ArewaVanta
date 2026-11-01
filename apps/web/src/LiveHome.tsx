@@ -11,7 +11,7 @@ import {
   timezoneLabel,
 } from "./presentation";
 import { Brand, Icon } from "./ui";
-import { pageMetadata, usePageSeo } from "./seo";
+import { leaderboardSharePath, pageMetadata, usePageSeo } from "./seo";
 
 type Load<T> =
   | { status: "loading" }
@@ -467,7 +467,7 @@ export default function LiveHome() {
                 <div className="home-schedule-foot">
                   <span>Dates in {timezoneLabel(next.timezone)}</span>
                   <a
-                    href={`/leaderboard?type=squads&event=${encodeURIComponent(next.slug)}`}
+                    href={leaderboardSharePath(next.slug)}
                     className="home-link"
                   >
                     View standings <Icon name="arrow" />
@@ -496,7 +496,7 @@ export default function LiveHome() {
             <a
               href={
                 latest
-                  ? `/leaderboard?type=squads&event=${encodeURIComponent(latest.slug)}`
+                  ? leaderboardSharePath(latest.slug)
                   : "/leaderboard"
               }
               className="home-link"
@@ -599,7 +599,7 @@ export default function LiveHome() {
                 <div className="home-standings-foot">
                   <span>Top 5 squads</span>
                   <a
-                    href={`/leaderboard?type=squads&event=${encodeURIComponent(latest.slug)}`}
+                    href={leaderboardSharePath(latest.slug)}
                     className="home-link"
                   >
                     View full table <Icon name="arrow" />
@@ -617,8 +617,10 @@ export default function LiveHome() {
                   Built for the north<span>.</span>
                 </h2>
                 <p>
-                  One place for the squads, players and competitions bringing
-                  Nigerian Arewa CODM Battle Royale together.
+                  ArewaVanta is an independent community platform for Call of
+                  Duty: Mobile Battle Royale in Nigeria. Follow weekly Arewa
+                  scrims, tournament schedules, squad standings, match results
+                  and player rankings.
                 </p>
                 <a
                   href="/leaderboard?type=players"

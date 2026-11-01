@@ -44,12 +44,15 @@ async function page(route, title, description, schema) {
   html = setMeta(html, "property", "og:title", title);
   html = setMeta(html, "property", "og:description", description);
   html = setMeta(html, "property", "og:url", `${site}${route}`);
-  html = setMeta(html, "property", "og:image", `${site}/images/northern-force.webp`);
+  html = setMeta(html, "property", "og:image", `${site}/images/arewavanta-social.png`);
+  html = setMeta(html, "property", "og:image:type", "image/png");
+  html = setMeta(html, "property", "og:image:width", "1200");
+  html = setMeta(html, "property", "og:image:height", "630");
   html = setMeta(html, "property", "og:image:alt", "ArewaVanta Call of Duty: Mobile Battle Royale community");
   html = setMeta(html, "name", "twitter:card", "summary_large_image");
   html = setMeta(html, "name", "twitter:title", title);
   html = setMeta(html, "name", "twitter:description", description);
-  html = setMeta(html, "name", "twitter:image", `${site}/images/northern-force.webp`);
+  html = setMeta(html, "name", "twitter:image", `${site}/images/arewavanta-social.png`);
   html = setCanonical(html, route);
   if (schema) {
     const script = `<script type="application/ld+json" id="arewavanta-page-schema">${JSON.stringify(schema).replaceAll("<", "\\u003c")}</script>`;

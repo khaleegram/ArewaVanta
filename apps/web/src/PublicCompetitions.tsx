@@ -8,7 +8,7 @@ import type {
   PublicMatchResult,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
-import { pageMetadata, SITE_ORIGIN, usePageSeo } from "./seo";
+import { leaderboardSharePath, pageMetadata, SITE_ORIGIN, usePageSeo } from "./seo";
 import {
   competitionLabel as displayCompetitionLabel,
   countLabel,
@@ -485,7 +485,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                 </div>
                 <a
                   className="public-text-link"
-                  href={`/leaderboard?type=squads&event=${encodeURIComponent(slug)}`}
+                  href={leaderboardSharePath(slug)}
                 >
                   Full rankings →
                 </a>

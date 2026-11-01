@@ -19,6 +19,7 @@
     "check:password-reset": "node scripts/check-password-reset.mjs"
   },
   "dependencies": {
+    "@vercel/og": "^1.0.3",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

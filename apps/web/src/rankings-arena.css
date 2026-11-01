@@ -37,6 +37,13 @@
 .arena-tabs button { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 45px; padding: 0 27px; border: 0; border-radius: 8px; background: transparent; color: #5d6b60; font-size: 12px; font-weight: 700; cursor: pointer; }
 .arena-tabs button[aria-selected=true] { background: #fffefa; color: #194b36; box-shadow: 0 2px 8px #203c2810; }
 .arena-tabs .icon { width: 17px; height: 17px; }
+.arena-share-strip { display: flex; align-items: center; gap: 14px; padding: 8px 10px 8px 16px; border: 1px solid #d8dfd4; border-radius: 11px; background: #fffefa; }
+.arena-share-strip > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.arena-share-strip small { color: #758174; font-size: 8px; letter-spacing: 1px; font-weight: 800; }
+.arena-share-strip a { color: #2c6246; font-size: 11px; font-weight: 750; white-space: nowrap; }
+.arena-share-strip > span { color: #2c6246; font-size: 9px; font-weight: 750; white-space: nowrap; }
+.arena-share-strip button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: #1c553c; color: #fffdf7; font-size: 10px; font-weight: 800; cursor: pointer; }
+.arena-share-strip button .icon { width: 14px; height: 14px; transform: rotate(-45deg); }
 .arena-filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 30px; }
 .arena-select { display: flex; align-items: center; gap: 13px; padding: 12px 15px; border: 1px solid #d8dfd4; border-radius: 11px; background: #fffefa; min-width: 265px; max-width: 100%; }
 .arena-select > .icon:first-child { color: #5b7d62; }
@@ -199,6 +206,8 @@
   .arena-navigation > span { display: none; }
   .arena-tabs { width: 100%; }
   .arena-tabs button { flex: 1; font-size: 11px; padding: 0 8px; min-height: 44px; gap: 8px; }
+  .arena-share-strip { margin-top: 11px; justify-content: space-between; gap: 8px; padding: 8px 9px 8px 12px; }
+  .arena-share-strip a { font-size: 10px; }
   .arena-filters { gap: 9px; margin-bottom: 23px; }
   .arena-select { width: 100%; min-width: 0; padding: 11px 13px; gap: 11px; }
   .arena-week { flex: 1; min-width: 0; }
