@@ -5,6 +5,7 @@ import { Shell, SignIn, type Session } from "./CompetitionManager";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
 import { countLabel, formatDate, scoringLabel, squadIdentity } from "./presentation";
+import { Icon } from "./ui";
 
 type Load<T> = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: T };
 type Row = { present: boolean; placement: string; teamKills: string; players: Record<string, string> };
