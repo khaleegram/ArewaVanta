@@ -37,6 +37,7 @@ final class StoreCompetitionEventRequest extends FormRequest
             'dates' => ['sometimes', 'required', 'array', 'list', 'min:1', 'max:14'],
             'dates.*' => ['required', 'date_format:Y-m-d', 'distinct:strict'],
             'squad_ids' => ['prohibited'],
+            'track_player_kills' => ['sometimes', 'required', 'boolean'],
             'timezone' => ['sometimes', 'required', 'timezone'],
             'maximum_position' => ['sometimes', 'required', 'integer', 'min:1', 'max:100'],
             'squad_size' => ['sometimes', 'required', 'integer', 'min:1', 'max:10'],

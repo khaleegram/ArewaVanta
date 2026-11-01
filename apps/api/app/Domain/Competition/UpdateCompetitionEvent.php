@@ -6,6 +6,7 @@ use App\Domain\Scoring\ScoringMode;
 use App\Domain\Scoring\ScoringRules;
 use App\Models\CompetitionEvent;
 use App\Models\CompetitionMatch;
+use App\Models\CompetitionSeries;
 use App\Models\ScoringRuleVersion;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,9 @@ final class UpdateCompetitionEvent
     public function handle(User $actor, CompetitionEvent $event, array $data): CompetitionEvent
     {
         return DB::transaction(function () use ($actor, $event, $data): CompetitionEvent {
+            if (array_key_exists('track_player_kills', $data) && $event->series_id !== null) {
+                CompetitionSeries::query()->lockForUpdate()->findOrFail($event->series_id);
+            }
             $event = CompetitionEvent::query()->lockForUpdate()->findOrFail($event->id);
             abort_unless($this->permissions->canManage($actor, $event), 403);
             $matches = CompetitionMatch::query()->whereHas('day', fn ($query) => $query->where('event_id', $event->id))
@@ -68,6 +72,10 @@ final class UpdateCompetitionEvent
             }
             $oldVersion = $event->scoring_rule_version_id;
             $event->fill($data)->save();
+            if (array_key_exists('track_player_kills', $data) && $event->series_id !== null) {
+                CompetitionEvent::query()->where('series_id', $event->series_id)
+                    ->update(['track_player_kills' => $event->track_player_kills]);
+            }
             if (isset($data['scoring_rule_version_id']) && $oldVersion !== $data['scoring_rule_version_id']) {
                 foreach ($matches->where('scoring_rule_version_id', $oldVersion) as $match) {
                     $this->changeScoring->handle($actor, $match, $data['scoring_rule_version_id']);

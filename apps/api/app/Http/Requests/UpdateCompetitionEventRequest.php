@@ -21,6 +21,7 @@ final class UpdateCompetitionEventRequest extends FormRequest
             'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'competition_type' => ['sometimes', 'nullable', Rule::in(['scrim', 'league', 'tournament'])],
             'visibility' => ['sometimes', 'required', Rule::in(['public', 'private'])],
+            'track_player_kills' => ['sometimes', 'required', 'boolean'],
             'season_id' => ['sometimes', 'nullable', 'ulid', Rule::exists('seasons', 'id')],
             'scoring_rule_version_id' => ['sometimes', 'required', 'ulid', Rule::exists('scoring_rule_versions', 'id')],
             'timezone' => ['sometimes', 'required', 'timezone'],

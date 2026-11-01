@@ -14,6 +14,15 @@ final class MatchResultsController extends Controller
     {
         $this->loadPublicResult($match);
 
+        $result = (new MatchResultResource($match->currentResult))->resolve(request());
+        if (! $match->day->event->track_player_kills) {
+            $result['results'] = array_map(static function (array $row): array {
+                $row['players'] = [];
+
+                return $row;
+            }, $result['results']);
+        }
+
         return response()->json(['data' => [
             'match' => [
                 'id' => $match->id,
@@ -24,7 +33,7 @@ final class MatchResultsController extends Controller
                 'map_label' => $match->map_label,
             ],
             'scoring' => $match->rules_snapshot,
-            'result' => (new MatchResultResource($match->currentResult))->resolve(request()),
+            'result' => $result,
         ]]);
     }
 

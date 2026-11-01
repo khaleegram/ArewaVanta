@@ -104,6 +104,7 @@ class CreateCompetitionEvent
                 'title' => $data['title'],
                 'description' => $data['description'] ?? null,
                 'competition_type' => $data['competition_type'] ?? 'scrim',
+                'track_player_kills' => $data['track_player_kills'] ?? (($data['competition_type'] ?? 'scrim') !== 'scrim'),
                 'slug' => Str::slug($data['title']).'-'.Str::lower(substr($eventId, -8)),
                 'status' => 'published',
                 'visibility' => $data['visibility'] ?? 'public',

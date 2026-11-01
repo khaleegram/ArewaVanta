@@ -91,6 +91,7 @@ export type SquadRef = {
   clan: ClanRef;
 };
 export type EventSummary = {
+  track_player_kills?: boolean;
   series_id?: Id | null;
   skipped_at?: string | null;
   skip_reason?: string | null;
@@ -179,6 +180,7 @@ export type SeasonStandings = Standings & {
   season: { id: Id; name: string; slug: string };
 };
 export type PlayerRanking = {
+  best_game_kills?: number;
   id: Id;
   ign: string;
   appearances: number;
@@ -281,6 +283,7 @@ export type ScrimRecurrence = {
   weeks: { id: Id; slug: string; start_date: string | null; end_date: string | null; skipped_at: string | null; skip_reason: string | null }[];
 };
 export type ManageEvent = {
+  track_player_kills: boolean;
   skipped_at?: string | null;
   skip_reason?: string | null;
   recurrence?: ScrimRecurrence | null;
@@ -359,6 +362,7 @@ export type ScheduleInput = {
   games: { id: Id | null; map_code: string; map_label: string }[];
 }[];
 export type CreateEventInput = {
+  track_player_kills?: boolean;
   days?: ScheduleInput;
   title: string;
   description?: string | null;
@@ -426,6 +430,7 @@ export type EventSubmissionReview = {
   }[];
 };
 export type MatchResultInput = {
+  team_kills?: number;
   squad_id: Id;
   status?: "present" | "absent";
   placement?: number | null;
@@ -466,6 +471,7 @@ export type PublicMatchResult = {
 };
 export type ResultSheet = {
   event: {
+    track_player_kills: boolean;
     id: Id;
     title: string;
     slug: string;

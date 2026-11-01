@@ -34,6 +34,7 @@ import "./competition-listing.css";
 import "./public-match.css";
 import "./rankings-page.css";
 import "./public-people-pages.css";
+import "./rankings-arena.css";
 import { applyPageSeo } from "./seo";
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);

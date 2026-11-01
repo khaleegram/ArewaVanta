@@ -21,6 +21,7 @@ final class CompetitionEventResource extends JsonResource
             'visibility' => $this->visibility,
             'timezone' => $this->timezone,
             'squad_size' => $this->squad_size,
+            'track_player_kills' => $this->track_player_kills,
             'squad_capacity' => $this->squad_capacity,
             'maximum_position' => $this->maximum_position,
             'season' => $this->whenLoaded('season', fn (): ?array => $this->season === null ? null : [

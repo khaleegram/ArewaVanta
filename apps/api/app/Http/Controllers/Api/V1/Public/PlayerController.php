@@ -43,6 +43,7 @@ final class PlayerController extends Controller
             ->where('squad_results.participation_status', 'present')
             ->where('player_results.player_id', $player->id)
             ->where('events.visibility', 'public')
+            ->where('events.track_player_kills', true)
             ->whereNull('events.deleted_at')
             ->whereNull('event_days.deleted_at')
             ->whereNull('matches.deleted_at');

@@ -53,3 +53,7 @@ The local Compose file remains development-only. `compose.production.yaml` runs 
 
 PostgreSQL backup, archive verification, and guarded restore scripts are under `apps/api/scripts`. The restore tool requires target confirmation and an additional explicit target match for production. The current single-host layout is low-cost but not highly available; off-host encrypted backups and scheduled restore rehearsals remain operational requirements. See the root README for environment v
 alues, launch procedure, cost estimates, DNS, TLS, backup, and rollback guidance.
+
+### Squad and individual kill recording
+
+`events.track_player_kills` controls result entry. Scrims default to squad totals; leagues and tournaments default to individual player kills. Organizers can change it in competition details. For recurring scrims the setting applies across the series and is inherited by new weeks. Squad-only results accept placement and `team_kills` without requiring players or memberships. Individual results derive squad kills from selected player kills. Switching the setting preserves saved squad scores and existing player records; public player rankings, profiles and match breakdowns exclude individual statistics while tracking is disabled. Player ranking responses also include best-game kills, avoiding one profile request per ranking row.

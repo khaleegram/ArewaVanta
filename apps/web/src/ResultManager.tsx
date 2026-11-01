@@ -8,7 +8,7 @@ import { countLabel, formatDate, scoringLabel, squadIdentity } from "./presentat
 import "./results-manager.css";
 
 type Load<T> = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: T };
-type Row = { present: boolean; placement: string; players: Record<string, string> };
+type Row = { present: boolean; placement: string; teamKills: string; players: Record<string, string> };
 type Rows = Record<string, Row>;
 const errorText = (e: unknown) => e instanceof ApiError ? e.message : "Something went wrong. Please try again.";
 function displayDecimal(value: string | null, minimumScale = 0) {
@@ -20,7 +20,7 @@ function displayDecimal(value: string | null, minimumScale = 0) {
 function fromSheet(sheet: ResultSheet): Rows {
   return Object.fromEntries(sheet.squads.map((squad) => {
     const saved = sheet.result?.results.find((row) => row.squad_id === squad.id);
-    return [squad.id, { present: saved?.participation_status === "present", placement: saved?.placement?.toString() ?? "", players: Object.fromEntries((saved?.players ?? []).map((player) => [player.player_id, String(player.kills)])) }];
+    return [squad.id, { present: saved?.participation_status === "present", placement: saved?.placement?.toString() ?? "", teamKills: String(saved?.team_kills ?? 0), players: Object.fromEntries((saved?.players ?? []).map((player) => [player.player_id, String(player.kills)])) }];
   }));
 }
 function dateText(date: string) {
@@ -85,6 +85,11 @@ export default function ResultManager({ eventId }: { eventId: string }) {
       const position = Number(row.placement);
       if (!row.placement || !Number.isInteger(position) || position < 1 || position > sheet.data.event.maximum_position) issues[`${squad.id}.placement`] = `Enter a placement from 1 to ${sheet.data.event.maximum_position}.`;
       else if (placements.has(position)) { issues[`${squad.id}.placement`] = "Placement is already used."; issues[`${placements.get(position)}.placement`] = "Placement is already used."; } else placements.set(position, squad.id);
+      if (!sheet.data.event.track_player_kills) {
+        if (!/^\d+$/.test(row.teamKills) || Number(row.teamKills) > 999) issues[`${squad.id}.team_kills`] = "Enter squad kills from 0 to 999.";
+        input.push({ squad_id: squad.id, status: "present", placement: position, team_kills: Number(row.teamKills), players: [] });
+        continue;
+      }
       const selected = Object.entries(row.players);
       if (!selected.length) issues[`${squad.id}.players`] = "Select at least one participating player.";
       if (selected.length > 10) issues[`${squad.id}.players`] = "Select no more than 10 players.";
@@ -103,14 +108,14 @@ export default function ResultManager({ eventId }: { eventId: string }) {
     try {
       const scoringVersion = typeof sheet.data.match.scoring.version_id === "string" ? sheet.data.match.scoring.version_id : null;
       const result = await api.saveResults(session.token, game, input, sheet.data.result?.lock_version ?? null, scoringVersion);
-      setSaved(result.data); setBaseline(JSON.stringify(rows)); setNotice("Results saved. Standings and player statistics are updated.");
+      setSaved(result.data); setBaseline(JSON.stringify(rows)); setNotice(sheet.data.event.track_player_kills ? "Results saved. Standings and player statistics are updated." : "Results saved. Squad standings are updated.");
       setSheet((current) => current?.status === "ready" ? { ...current, data: { ...current.data, result: result.data } } : current);
       setEvent((previous) => previous.status !== "ready" ? previous : {...previous, data:{...previous.data, days:previous.data.days?.map((day) => ({...day, matches:day.matches.map((match) => match.id === game ? {...match, has_results:true} : match)}))}});
     } catch (err) {
       const next: Record<string,string> = {form:errorText(err)};
       if (err instanceof ApiError && err.status === 409) setConflict(true);
       if (err instanceof ApiError) for (const [path, messages] of Object.entries(err.errors)) {
-        const match = path.match(/^results\.(\d+)(?:\.players\.(\d+)\.(?:kills|player_id)|\.(placement|players))?/);
+        const match = path.match(/^results\.(\d+)(?:\.players\.(\d+)\.(?:kills|player_id)|\.(placement|players|team_kills))?/);
         if (match) { const item = input[Number(match[1])]; if (item) { const key = match[2] !== undefined ? `${item.squad_id}.${item.players[Number(match[2])]?.player_id}` : `${item.squad_id}.${match[3] ?? "players"}`; next[key] = messages.join(" "); } }
         else if (path === "results") next.form = messages.join(" ");
       }
@@ -121,24 +126,26 @@ export default function ResultManager({ eventId }: { eventId: string }) {
   return <Shell session={session} onLogout={logout}>
     {checking ? <p className="manage-notice">Checking your session…</p> : !session ? <><SignIn onSuccess={setSession}/>{authError && <p className="manage-error">{authError}</p>}</> : event.status === "loading" ? <p className="manage-notice">Loading competition…</p> : event.status === "error" ? <div className="manage-notice">{event.message} <button onClick={() => setEventRetry((x) => x+1)}>Try again</button></div> : <>
       <a className="manage-back" href={`/manage/competitions/${encodeURIComponent(event.data.id)}`}>← {event.data.title}</a>
-      <div className="results-heading"><p className="manage-eyebrow">ENTER RESULTS</p><h1>{event.data.title}<span>.</span></h1><p>Select a game, then enter placements and player kills.</p></div>
+      <div className="results-heading"><p className="manage-eyebrow">ENTER RESULTS</p><h1>{event.data.title}<span>.</span></h1><p>Select a game, then enter placements and {event.data.track_player_kills ? "individual player" : "squad"} kills.</p></div>
       <section className="results-schedule" aria-label="Competition games">
         {(event.data.days ?? []).length === 0 && <p>No games have been configured for this competition.</p>}
         {(event.data.days ?? []).map((day) => <div className="results-day" key={day.id}><h2>{day.label ? `${day.label}, ${formatDate(day.date)}` : formatDate(day.date)}</h2><div className="results-games">{day.matches.map((match) => <button type="button" key={match.id} disabled={saving} aria-pressed={game === match.id} onClick={() => chooseGame(match.id)}><strong>Game {match.match_index}</strong><span>{match.map_label}</span><small>{match.has_results ? "Results saved" : "Results pending"}</small></button>)}</div></div>)}
       </section>
       {!game ? <p className="manage-notice">Choose a game to enter results.</p> : sheet?.status === "loading" ? <p className="manage-notice">Loading game details…</p> : sheet?.status === "error" ? <div className="manage-error" role="alert">{sheet.message} <button onClick={() => setSheetRetry((x) => x+1)}>Try again</button></div> : sheet?.status === "ready" ? <form onSubmit={save} noValidate>
-        <div className="results-title"><div><p className="manage-eyebrow">{dateText(sheet.data.match.date)}</p><h2>Game {sheet.data.match.match_index} · {sheet.data.match.map_label}</h2><p>Scoring: {scoringLabel(typeof sheet.data.match.scoring.preset_name === "string" ? sheet.data.match.scoring.preset_name : null, "Custom scoring")}</p><p>Select the players who played. Leave anyone out if they didn’t play.</p></div><span>{countLabel(activeCount, "squad")} playing</span></div>
+        <div className="results-title"><div><p className="manage-eyebrow">{dateText(sheet.data.match.date)}</p><h2>Game {sheet.data.match.match_index} · {sheet.data.match.map_label}</h2><p>Scoring: {scoringLabel(typeof sheet.data.match.scoring.preset_name === "string" ? sheet.data.match.scoring.preset_name : null, "Custom scoring")}</p><p>{sheet.data.event.track_player_kills ? "Select the players who played and enter their kills." : "Enter each squad’s placement and total kills. Individual players are not required."}</p></div><span>{countLabel(activeCount, "squad")} playing</span></div>
         {!sheet.data.squads.length && <p className="manage-notice">No squads are assigned to this game yet. <a href={`/manage/competitions/${encodeURIComponent(event.data.id)}/entries`}>Review squad entries and assign slots.</a></p>}
         <div className="results-list">{sheet.data.squads.map((squad) => {
           const row = rows[squad.id]; if (!row) return null;
           const score = saved?.results.find((item) => item.squad_id === squad.id && item.participation_status === "present");
           const scoringRules = sheet.data.match.scoring.rules as { mode?: string } | undefined;
-          const kills = Object.values(row.players).reduce((sum, value) => sum + (/^\d+$/.test(value) ? Number(value) : 0), 0);
+          const kills = !sheet.data.event.track_player_kills ? Number(row.teamKills) || 0 : Object.values(row.players).reduce((sum, value) => sum + (/^\d+$/.test(value) ? Number(value) : 0), 0);
           return <section className={`results-squad${row.present ? " is-present" : ""}`} key={squad.id}>
             <div className="results-squad-head"><label className="results-participate"><input type="checkbox" checked={row.present} disabled={saving} onChange={(e) => update(squad.id, (old) => ({...old,present:e.target.checked}))}/><span><strong>{squadIdentity({name:squad.name,squadNumber:squad.squad_number,clanTag:squad.clan_tag,clanName:squad.clan,clanSquadCount:squad.clan_squad_count})}</strong><small>{squad.name}{squad.slot_number ? ` · Game slot ${squad.slot_number}` : ""}</small></span></label><span className="results-state">{row.present ? countLabel(kills, "kill") : "Absent"}</span></div>
-            {row.present && <div className="results-squad-body"><label className="results-placement">Placement <input type="number" inputMode="numeric" min="1" max={sheet.data.event.maximum_position} value={row.placement} disabled={saving} aria-invalid={!!errors[`${squad.id}.placement`]} onChange={(e) => update(squad.id,(old) => ({...old,placement:e.target.value}))}/></label>{errors[`${squad.id}.placement`] && <p className="results-error">{errors[`${squad.id}.placement`]}</p>}
-              <p className="results-label">Players who played <span>Select players and enter kills.</span></p>{!squad.eligible_players.length && <p className="results-hint">No players have been added to this squad yet.</p>}{errors[`${squad.id}.players`] && <p className="results-error">{errors[`${squad.id}.players`]}</p>}
+            {row.present && <div className={`results-squad-body${!sheet.data.event.track_player_kills ? " results-team-only" : ""}`}><label className="results-placement">Placement <input type="number" inputMode="numeric" min="1" max={sheet.data.event.maximum_position} value={row.placement} disabled={saving} aria-invalid={!!errors[`${squad.id}.placement`]} onChange={(e) => update(squad.id,(old) => ({...old,placement:e.target.value}))}/></label>{errors[`${squad.id}.placement`] && <p className="results-error">{errors[`${squad.id}.placement`]}</p>}
+              {!sheet.data.event.track_player_kills && <label className="results-team-kills">Squad kills<input type="number" inputMode="numeric" min="0" max="999" value={row.teamKills} disabled={saving} aria-invalid={!!errors[`${squad.id}.team_kills`]} onChange={(e) => update(squad.id, (old) => ({ ...old, teamKills: e.target.value }))} /><span>Total kills by the whole squad</span>{errors[`${squad.id}.team_kills`] && <span className="results-error">{errors[`${squad.id}.team_kills`]}</span>}</label>}
+              {sheet.data.event.track_player_kills && <><p className="results-label">Players who played <span>Select players and enter kills.</span></p>{!squad.eligible_players.length && <p className="results-hint">No players have been added to this squad yet.</p>}{errors[`${squad.id}.players`] && <p className="results-error">{errors[`${squad.id}.players`]}</p>}
               {squad.eligible_players.map((player) => { const selected = Object.hasOwn(row.players, player.id); const key = `${squad.id}.${player.id}`; return <div className="results-player" key={player.id}><label><input type="checkbox" checked={selected} disabled={saving} onChange={(e) => update(squad.id,(old) => {const next={...old.players}; if(e.target.checked) next[player.id]="0"; else delete next[player.id]; return {...old,players:next};})}/><span>{player.ign}</span></label>{selected && <div><label className="results-kills"><span>Kills</span><input type="number" inputMode="numeric" min="0" max="999" value={row.players[player.id]} disabled={saving} aria-invalid={!!errors[key]} onChange={(e) => update(squad.id,(old) => ({...old,players:{...old.players,[player.id]:e.target.value}}))}/></label>{errors[key] && <p className="results-error">{errors[key]}</p>}</div>}</div>; })}
+              </>}
               {score && !dirty && <div className="results-score">Saved score: <strong>{displayDecimal(score.total_points, scoringRules?.mode === "multiplier" ? 1 : 0)} pts</strong> · Kill points: {displayDecimal(score.kill_points ?? "0")}{score.placement_points !== null ? ` · Placement points: ${displayDecimal(score.placement_points)}` : ""}{score.placement_multiplier !== null ? ` · Placement bonus ×${displayDecimal(score.placement_multiplier, 1)}` : ""}</div>}
             </div>}
           </section>;

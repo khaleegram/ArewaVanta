@@ -684,7 +684,7 @@ export function MatchPage({
                                     <strong>{row.placement_multiplier !== null ? `×${row.placement_multiplier}` : (row.placement_points ?? "—")}</strong>
                                   </div>
                                 </div>
-                                <div className="public-match-players">
+                                {row.players.length > 0 && <div className="public-match-players">
                                   <table className="public-player-table">
                                     <thead><tr><th>Player</th><th>Kills</th></tr></thead>
                                     <tbody>
@@ -696,7 +696,7 @@ export function MatchPage({
                                       ))}
                                     </tbody>
                                   </table>
-                                </div>
+                                </div>}
                               </>
                             )}
                           </article>

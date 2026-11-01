@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['season_id', 'competition_template_id', 'scoring_rule_version_id', 'title', 'description', 'competition_type', 'slug', 'status', 'visibility', 'timezone', 'squad_size', 'squad_capacity', 'maximum_position', 'created_by'])]
+#[Fillable(['season_id', 'competition_template_id', 'scoring_rule_version_id', 'title', 'description', 'competition_type', 'track_player_kills', 'slug', 'status', 'visibility', 'timezone', 'squad_size', 'squad_capacity', 'maximum_position', 'created_by'])]
 class CompetitionEvent extends Model
 {
     use HasUlids, SoftDeletes;
@@ -19,6 +19,7 @@ class CompetitionEvent extends Model
     protected function casts(): array
     {
         return [
+            'track_player_kills' => 'boolean',
             'squad_size' => 'integer',
             'squad_capacity' => 'integer',
             'maximum_position' => 'integer',

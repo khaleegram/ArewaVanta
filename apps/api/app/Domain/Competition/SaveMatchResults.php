@@ -41,7 +41,7 @@ final class SaveMatchResults
             }
 
             $rules = ScoringRules::fromArray($match->rules_snapshot['rules']);
-            $rosters = $this->roster->forMatch($match);
+            $rosters = $event->track_player_kills ? $this->roster->forMatch($match) : collect();
             $previous = $match->currentResult;
             $legacyResult = $match->resultRecords()->whereIn('status', ['draft', 'revision_draft', 'submitted'])
                 ->where('revision_number', '>', $previous?->revision_number ?? 0)
@@ -83,26 +83,30 @@ final class SaveMatchResults
                 $status = $row === null ? 'absent' : ($row['status'] ?? 'present');
                 $players = $row['players'] ?? [];
                 $placement = $row['placement'] ?? null;
+                $teamKills = $row['team_kills'] ?? null;
                 $previousResult = $legacyResult?->squadResults->firstWhere('squad_id', $entry->squad_id)
                     ?? $previous?->squadResults->firstWhere('squad_id', $entry->squad_id);
                 $previousPlayers = $previousResult?->playerResults->keyBy('player_id') ?? collect();
                 $members = $rosters->get($entry->squad_id, collect());
 
-                if ($status === 'absent' && ($placement !== null || $players !== [])) {
-                    throw ValidationException::withMessages(['results' => 'Absent squads cannot have a placement or player kills.']);
+                if ($status === 'absent' && ($placement !== null || $players !== [] || ($teamKills !== null && (int) $teamKills !== 0))) {
+                    throw ValidationException::withMessages(['results' => 'Absent squads cannot have a placement or kills.']);
                 }
                 if ($status === 'present') {
                     if ($placement === null || $placement > $event->maximum_position || isset($placements[$placement])) {
                         throw ValidationException::withMessages(['results' => 'Participating squads need unique placements within the event range.']);
                     }
-                    if (count($players) < 1) {
+                    if ($event->track_player_kills && count($players) < 1) {
                         throw ValidationException::withMessages(['results' => 'A participating squad needs at least one player.']);
+                    }
+                    if (! $event->track_player_kills && ($teamKills === null || $players !== [])) {
+                        throw ValidationException::withMessages(['results' => 'This competition records squad kills. Enter total squad kills without individual players. Reload the sheet if this setting has changed.']);
                     }
                     $placements[$placement] = true;
                     $presentCount++;
                 }
 
-                $kills = 0;
+                $kills = ! $event->track_player_kills && $status === 'present' ? (int) $teamKills : 0;
                 foreach ($players as $playerInput) {
                     $playerId = $playerInput['player_id'];
                     if (isset($seenPlayers[$playerId]) || (! $members->has($playerId) && ! $previousPlayers->has($playerId))) {
@@ -110,6 +114,9 @@ final class SaveMatchResults
                     }
                     $seenPlayers[$playerId] = true;
                     $kills += (int) $playerInput['kills'];
+                }
+                if ($event->track_player_kills && $teamKills !== null && (int) $teamKills !== $kills) {
+                    throw ValidationException::withMessages(['results' => 'Squad kills must equal the sum of individual player kills.']);
                 }
                 try {
                     $score = $status === 'present' ? $this->scoring->score($kills, (int) $placement, $rules) : null;
