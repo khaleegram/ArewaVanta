@@ -144,19 +144,21 @@ export default function PwaInstallPrompt() {
       </div>
 
       {mode === "ios" ? (
-        <ol className="pwa-install-steps">
-          <li>
-            <span>1</span>
-            In Safari, tap <strong>Share</strong>
-            <svg className="pwa-share-icon" viewBox="0 0 20 20" aria-label="Share button">
-              <path d="M10 12V2m-4 4 4-4 4 4" />
-              <path d="M4 9v8h12V9" />
-            </svg>
-          </li>
-          <li><span>2</span>Choose <strong>Add to Home Screen</strong>.</li>
-          <li><span>3</span>Tap <strong>Add</strong> to finish.</li>
-        </ol>
-        <p className="pwa-install-ios-note">If you don’t see that option, open arewavanta.com in Safari first.</p>
+        <>
+          <ol className="pwa-install-steps">
+            <li>
+              <span>1</span>
+              In Safari, tap <strong>Share</strong>
+              <svg className="pwa-share-icon" viewBox="0 0 20 20" aria-label="Share button">
+                <path d="M10 12V2m-4 4 4-4 4 4" />
+                <path d="M4 9v8h12V9" />
+              </svg>
+            </li>
+            <li><span>2</span>Choose <strong>Add to Home Screen</strong>.</li>
+            <li><span>3</span>Tap <strong>Add</strong> to finish.</li>
+          </ol>
+          <p className="pwa-install-ios-note">If you don’t see that option, open arewavanta.com in Safari first.</p>
+        </>
       ) : mode === "android-help" ? (
         <ol className="pwa-install-steps">
           <li><span>1</span>Open your browser menu <strong>⋮</strong>.</li>
