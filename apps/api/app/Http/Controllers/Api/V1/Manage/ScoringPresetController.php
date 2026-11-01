@@ -21,12 +21,13 @@ final class ScoringPresetController extends Controller
     {
         $this->authorizeOrganizer($request);
 
-        return ScoringPresetResource::collection(ScoringPreset::query()->with('versions.tiers')->orderBy('name')->get());
+        return ScoringPresetResource::collection(ScoringPreset::query()->where('slug', '!=', 'warzone-style-multiplier')->with('versions.tiers')->orderBy('name')->get());
     }
 
     public function clone(Request $request, ScoringPreset $preset, ManageScoringPresets $manager): JsonResponse
     {
         $this->authorizeOrganizer($request);
+        abort_if($preset->slug === 'warzone-style-multiplier', 404);
         $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'description' => ['sometimes', 'nullable', 'string', 'max:2000']]);
         $copy = $manager->clone($request->user(), $preset, $data['name'], $data['description'] ?? $preset->description);
 

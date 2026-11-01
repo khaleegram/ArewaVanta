@@ -18,9 +18,9 @@ class ArewaVantaFoundationSeeder extends Seeder
     {
         DB::transaction(function (): void {
             $balancedVersion = $this->seedPreset(
-                name: 'ArewaVanta Balanced',
+                name: 'ArewaVanta Placement + Kills',
                 slug: 'aga-balanced',
-                description: 'Rewards eliminations and survival together. Every kill earns points, while better placement adds a bonus.',
+                description: 'Each kill earns 1 point. Placement earns additional points based on finishing position.',
                 mode: 'additive',
                 fallbackPlacementPoints: '0',
                 tiers: [
@@ -33,20 +33,6 @@ class ArewaVantaFoundationSeeder extends Seeder
                     [8, 10, '2', null],
                     [11, 15, '1', null],
                     [16, 25, '0', null],
-                ],
-            );
-
-            $this->seedPreset(
-                name: 'Warzone-Style Multiplier',
-                slug: 'warzone-style-multiplier',
-                description: 'Rewards eliminations more heavily when you finish higher. Placement multiplies kill points; a team with zero kills earns zero.',
-                mode: 'multiplier',
-                tiers: [
-                    [1, 1, null, '2.0'],
-                    [2, 5, null, '1.8'],
-                    [6, 10, null, '1.6'],
-                    [11, 20, null, '1.4'],
-                    [21, 25, null, '1.2'],
                 ],
             );
 

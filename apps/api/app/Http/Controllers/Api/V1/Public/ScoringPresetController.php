@@ -13,6 +13,7 @@ final class ScoringPresetController extends Controller
     {
         $presets = ScoringPreset::query()
             ->where('is_builtin', true)
+            ->where('slug', '!=', 'warzone-style-multiplier')
             ->with(['versions.tiers'])
             ->orderBy('name')
             ->get();

@@ -27,7 +27,7 @@ Events are available immediately after creation. A result save validates squad a
 
 ## Scoring and standings
 
-`ScoringEngine` uses `brick/math` decimal arithmetic. ArewaVanta Balanced, Warzone-Style Multiplier, Kills Only, and Placement Only are seeded. Built-in presets remain read-only; organizers can clone and configure their own. Match snapshots identify the rules used, and editing a match or event's scoring recalculates its current result in the same transaction.
+`ScoringEngine` uses `brick/math` decimal arithmetic. The default ArewaVanta Placement + Kills preset awards one point per kill plus placement points. Kills Only and Placement Only remain available. The retired Warzone-Style preset is hidden from new choices while saved historical results retain their original rule snapshots. Built-in presets remain read-only; organizers can clone and configure their own. Match snapshots identify the rules used, and editing a match or event's scoring recalculates its current result in the same transaction.
 
 Event and season standings sum current match scores without normalization. Tie-breaks use total kills, wins, then placement sums over games shared by every squad in the tied group; otherwise the tie remains. Player kills and appearances use current results only. Public season standings include public events in that season.
 

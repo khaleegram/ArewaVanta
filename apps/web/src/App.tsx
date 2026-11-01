@@ -170,7 +170,7 @@ function HomepageHero() {
             </span>
             <span className="hv-hero-next-title">Arewa Weekender 006</span>
             <span className="hv-hero-next-meta">
-              31 Oct — 01 Nov · Online · ArewaVanta Balanced
+              31 Oct — 01 Nov · Online · ArewaVanta Placement + Kills
             </span>
           </div>
           <div className="hv-hero-facts">
@@ -581,7 +581,7 @@ export default function App() {
                       >
                         <span>
                           <Icon name="check" />
-                          ArewaVanta Balanced
+                          ArewaVanta Placement + Kills
                         </span>
                         <p>
                           24 squads · 4 players per squad ·{" "}

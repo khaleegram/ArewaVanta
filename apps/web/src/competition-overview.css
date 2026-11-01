@@ -141,12 +141,11 @@
 .studio-foot strong { font-size: 13px; font-weight: 700; color: #324b39; }
 .studio-foot > a { min-height: 44px; display: flex; align-items: center; gap: 7px; color: #1e5941; font-size: 12px; font-weight: 700; }
 .studio-foot > a .icon { width: 14px; }
-.studio-organizer-access { margin-top: 18px; border: 1px solid #dce3db; border-radius: 12px; background: #fffefa; }
-.studio-organizer-access > summary { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 10px 14px; color: #263b2d; font-size: 13px; font-weight: 800; cursor: pointer; list-style: none; }
-.studio-organizer-access > summary::-webkit-details-marker { display: none; }
-.studio-organizer-access > summary span { margin-left: auto; color: #607169; font-size: 11px; font-weight: 500; }
-.studio-organizer-access > summary .icon { width: 15px; color: #607169; }
-.studio-organizer-access[open] > summary { border-bottom: 1px solid #dce3db; }
+.studio-organizer-access { margin: 16px 0; padding: 14px; border: 1px solid #cbd9c8; border-left: 4px solid #e4513d; border-radius: 10px; background: #eef3e9; }
+.studio-organizer-access-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.studio-organizer-access-head > div > span { color: #d34c38; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
+.studio-organizer-access-head h2 { margin: 3px 0 0; color: #24392a; font-size: 19px; }
+.studio-organizer-access-head p { max-width: 390px; margin: 0; color: #526457; font-size: 12px; line-height: 1.45; }
 .studio-organizer-access-body { padding: 14px; color: #43594b; font-size: 12px; line-height: 1.5; }
 .studio-organizer-access-body > p { margin: 0 0 12px; }
 .studio-organizer-access-body form label { display: block; margin-bottom: 6px; font-weight: 700; }
@@ -160,6 +159,7 @@
 .studio-organizer-access-body li strong { overflow-wrap: anywhere; color: #263b2d; }
 .studio-organizer-access-body li small { overflow-wrap: anywhere; color: #607169; }
 .studio-organizer-access-body li b { color: #1e5941; font-size: 11px; text-align: right; }
+@media (max-width: 560px) { .studio-organizer-access-head { display: block; } .studio-organizer-access-head p { margin-top: 6px; } .studio-organizer-access-body { padding: 10px 0 0; } .studio-organizer-access-body form > div { flex-wrap: wrap; } .studio-organizer-access-body form > div button { width: 100%; } }
 .studio-organizer-notice { color: #1e5941; }
 .studio-organizer-error { color: #963d2f; }
 @media (min-width: 760px) {

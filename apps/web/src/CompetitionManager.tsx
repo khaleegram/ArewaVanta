@@ -630,10 +630,10 @@ function EventWorkspace({
         <div><p>CODM BATTLE ROYALE <span> / {competitionTypeLabel(event.competition_type)}</span></p><h1>{event.title}</h1></div>
       </header>
       {event.description && <p className="studio-description">{event.description}</p>}
+      {canInviteOrganizers && <EventOrganizerAccess token={token} event={event} canAssignExisting={user.roles.some((role) => role.role === "platform_admin")} />}
       {(event.competition_type === "scrim" || event.recurrence)
         ? <ScrimRecurrenceControls token={token} event={event} onUpdated={setEvent} />
         : <p className="studio-date"><Icon name="calendar" />{formatDateRange(firstDate, lastDate)}</p>}
-      {canInviteOrganizers && <EventOrganizerAccess token={token} event={event} canAssignExisting={user.roles.some((role) => role.role === "platform_admin")} />}
       {event.skipped_at && <div className="studio-week-off" role="status"><strong>No games this week</strong><p>{event.skip_reason || "Squad entries and result entry are on hold for this week."}</p></div>}
       <div className="studio-overview-bar">
       <section className="studio-summary" aria-label="Selected weekend summary">
@@ -709,10 +709,9 @@ function EventOrganizerAccess({ token, event, canAssignExisting }: { token: stri
       setBusy("");
     }
   }
-  return <details className="studio-organizer-access">
-    <summary>Competition organizers <span>Invite others to help manage this competition</span><Icon name="chevron" /></summary>
+  return <section className="studio-organizer-access" aria-labelledby="competition-organizer-heading">
+    <header className="studio-organizer-access-head"><div><span>TEAM ACCESS</span><h2 id="competition-organizer-heading">Add an organizer</h2></div><p>Invite someone to help run this competition. Weekly scrim access continues across the series.</p></header>
     <div className="studio-organizer-access-body">
-      <p>Invite by email. Each organizer gets the same access to edit this competition, manage squad slots, enter results and control its weekly schedule.</p>
       <form onSubmit={(e) => void invite(e)}>
         <label htmlFor="competition-organizer-invite-email">Organizer’s email</label>
         <div><input id="competition-organizer-invite-email" required type="email" autoComplete="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="name@example.com" /><button type="submit" disabled={inviteBusy}>{inviteBusy ? "Sending…" : "Send invite"}</button></div>
@@ -733,7 +732,7 @@ function EventOrganizerAccess({ token, event, canAssignExisting }: { token: stri
         </ul> : <p>No accounts found.</p>}
       </>}
     </div>
-  </details>;
+  </section>;
 }
 function StudioSchedule({ event }: { event: ManageEvent }) {
   const [dayId, setDayId] = useState<string | null>(null);
