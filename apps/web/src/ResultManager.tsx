@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
-import type { ManageEvent, ResultSheet } from "./api/types";
+import type {
+  ManageEvent,
+  ResultSheet,
+  ScreenshotImportTeam,
+} from "./api/types";
 import { Shell, SignIn, tokenKey, type Session } from "./CompetitionManager";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
@@ -8,6 +12,8 @@ import { formatDate, squadIdentity } from "./presentation";
 import { matchesPlayerSearch } from "./playerSearch";
 import { ScorePlayers } from "./ScorePlayers";
 import { ScoreLateEntry } from "./ScoreLateEntry";
+import { ScreenshotImport } from "./ScreenshotImport";
+import { mergeImport, type ApplyImportResult } from "./screenshotReview";
 import {
   hasKills,
   incomplete,
@@ -243,6 +249,8 @@ function ScoreWorkspace({
   const [saving, setSaving] = useState(false);
   const [adding, setAdding] = useState(false);
   const [late, setLate] = useState(false);
+  const [lateSlot, setLateSlot] = useState<number | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [error, setError] = useState("");
   const [issues, setIssues] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState("");
@@ -519,6 +527,41 @@ function ScoreWorkspace({
       0,
     );
   }
+  function applyImport(teams: ScreenshotImportTeam[]): ApplyImportResult {
+    if (sheet.status !== "ready" || saving || adding) {
+      return {
+        applied: false,
+        message: "Wait for the current save or slot update, then apply again.",
+      };
+    }
+    const merged = mergeImport(teams, rows);
+    if (merged.errors.length)
+      return { applied: false, message: merged.errors.join(" ") };
+    if (!merged.count)
+      return {
+        applied: false,
+        message: "Map and include at least one team first.",
+      };
+    if (
+      merged.conflicts.length &&
+      !window.confirm(
+        `These reviewed values will change existing scores or lineups:\n\n${merged.conflicts.slice(0, 8).join("\n")}${merged.conflicts.length > 8 ? `\n…and ${merged.conflicts.length - 8} more changes.` : ""}\n\nContinue? Unknown fields and known team totals will be preserved. Nothing is published until you save.`,
+      )
+    )
+      return {
+        applied: false,
+        message:
+          "Import cancelled. Your existing score draft is unchanged. You can edit this review and try again.",
+      };
+    setRows(merged.rows);
+    setOpen(
+      teams.find((team) => team.squad && !team.excluded)?.squad?.id ?? null,
+    );
+    const message = `${merged.count} team${merged.count === 1 ? "" : "s"} merged into the score draft. Existing details were kept unless you confirmed a change. Unresolved names and scores remain in this import review.`;
+    setNotice(message);
+    setIssues({});
+    return { applied: true, message };
+  }
   async function addEntry(body: {
     squad_id?: string;
     clan_id?: string;
@@ -539,8 +582,11 @@ function ScoreWorkspace({
         ),
       });
       setLate(false);
+      setLateSlot(null);
       setOpen(created.data.squad_id);
-      setNotice("Squad added to this game. Existing saved scores were kept.");
+      setNotice(
+        "Squad added to this game. Existing saved scores were kept. Map the screenshot team to its new slot if needed.",
+      );
     } finally {
       setAdding(false);
     }
@@ -590,21 +636,66 @@ function ScoreWorkspace({
             {formatDate(data.match.date)} · Game {data.match.match_index}
           </span>
         </div>
-        <button
-          type="button"
-          disabled={saving || adding}
-          onClick={() => setLate(!late)}
-        >
-          ＋ Add squad / slot
-        </button>
+        <div className="score-match-actions">
+          <button
+            type="button"
+            disabled={saving || adding}
+            onClick={() => {
+              setLate(false);
+              setImportOpen((value) => !value);
+            }}
+          >
+            Import screenshot
+          </button>
+          <button
+            type="button"
+            disabled={saving || adding}
+            onClick={() => {
+              setImportOpen(false);
+              setLateSlot(null);
+              setLate((value) => !value);
+            }}
+          >
+            ＋ Add squad / slot
+          </button>
+        </div>
+      </div>
+      <div hidden={!importOpen}>
+        <ScreenshotImport
+          token={session.token}
+          matchId={matchId}
+          sheet={data}
+          storageKey={`${draftKey}:import-review`}
+          busy={saving || adding}
+          onApply={applyImport}
+          onLateEntry={(teamNumber, teamLabel) => {
+            setLateSlot(teamNumber);
+            setLate(true);
+            setNotice(
+              `Add ${teamLabel} as a late entry, then map it to its slot.`,
+            );
+            setTimeout(
+              () =>
+                document
+                  .querySelector(".score-late-entry")
+                  ?.scrollIntoView({ block: "start", behavior: "smooth" }),
+              0,
+            );
+          }}
+          onClose={() => setImportOpen(false)}
+        />
       </div>
       {late && (
         <ScoreLateEntry
           token={session.token}
           sheet={data}
           busy={adding}
+          initialSlot={lateSlot}
           onAdd={addEntry}
-          onClose={() => setLate(false)}
+          onClose={() => {
+            setLate(false);
+            setLateSlot(null);
+          }}
         />
       )}
       <div className="score-toolbar">
@@ -824,65 +915,71 @@ function ScoreWorkspace({
             : "No squads yet. Add a squad and its game slot above."}
         </p>
       )}
-      <footer className="score-save-bar">
-        <div className="score-save-message">
-          {error && (
-            <p className="score-error" role="alert">
-              {error}
-            </p>
-          )}
-          {conflict && (
-            <div className="score-conflict">
+      {!importOpen && (
+        <footer className="score-save-bar">
+          <div className="score-save-message">
+            {error && (
+              <p className="score-error" role="alert">
+                {error}
+              </p>
+            )}
+            {conflict && (
+              <div className="score-conflict">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void save(undefined, false, true)}
+                >
+                  Review & save my changed teams
+                </button>
+                <button type="button" disabled={saving} onClick={discard}>
+                  Discard draft & load latest
+                </button>
+              </div>
+            )}
+            {notice && (
+              <p className="score-success" role="status">
+                {notice}
+              </p>
+            )}
+            {draftProblem && (
+              <p className="score-warning">
+                Device draft storage is unavailable. Keep this screen open until
+                your scores are saved.
+              </p>
+            )}
+            <span>
+              {saving
+                ? "Saving…"
+                : dirty
+                  ? `${dirtyIds.length} team${dirtyIds.length === 1 ? "" : "s"} with unsaved changes`
+                  : "All score changes saved"}
+            </span>
+            {dirty && !draftProblem && (
+              <small>Draft kept on this device · not published yet</small>
+            )}
+          </div>
+          <div className="score-save-actions">
+            {dirty && (
               <button
                 type="button"
-                disabled={saving}
-                onClick={() => void save(undefined, false, true)}
+                disabled={saving || adding}
+                onClick={discard}
               >
-                Review & save my changed teams
+                Discard
               </button>
-              <button type="button" disabled={saving} onClick={discard}>
-                Discard draft & load latest
-              </button>
-            </div>
-          )}
-          {notice && (
-            <p className="score-success" role="status">
-              {notice}
-            </p>
-          )}
-          {draftProblem && (
-            <p className="score-warning">
-              Device draft storage is unavailable. Keep this screen open until
-              your scores are saved.
-            </p>
-          )}
-          <span>
-            {saving
-              ? "Saving…"
-              : dirty
-                ? `${dirtyIds.length} team${dirtyIds.length === 1 ? "" : "s"} with unsaved changes`
-                : "All score changes saved"}
-          </span>
-          {dirty && !draftProblem && (
-            <small>Draft kept on this device · not published yet</small>
-          )}
-        </div>
-        <div className="score-save-actions">
-          {dirty && (
-            <button type="button" disabled={saving || adding} onClick={discard}>
-              Discard
+            )}
+            <button
+              type="button"
+              className="score-primary"
+              disabled={saving || adding || !dirty}
+              onClick={() => void save()}
+            >
+              {saving ? "Saving…" : "Save all changes"}
             </button>
-          )}
-          <button
-            type="button"
-            className="score-primary"
-            disabled={saving || adding || !dirty}
-            onClick={() => void save()}
-          >
-            {saving ? "Saving…" : "Save all changes"}
-          </button>
-        </div>
-      </footer>
+          </div>
+        </footer>
+      )}
     </>
   );
 }

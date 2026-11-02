@@ -534,6 +534,83 @@ export type ResultSheet = {
 };
 
 export type MatchParticipant = { id: Id; ign: string; clan: string | null; clan_id: Id | null };
+
+export type ScreenshotSquad = {
+  id: Id;
+  name: string;
+  squad_number?: number | null;
+  clan: string;
+  clan_id: Id;
+  clan_tag: string;
+  clan_squad_count?: number | null;
+  slot_number: number | null;
+};
+
+export type ScreenshotPlayer = {
+  review_id?: string;
+  excluded?: boolean;
+  confirmed?: boolean;
+  kills_options?: number[];
+  name: string;
+  kills: number | null;
+  status:
+    | "matched"
+    | "other_squad"
+    | "new"
+    | "ambiguous"
+    | "duplicate";
+  player_id: Id | null;
+  ign: string | null;
+  squad_id?: Id | null;
+  squad_name?: string | null;
+  clan?: string | null;
+  clan_tag?: string | null;
+  slot_number?: number | null;
+  duplicate_of?: string;
+  candidates: {
+    player_id: Id;
+    ign: string;
+    squad_id?: Id | null;
+    squad_name?: string | null;
+    clan?: string | null;
+    clan_tag?: string | null;
+    slot_number?: number | null;
+  }[];
+};
+
+export type ScreenshotImportTeam = {
+  review_id?: string;
+  excluded?: boolean;
+  replace_lineup?: boolean;
+  placement_options?: number[];
+  team_kills_options?: number[];
+  team_label: string;
+  team_number: number | null;
+  placement: number | null;
+  team_kills: number | null;
+  known_kills: number;
+  status: "matched" | "roster_matched" | "roster_mismatch" | "unassigned";
+  squad: ScreenshotSquad | null;
+  suggested_squad: ScreenshotSquad | null;
+  players: ScreenshotPlayer[];
+};
+
+export type ScreenshotImport = {
+  teams: ScreenshotImportTeam[];
+  warnings: string[];
+  model: string | null;
+  summary: {
+    teams: number;
+    matched_teams: number;
+    unresolved_teams: number;
+    players: number;
+    matched_players: number;
+    guest_candidates: number;
+    new_candidates: number;
+    ambiguous_players: number;
+    duplicate_players: number;
+  };
+};
 export type MonthlySummary = {
   appearances: number; games: number; match_days: number; absences: number;
   wins: number; top_three: number; kills: number; attributed_kills: number; unattributed_kills: number;

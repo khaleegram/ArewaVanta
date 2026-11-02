@@ -33,6 +33,7 @@ import type {
   PublicMatchResult,
   ScoringPreset,
   ScheduleInput,
+  ScreenshotImport,
   ResultSheet,
   SavedResult,
   SeasonStandings,
@@ -64,7 +65,8 @@ export class ApiError extends Error {
 function fallbackMessage(status: number) {
   if (status === 401) return "Please sign in again to continue.";
   if (status === 403) return "You don’t have permission to do that.";
-  if (status === 404) return "That item could not be found. It may have been removed.";
+  if (status === 404)
+    return "That item could not be found. It may have been removed.";
   if (status === 409)
     return "This changed while you were working. Reload and try again.";
   if (status === 422) return "Please check the form and try again.";
@@ -125,6 +127,57 @@ async function request<T>(path: string, options: Options = {}): Promise<T> {
     );
   return payload as T;
 }
+async function upload<T>(
+  path: string,
+  token: string,
+  form: FormData,
+  signal?: AbortSignal,
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: form,
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError")
+      throw error;
+    throw new ApiError(
+      0,
+      "Could not reach ArewaVanta. Check your connection and try again.",
+    );
+  }
+  const payload: unknown =
+    response.status === 204
+      ? undefined
+      : await response.json().catch(() => undefined);
+  if (!response.ok) {
+    const details =
+      payload && typeof payload === "object"
+        ? (payload as { message?: unknown; errors?: unknown })
+        : {};
+    const message =
+      typeof details.message === "string"
+        ? details.message
+        : fallbackMessage(response.status);
+    const errors =
+      details.errors && typeof details.errors === "object"
+        ? (details.errors as Record<string, string[]>)
+        : {};
+    throw new ApiError(response.status, message, errors);
+  }
+  if (payload === undefined)
+    throw new ApiError(
+      response.status,
+      "Something went wrong. Please refresh and try again.",
+    );
+  return payload as T;
+}
 const key = (value: string) => encodeURIComponent(value);
 export const api = {
   inviteCaptain: (token: string, clanId: string, email: string) =>
@@ -155,20 +208,35 @@ export const api = {
       `/manage/events/${key(eventId)}/organizer-invitations`,
       { token, method: "POST", body: { email } },
     ),
-  inspectCompetitionOrganizerInvitation: (token: string, signal?: AbortSignal) =>
-    request<ApiData<{ event_id: string; competition: string; email: string; existing_account: boolean }>>(
-      "/competition-organizer-invitations/inspect",
-      { method: "POST", body: { token }, signal },
-    ),
+  inspectCompetitionOrganizerInvitation: (
+    token: string,
+    signal?: AbortSignal,
+  ) =>
+    request<
+      ApiData<{
+        event_id: string;
+        competition: string;
+        email: string;
+        existing_account: boolean;
+      }>
+    >("/competition-organizer-invitations/inspect", {
+      method: "POST",
+      body: { token },
+      signal,
+    }),
   acceptCompetitionOrganizerInvitation: (
     token: string,
     name: string | undefined,
     password: string,
     password_confirmation: string | undefined,
-  ) => request<ApiData<{ token: string }>>("/competition-organizer-invitations/accept", {
-    method: "POST",
-    body: { token, name, password, password_confirmation },
-  }),
+  ) =>
+    request<ApiData<{ token: string }>>(
+      "/competition-organizer-invitations/accept",
+      {
+        method: "POST",
+        body: { token, name, password, password_confirmation },
+      },
+    ),
   activity: (token: string, signal?: AbortSignal) =>
     request<
       ApiData<{
@@ -265,11 +333,7 @@ export const api = {
       token,
       body,
     }),
-  createSquad: (
-    token: string,
-    clanId: string,
-    body: { tag?: string | null },
-  ) =>
+  createSquad: (token: string, clanId: string, body: { tag?: string | null }) =>
     request<ApiData<ManageSquad>>(`/manage/clans/${key(clanId)}/squads`, {
       method: "POST",
       token,
@@ -280,13 +344,21 @@ export const api = {
       token,
       signal,
     }),
-  addRosterPlayer: (token: string, squadId: string, playerId: string, moveFromSquadId?: string) =>
+  addRosterPlayer: (
+    token: string,
+    squadId: string,
+    playerId: string,
+    moveFromSquadId?: string,
+  ) =>
     request<ApiData<Omit<RosterMember, "joined_at">>>(
       `/manage/squads/${key(squadId)}/roster`,
       {
         method: "POST",
         token,
-        body: { player_id: playerId, ...(moveFromSquadId ? { move_from_squad_id: moveFromSquadId } : {}) },
+        body: {
+          player_id: playerId,
+          ...(moveFromSquadId ? { move_from_squad_id: moveFromSquadId } : {}),
+        },
       },
     ),
   removeRosterPlayer: (token: string, squadId: string, playerId: string) =>
@@ -294,7 +366,11 @@ export const api = {
       method: "DELETE",
       token,
     }),
-  squadEventSubmissions: (token: string, squadId: string, signal?: AbortSignal) =>
+  squadEventSubmissions: (
+    token: string,
+    squadId: string,
+    signal?: AbortSignal,
+  ) =>
     request<ApiData<CaptainSquadSubmissions>>(
       `/manage/squads/${key(squadId)}/event-submissions`,
       { token, signal },
@@ -304,7 +380,11 @@ export const api = {
       `/manage/squads/${key(squadId)}/event-submissions`,
       { token, method: "POST", body: { event_id: eventId } },
     ),
-  withdrawSquadSubmission: (token: string, squadId: string, submissionId: string) =>
+  withdrawSquadSubmission: (
+    token: string,
+    squadId: string,
+    submissionId: string,
+  ) =>
     request<void>(
       `/manage/squads/${key(squadId)}/event-submissions/${key(submissionId)}`,
       { token, method: "DELETE" },
@@ -330,7 +410,9 @@ export const api = {
   squad: (slug: string, signal?: AbortSignal) =>
     request<ApiData<PublicSquad>>(`/squads/${key(slug)}`, { signal }),
   squadHistory: (slug: string, signal?: AbortSignal) =>
-    request<ApiData<SquadHistoryEntry[]>>(`/squads/${key(slug)}/history`, { signal }),
+    request<ApiData<SquadHistoryEntry[]>>(`/squads/${key(slug)}/history`, {
+      signal,
+    }),
   players: (page = 1, search = "", signal?: AbortSignal) =>
     request<ApiPage<PublicPlayer>>("/players", {
       query: { page, search },
@@ -404,9 +486,16 @@ export const api = {
       token,
       signal,
     }),
-  updateRecurrence: (token: string, eventId: Id, action: RecurrenceAction, reason?: string) =>
+  updateRecurrence: (
+    token: string,
+    eventId: Id,
+    action: RecurrenceAction,
+    reason?: string,
+  ) =>
     request<ApiData<ManageEvent>>(`/manage/events/${key(eventId)}/recurrence`, {
-      token, method: "PATCH", body: { action, ...(reason ? { reason } : {}) },
+      token,
+      method: "PATCH",
+      body: { action, ...(reason ? { reason } : {}) },
     }),
   scoringPresets: (token: string, signal?: AbortSignal) =>
     request<ApiData<ScoringPreset[]>>("/manage/scoring-presets", {
@@ -475,29 +564,102 @@ export const api = {
     decision: "select" | "not_selected" | "pending",
     slotNumber?: number,
   ) =>
-    request<ApiData<{ id: Id; event_id: Id; squad_id: Id; status: string; slot_number: number | null }>>(
-      `/manage/events/${key(eventId)}/submissions/${key(submissionId)}`,
-      { token, method: "PATCH", body: { decision, ...(slotNumber === undefined ? {} : { slot_number: slotNumber }) } },
+    request<
+      ApiData<{
+        id: Id;
+        event_id: Id;
+        squad_id: Id;
+        status: string;
+        slot_number: number | null;
+      }>
+    >(`/manage/events/${key(eventId)}/submissions/${key(submissionId)}`, {
+      token,
+      method: "PATCH",
+      body: {
+        decision,
+        ...(slotNumber === undefined ? {} : { slot_number: slotNumber }),
+      },
+    }),
+  competitionOrganizers: (
+    token: string,
+    eventId: string,
+    signal?: AbortSignal,
+  ) =>
+    request<ApiData<CompetitionOrganizerTeam>>(
+      `/manage/events/${key(eventId)}/organizers`,
+      { token, signal },
     ),
-  competitionOrganizers: (token: string, eventId: string, signal?: AbortSignal) =>
-    request<ApiData<CompetitionOrganizerTeam>>(`/manage/events/${key(eventId)}/organizers`, { token, signal }),
   eventCheckIn: (token: string, id: Id, signal?: AbortSignal) =>
-    request<ApiData<EventCheckIn>>(`/manage/events/${key(id)}/check-in`, { token, signal }),
-  clanMonthlyReport: (token: string, clanId: Id, month: string, signal?: AbortSignal) =>
-    request<ApiData<ClanMonthlyReport>>(`/manage/clans/${key(clanId)}/reports/monthly`, { token, query: { month }, signal }),
-  createClanPlayer: (token: string, clanId: string, currentIgn: string, uid: string | null) =>
-    request<ApiData<ClanPlayer>>(`/manage/clans/${key(clanId)}/players`, { token, method: "POST", body: { current_ign: currentIgn, uid } }),
+    request<ApiData<EventCheckIn>>(`/manage/events/${key(id)}/check-in`, {
+      token,
+      signal,
+    }),
+  clanMonthlyReport: (
+    token: string,
+    clanId: Id,
+    month: string,
+    signal?: AbortSignal,
+  ) =>
+    request<ApiData<ClanMonthlyReport>>(
+      `/manage/clans/${key(clanId)}/reports/monthly`,
+      { token, query: { month }, signal },
+    ),
+  createClanPlayer: (
+    token: string,
+    clanId: string,
+    currentIgn: string,
+    uid: string | null,
+  ) =>
+    request<ApiData<ClanPlayer>>(`/manage/clans/${key(clanId)}/players`, {
+      token,
+      method: "POST",
+      body: { current_ign: currentIgn, uid },
+    }),
   clanPlayers: (token: string, clanId: Id, signal?: AbortSignal) =>
-    request<ApiData<ClanPlayer[]>>(`/manage/clans/${key(clanId)}/players`, { token, signal }),
-  matchParticipants: (token: string, matchId: Id, search: string, clanId?: Id, signal?: AbortSignal) =>
-    request<ApiData<MatchParticipant[]> & { meta: { has_more: boolean } }>(`/manage/matches/${key(matchId)}/players`, { token, signal, query: { search, clan_id: clanId } }),
-  addLateEntry: (token: string, matchId: Id, body: { squad_id?: Id; clan_id?: Id; slot_number: number }) =>
-    request<ApiData<{ squad_id: Id; sheet: ResultSheet }>>(`/manage/matches/${key(matchId)}/late-entries`, { token, method: "POST", body }),
+    request<ApiData<ClanPlayer[]>>(`/manage/clans/${key(clanId)}/players`, {
+      token,
+      signal,
+    }),
+  matchParticipants: (
+    token: string,
+    matchId: Id,
+    search: string,
+    clanId?: Id,
+    signal?: AbortSignal,
+  ) =>
+    request<ApiData<MatchParticipant[]> & { meta: { has_more: boolean } }>(
+      `/manage/matches/${key(matchId)}/players`,
+      { token, signal, query: { search, clan_id: clanId } },
+    ),
+  addLateEntry: (
+    token: string,
+    matchId: Id,
+    body: { squad_id?: Id; clan_id?: Id; slot_number: number },
+  ) =>
+    request<ApiData<{ squad_id: Id; sheet: ResultSheet }>>(
+      `/manage/matches/${key(matchId)}/late-entries`,
+      { token, method: "POST", body },
+    ),
   resultSheet: (token: string, matchId: Id, signal?: AbortSignal) =>
     request<ApiData<ResultSheet>>(
       `/manage/matches/${key(matchId)}/result-sheet`,
       { token, signal },
     ),
+  importScreenshot: (
+    token: string,
+    matchId: Id,
+    images: File[],
+    signal?: AbortSignal,
+  ) => {
+    const form = new FormData();
+    for (const image of images) form.append("images[]", image);
+    return upload<ApiData<ScreenshotImport>>(
+      `/manage/matches/${key(matchId)}/screenshot-import`,
+      token,
+      form,
+      signal,
+    );
+  },
   saveResults: (
     token: string,
     matchId: Id,
@@ -509,7 +671,12 @@ export const api = {
     request<ApiData<SavedResult>>(`/manage/matches/${key(matchId)}/results`, {
       method: "PUT",
       token,
-      body: { results, patch_mode: true, expected_lock_version: expectedLockVersion, expected_scoring_version_id: expectedScoringVersionId },
+      body: {
+        results,
+        patch_mode: true,
+        expected_lock_version: expectedLockVersion,
+        expected_scoring_version_id: expectedScoringVersionId,
+      },
       signal,
     }),
 };

@@ -7,12 +7,14 @@ export function ScoreLateEntry({
   token,
   sheet,
   busy,
+  initialSlot,
   onAdd,
   onClose,
 }: {
   token: string;
   sheet: ResultSheet;
   busy: boolean;
+  initialSlot?: number | null;
   onAdd: (body: {
     squad_id?: string;
     clan_id?: string;
@@ -29,12 +31,16 @@ export function ScoreLateEntry({
   const [clanId, setClanId] = useState("");
   const [squadId, setSquadId] = useState("");
   const [slot, setSlot] = useState(() =>
-    String(
-      Array.from({ length: 25 }, (_, i) => i + 1).find(
-        (n) =>
-          !(sheet.event_slots ?? sheet.squads).some((s) => s.slot_number === n),
-      ) ?? "",
-    ),
+    initialSlot != null
+      ? String(initialSlot)
+      : String(
+          Array.from({ length: 25 }, (_, i) => i + 1).find(
+            (n) =>
+              !(sheet.event_slots ?? sheet.squads).some(
+                (s) => s.slot_number === n,
+              ),
+          ) ?? "",
+        ),
   );
   const clan = clans.find((c) => c.id === clanId);
   const filtered = clans.filter((c) =>

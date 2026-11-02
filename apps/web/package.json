@@ -11,6 +11,7 @@
     "build": "tsc -b && vite build && node scripts/generate-seo-pages.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "check:browser": "node scripts/check-browser.mjs",
+    "check:import": "node scripts/check-import.mjs",
     "check:public": "node scripts/check-public.mjs",
     "check:results": "node scripts/check-results.mjs",
     "check:manager": "node scripts/check-manager.mjs",

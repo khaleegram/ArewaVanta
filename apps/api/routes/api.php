@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\Manage\MatchParticipantController;
 use App\Http\Controllers\Api\V1\Manage\MatchResultController;
 use App\Http\Controllers\Api\V1\Manage\MatchResultSheetController;
 use App\Http\Controllers\Api\V1\Manage\MatchScoringController;
+use App\Http\Controllers\Api\V1\Manage\MatchScreenshotImportController;
 use App\Http\Controllers\Api\V1\Manage\OrganizationController;
 use App\Http\Controllers\Api\V1\Manage\PeopleController;
 use App\Http\Controllers\Api\V1\Manage\ScoringPresetController as ManageScoringPresetController;
@@ -154,6 +155,9 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/matches/{match}/late-entries', MatchLateEntryController::class)->name('matches.late-entries.store');
         Route::get('/matches/{match}/result-sheet', MatchResultSheetController::class)
             ->name('matches.result-sheet.show');
+        Route::post('/matches/{match}/screenshot-import', MatchScreenshotImportController::class)
+            ->middleware('throttle:12,1')
+            ->name('matches.screenshot-import.store');
         Route::patch('/matches/{match}/scoring', MatchScoringController::class)
             ->name('matches.scoring.update');
         Route::put('/matches/{match}/results', [MatchResultController::class, 'save'])->name('matches.results.save');

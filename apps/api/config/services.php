@@ -36,4 +36,12 @@ return [
         ],
     ],
 
+    'deepseek' => [
+        'key' => env('DEEPSEEK_API_KEY'),
+        'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
+        // DeepSeek's API model name for the latest DeepSeek-V4.1-Flash-1017.
+        'model' => env('DEEPSEEK_MODEL', 'deepseek-flash'),
+        'timeout' => (int) env('DEEPSEEK_TIMEOUT', 90),
+    ],
+
 ];
