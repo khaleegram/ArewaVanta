@@ -41,6 +41,7 @@ const root = ReactDOM.createRoot(document.getElementById("root")!);
 
 function renderRoute() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  const shortLeaderboard = /^\/l\/[a-z0-9]{8}$/i.test(path);
   const eventMatch = path.match(/^\/competitions\/([^/]+)(?:\/games\/([^/]+))?$/);
   const personMatch = path.match(/^\/(clans|squads|players)\/([^/]+)$/);
   const managerResultsMatch = path.match(/^\/manage\/competitions\/([^/]+)\/results$/);
@@ -49,7 +50,7 @@ function renderRoute() {
   let page: React.ReactNode;
 
   if (path === "/rules") page = <Rules />;
-  else if (path === "/leaderboard") page = <LiveLeaderboard />;
+  else if (path === "/leaderboard" || shortLeaderboard) page = <LiveLeaderboard />;
   else if (managerResultsMatch) page = <ResultManager eventId={decodeURIComponent(managerResultsMatch[1])} />;
   else if (managerEntriesMatch) page = <CompetitionManager entriesEventId={decodeURIComponent(managerEntriesMatch[1])} />;
   else if (managerCompetitionMatch) page = <CompetitionManager workspaceEventId={decodeURIComponent(managerCompetitionMatch[1])} />;
@@ -110,7 +111,7 @@ function renderRoute() {
     "/clans",
     "/players",
     "/rules",
-  ].includes(path) && !eventMatch && !personMatch) {
+  ].includes(path) && !shortLeaderboard && !eventMatch && !personMatch) {
     applyPageSeo({
       title: "Page not found | ArewaVanta",
       description: "This ArewaVanta page could not be found.",
