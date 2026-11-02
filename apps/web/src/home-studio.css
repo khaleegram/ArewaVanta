@@ -209,6 +209,20 @@
   border-color: #9fb39b;
   color: var(--home-green);
 }
+.home-live .home-button-rules {
+  background: #fff0e7;
+  border: 1px solid #d96b4e;
+  color: #8f3826;
+}
+.home-live .home-button-rules:hover {
+  background: #ffe4d5;
+  border-color: #b64b32;
+  color: #70281b;
+}
+.home-live .home-button-rules:focus-visible {
+  outline: 3px solid #d96b4e;
+  outline-offset: 3px;
+}
 .home-hero-visual {
   position: relative;
   min-width: 0;

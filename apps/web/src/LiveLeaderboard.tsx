@@ -453,6 +453,7 @@ export default function LiveLeaderboard() {
           </a>
           <a href="/clans">Clans</a>
           <a href="/players">Players</a>
+          <a href="/rules">Rules</a>
         </nav>
       </header>
       <main className="lb-main" id="standings-content">
@@ -904,6 +905,7 @@ export default function LiveLeaderboard() {
         <footer className="lb-footer">
           <Brand href="/" />
           <p>For the north. For the game.</p>
+          <a href="/rules">Scrim rules</a>
           <a href="/#schedule">
             Next weekend’s games <Icon name="arrow" />
           </a>

@@ -123,6 +123,9 @@ function Header() {
           <a href="/players" onClick={() => setOpen(false)}>
             Players
           </a>
+          <a href="/rules" onClick={() => setOpen(false)}>
+            Rules
+          </a>
         </nav>
         <a className="hv-header-cta" href="/leaderboard">
           View rankings <Icon name="arrow" />
@@ -253,6 +256,9 @@ export default function LiveHome() {
               <div className="home-hero-actions">
                 <a href="#schedule" className="home-button home-button-primary">
                   View schedule <Icon name="arrow" />
+                </a>
+                <a href="/rules" className="home-button home-button-rules">
+                  See rules <Icon name="arrow" />
                 </a>
                 <a href="#standings" className="home-button home-button-outline">
                   Latest standings <Icon name="arrow" />
@@ -659,6 +665,7 @@ export default function LiveHome() {
             <a href="/competitions">All competitions</a>
             <a href="/clans">Clans</a>
             <a href="/players">Players</a>
+            <a href="/rules">Scrim rules</a>
             <a href="/manage/competitions">Organizer access</a>
             <a href="#schedule">Schedule</a>
             <a href="/leaderboard">Rankings</a>

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import LiveHome from "./LiveHome";
+import Rules from "./Rules";
 import LiveLeaderboard from "./LiveLeaderboard";
 import CompetitionManager from "./CompetitionManager";
 import DirectoryManager from "./DirectoryManager";
@@ -47,7 +48,8 @@ function renderRoute() {
   const managerCompetitionMatch = path.match(/^\/manage\/competitions\/([^/]+)$/);
   let page: React.ReactNode;
 
-  if (path === "/leaderboard") page = <LiveLeaderboard />;
+  if (path === "/rules") page = <Rules />;
+  else if (path === "/leaderboard") page = <LiveLeaderboard />;
   else if (managerResultsMatch) page = <ResultManager eventId={decodeURIComponent(managerResultsMatch[1])} />;
   else if (managerEntriesMatch) page = <CompetitionManager entriesEventId={decodeURIComponent(managerEntriesMatch[1])} />;
   else if (managerCompetitionMatch) page = <CompetitionManager workspaceEventId={decodeURIComponent(managerCompetitionMatch[1])} />;
@@ -107,6 +109,7 @@ function renderRoute() {
     "/competitions",
     "/clans",
     "/players",
+    "/rules",
   ].includes(path) && !eventMatch && !personMatch) {
     applyPageSeo({
       title: "Page not found | ArewaVanta",

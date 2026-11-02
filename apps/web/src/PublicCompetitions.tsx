@@ -115,6 +115,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
             >
               Players
             </a>
+            <a href="/rules" aria-current={location.pathname === "/rules" ? "page" : undefined}>
+              Rules
+            </a>
           </nav>
         </div>
       </header>
@@ -125,6 +128,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="public-wrap">
           <Brand href="/" />
           <span>Arewa CODM · Battle Royale</span>
+          <a href="/rules">Scrim rules</a>
           <a href="/leaderboard">
             Rankings <Icon name="arrow" />
           </a>
