@@ -4,21 +4,21 @@ import type {
   AuthSession,
   CaptainSquadSubmissions,
   CompetitionTemplate,
-  CompetitionOrganizerTeam,
   CreateEventInput,
   EventStandings,
   EventSubmissionReview,
   EventSummary,
-  EventCheckIn,
-  ClanMonthlyReport,
-  MatchParticipant,
   Id,
   ManageEvent,
   RecurrenceAction,
   ManageEventSummary,
   ManageClan,
-  ClanPlayer,
   ClanEditResponse,
+  ClanPlayer,
+  EventCheckIn,
+  CompetitionOrganizerTeam,
+  ClanMonthlyReport,
+  MatchParticipant,
   ManageSquad,
   ManagePlayer,
   RosterMember,
@@ -155,8 +155,6 @@ export const api = {
       `/manage/events/${key(eventId)}/organizer-invitations`,
       { token, method: "POST", body: { email } },
     ),
-  competitionOrganizers: (token: string, eventId: string, signal?: AbortSignal) =>
-    request<ApiData<CompetitionOrganizerTeam>>(`/manage/events/${key(eventId)}/organizers`, { token, signal }),
   inspectCompetitionOrganizerInvitation: (token: string, signal?: AbortSignal) =>
     request<ApiData<{ event_id: string; competition: string; email: string; existing_account: boolean }>>(
       "/competition-organizer-invitations/inspect",
@@ -209,11 +207,11 @@ export const api = {
       method: "POST",
       body: { current_ign, uid },
     }),
-  managePeople: (token: string, page = 1, search = "", signal?: AbortSignal, clanId?: string) =>
+  managePeople: (token: string, page = 1, search = "", signal?: AbortSignal) =>
     request<ApiPage<ManagePerson>>("/manage/people", {
       token,
       signal,
-      query: { page, search, clan_id: clanId },
+      query: { page, search },
     }),
   assignCaptain: (token: string, userId: string | number, clanId: string) =>
     request<ApiData<{ id: Id }>>(
@@ -247,12 +245,6 @@ export const api = {
       token,
       query: { page },
       signal,
-    }),
-  clanPlayers: (token: string, clanId: string, signal?: AbortSignal) =>
-    request<ApiData<ClanPlayer[]>>(`/manage/clans/${key(clanId)}/players`, { token, signal }),
-  createClanPlayer: (token: string, clanId: string, currentIgn: string, uid: string | null) =>
-    request<ApiData<ClanPlayer>>(`/manage/clans/${key(clanId)}/players`, {
-      token, method: "POST", body: { current_ign: currentIgn, uid },
     }),
   createClan: (
     token: string,
@@ -288,13 +280,13 @@ export const api = {
       token,
       signal,
     }),
-  addRosterPlayer: (token: string, squadId: string, playerId: string) =>
+  addRosterPlayer: (token: string, squadId: string, playerId: string, moveFromSquadId?: string) =>
     request<ApiData<Omit<RosterMember, "joined_at">>>(
       `/manage/squads/${key(squadId)}/roster`,
       {
         method: "POST",
         token,
-        body: { player_id: playerId },
+        body: { player_id: playerId, ...(moveFromSquadId ? { move_from_squad_id: moveFromSquadId } : {}) },
       },
     ),
   removeRosterPlayer: (token: string, squadId: string, playerId: string) =>
@@ -412,8 +404,6 @@ export const api = {
       token,
       signal,
     }),
-  eventCheckIn: (token: string, id: Id, signal?: AbortSignal) =>
-    request<ApiData<EventCheckIn>>(`/manage/events/${key(id)}/check-in`, { token, signal }),
   updateRecurrence: (token: string, eventId: Id, action: RecurrenceAction, reason?: string) =>
     request<ApiData<ManageEvent>>(`/manage/events/${key(eventId)}/recurrence`, {
       token, method: "PATCH", body: { action, ...(reason ? { reason } : {}) },
@@ -489,10 +479,20 @@ export const api = {
       `/manage/events/${key(eventId)}/submissions/${key(submissionId)}`,
       { token, method: "PATCH", body: { decision, ...(slotNumber === undefined ? {} : { slot_number: slotNumber }) } },
     ),
+  competitionOrganizers: (token: string, eventId: string, signal?: AbortSignal) =>
+    request<ApiData<CompetitionOrganizerTeam>>(`/manage/events/${key(eventId)}/organizers`, { token, signal }),
+  eventCheckIn: (token: string, id: Id, signal?: AbortSignal) =>
+    request<ApiData<EventCheckIn>>(`/manage/events/${key(id)}/check-in`, { token, signal }),
   clanMonthlyReport: (token: string, clanId: Id, month: string, signal?: AbortSignal) =>
     request<ApiData<ClanMonthlyReport>>(`/manage/clans/${key(clanId)}/reports/monthly`, { token, query: { month }, signal }),
+  createClanPlayer: (token: string, clanId: string, currentIgn: string, uid: string | null) =>
+    request<ApiData<ClanPlayer>>(`/manage/clans/${key(clanId)}/players`, { token, method: "POST", body: { current_ign: currentIgn, uid } }),
+  clanPlayers: (token: string, clanId: Id, signal?: AbortSignal) =>
+    request<ApiData<ClanPlayer[]>>(`/manage/clans/${key(clanId)}/players`, { token, signal }),
   matchParticipants: (token: string, matchId: Id, search: string, clanId?: Id, signal?: AbortSignal) =>
-    request<ApiData<MatchParticipant[]> & { meta: { has_more: boolean } }>(`/manage/matches/${key(matchId)}/players`, { token, query: { search, clan_id: clanId }, signal }),
+    request<ApiData<MatchParticipant[]> & { meta: { has_more: boolean } }>(`/manage/matches/${key(matchId)}/players`, { token, signal, query: { search, clan_id: clanId } }),
+  addLateEntry: (token: string, matchId: Id, body: { squad_id?: Id; clan_id?: Id; slot_number: number }) =>
+    request<ApiData<{ squad_id: Id; sheet: ResultSheet }>>(`/manage/matches/${key(matchId)}/late-entries`, { token, method: "POST", body }),
   resultSheet: (token: string, matchId: Id, signal?: AbortSignal) =>
     request<ApiData<ResultSheet>>(
       `/manage/matches/${key(matchId)}/result-sheet`,

@@ -3,10 +3,7 @@ import ReactDOM from "react-dom/client";
 import LiveHome from "./LiveHome";
 import LiveLeaderboard from "./LiveLeaderboard";
 import CompetitionManager from "./CompetitionManager";
-import OrganizerManager from "./OrganizerManager";
 import DirectoryManager from "./DirectoryManager";
-import ClanMonthlyReport from "./ClanMonthlyReport";
-import CompetitionCheckIn from "./CompetitionCheckIn";
 import ResultManager from "./ResultManager";
 import CaptainInvite from "./CaptainInvite";
 import CompetitionOrganizerInvite from "./CompetitionOrganizerInvite";
@@ -30,7 +27,6 @@ import "./styles.css";
 import "./home.css";
 import "./live-home.css";
 import "./light-theme.css";
-import "./results-manager.css";
 import "./competition-overview.css";
 import "./home-studio.css";
 import "./public-detail.css";
@@ -38,35 +34,25 @@ import "./competition-listing.css";
 import "./public-match.css";
 import "./rankings-page.css";
 import "./public-people-pages.css";
-import "./rankings-arena.css";
-import "./organizer-manager.css";
 import { applyPageSeo } from "./seo";
-import PwaInstallPrompt from "./PwaInstallPrompt";
-import "./pwa-install.css";
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 
 function renderRoute() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
-  const leaderboardShortLink = /^\/l\/[a-z0-9]{8}$/i.test(path);
   const eventMatch = path.match(/^\/competitions\/([^/]+)(?:\/games\/([^/]+))?$/);
   const personMatch = path.match(/^\/(clans|squads|players)\/([^/]+)$/);
   const managerResultsMatch = path.match(/^\/manage\/competitions\/([^/]+)\/results$/);
   const managerEntriesMatch = path.match(/^\/manage\/competitions\/([^/]+)\/entries$/);
-  const managerCheckInMatch = path.match(/^\/manage\/competitions\/([^/]+)\/check-in$/);
-  const monthlyReportMatch = path.match(/^\/manage\/clans\/([^/]+)\/reports$/);
   const managerCompetitionMatch = path.match(/^\/manage\/competitions\/([^/]+)$/);
   let page: React.ReactNode;
 
-  if (path === "/leaderboard" || leaderboardShortLink) page = <LiveLeaderboard />;
+  if (path === "/leaderboard") page = <LiveLeaderboard />;
   else if (managerResultsMatch) page = <ResultManager eventId={decodeURIComponent(managerResultsMatch[1])} />;
   else if (managerEntriesMatch) page = <CompetitionManager entriesEventId={decodeURIComponent(managerEntriesMatch[1])} />;
-  else if (managerCheckInMatch) page = <CompetitionCheckIn eventId={decodeURIComponent(managerCheckInMatch[1])} />;
-  else if (monthlyReportMatch) page = <ClanMonthlyReport clanId={decodeURIComponent(monthlyReportMatch[1])} />;
   else if (managerCompetitionMatch) page = <CompetitionManager workspaceEventId={decodeURIComponent(managerCompetitionMatch[1])} />;
   else if (path === "/manage/competitions") page = <CompetitionManager />;
   else if (path === "/manage/directory") page = <DirectoryManager />;
-  else if (path === "/manage/organizers") page = <OrganizerManager />;
   else if (path === "/captain-invite") page = <CaptainInvite />;
   else if (path === "/competition-organizer-invite") page = <CompetitionOrganizerInvite />;
   else if (path === "/forgot-password") page = <ForgotPasswordPage />;
@@ -135,7 +121,6 @@ function renderRoute() {
       <React.Fragment key={`${window.location.pathname}${window.location.search}`}>
         {page}
       </React.Fragment>
-      <PwaInstallPrompt />
     </React.StrictMode>,
   );
 }
@@ -187,10 +172,6 @@ function handleInternalNavigation(event: MouseEvent) {
 document.addEventListener("click", handleInternalNavigation);
 window.addEventListener("popstate", renderRoute);
 renderRoute();
-
-if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/service-worker.js", { scope: "/" }).catch(() => {});
-}
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {

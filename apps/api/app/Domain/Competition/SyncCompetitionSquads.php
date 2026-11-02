@@ -52,14 +52,6 @@ final class SyncCompetitionSquads
                 }
             }
             $removedIds = array_values(array_diff($activeIds, $squadIds));
-            $hasPublishedResults = CompetitionMatch::query()
-                ->whereHas('day', fn ($query) => $query->where('event_id', $event->id))
-                ->whereNotNull('current_published_revision_id')->exists();
-            if ($newIds !== [] || $removedIds !== []) {
-                if ($hasPublishedResults) {
-                    throw ValidationException::withMessages(['squad_ids' => 'Competition slots cannot change after match results have been saved.']);
-                }
-            }
             if (count($squadIds) > $event->maximum_position) {
                 $event = $this->updateEvent->handle($actor, $event, ['maximum_position' => count($squadIds)]);
             }
@@ -140,9 +132,9 @@ final class SyncCompetitionSquads
         if ($current === null) {
             return;
         }
-        $rows = $current->squadResults->where('participation_status', 'present')->whereIn('squad_id', $squadIds)
+        $rows = $current->squadResults->whereIn('squad_id', $squadIds)
             ->map(static fn ($result): array => [
-                'squad_id' => $result->squad_id, 'status' => 'present', 'placement' => $result->placement,
+                'squad_id' => $result->squad_id, 'status' => $result->participation_status, 'placement' => $result->placement,
                 'team_kills' => $result->team_kills_override,
                 'players' => $result->playerResults->map(static fn ($player): array => ['player_id' => $player->player_id, 'kills' => $player->kills])->all(),
             ])->values()->all();

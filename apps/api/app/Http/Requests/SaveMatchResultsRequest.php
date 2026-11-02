@@ -20,7 +20,7 @@ final class SaveMatchResultsRequest extends FormRequest
             'patch_mode' => ['sometimes', 'boolean'],
             'results' => ['present', 'array', 'list', 'max:100'],
             'results.*.squad_id' => ['required', 'ulid', 'distinct:strict', Rule::exists('squads', 'id')],
-            'results.*.status' => ['sometimes', Rule::in(['present', 'absent'])],
+            'results.*.status' => ['sometimes', Rule::in(['present', 'absent', 'unentered'])],
             'results.*.placement' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
             'results.*.team_kills' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999'],
             'results.*.players' => ['sometimes', 'array', 'list', 'max:100'],

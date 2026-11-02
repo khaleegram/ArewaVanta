@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Manage\EventQueriesController;
 use App\Http\Controllers\Api\V1\Manage\EventRecurrenceController;
 use App\Http\Controllers\Api\V1\Manage\EventScheduleController;
 use App\Http\Controllers\Api\V1\Manage\EventSquadSubmissionController;
+use App\Http\Controllers\Api\V1\Manage\MatchLateEntryController;
 use App\Http\Controllers\Api\V1\Manage\MatchParticipantController;
 use App\Http\Controllers\Api\V1\Manage\MatchResultController;
 use App\Http\Controllers\Api\V1\Manage\MatchResultSheetController;
@@ -150,6 +151,7 @@ Route::prefix('v1')->group(function (): void {
             ->name('matches.squads.update');
         Route::get('/matches/{match}/players', MatchParticipantController::class);
         Route::get('/clans/{clan}/reports/monthly', ClanMonthlyReportController::class);
+        Route::post('/matches/{match}/late-entries', MatchLateEntryController::class)->name('matches.late-entries.store');
         Route::get('/matches/{match}/result-sheet', MatchResultSheetController::class)
             ->name('matches.result-sheet.show');
         Route::patch('/matches/{match}/scoring', MatchScoringController::class)

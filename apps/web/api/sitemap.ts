@@ -7,7 +7,7 @@ type VercelResponse = {
 
 const origin = "https://arewavanta.com";
 const apiBase = (process.env.VITE_API_BASE_URL || "https://api.arewavanta.com/api/v1").replace(/\/+$/, "");
-const staticPaths = ["/", "/competitions", "/leaderboard", "/clans", "/players"];
+const staticPaths = ["/", "/competitions", "/leaderboard", "/clans", "/players", "/rules"];
 
 type Page<T> = { data: T[]; meta?: { last_page?: number } };
 type Event = {

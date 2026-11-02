@@ -7,10 +7,10 @@ import type {
   EventSubmissionReview,
   ScheduleInput,
   ScoringPreset,
+  ManagePerson,
   User,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
-import { clearStoredToken, getStoredToken, storeToken, tokenKey } from "./authStorage";
 import AdminAlerts, { disableAdminPush } from "./AdminAlerts";
 import {
   competitionTypeLabel,
@@ -28,18 +28,15 @@ type Load<T> =
   | { status: "error"; message: string }
   | { status: "ready"; data: T };
 export type Session = { token: string; user: User };
+export function canAccessCompetitions(user: User | null | undefined): boolean {
+  return !!user?.roles.some(role => role.role === "platform_admin" || role.role === "organizer");
+}
 export function canManageCompetitions(user: User | null | undefined): boolean {
   return !!user?.roles.some(
     (role) =>
       role.role === "platform_admin" ||
       (role.role === "organizer" && role.scope_type === "global"),
   );
-}
-export function canAccessCompetitions(user: User | null | undefined): boolean {
-  return !!user?.roles.some((role) => role.role === "platform_admin" || (role.role === "organizer" && (role.scope_type === "global" || role.scope_type === "event")));
-}
-export function canManageAnyClan(user: User | null | undefined): boolean {
-  return !!user?.roles.some((role) => role.role === "platform_admin" || role.role === "organizer");
 }
 type Game = {
   id: string | null;
@@ -56,7 +53,7 @@ type Form = {
   squadCapacity: number;
   days: Day[];
 };
-export { tokenKey };
+export const tokenKey = "arewavanta-organizer-token";
 const errorMessage = (error: unknown) =>
   error instanceof ApiError
     ? error.message
@@ -155,8 +152,7 @@ export function Shell({
   section?: "competitions" | "directory" | "organizers";
   overview?: boolean;
 }) {
-  const organizer = !session || canAccessCompetitions(session.user);
-  const competitionId = window.location.pathname.match(/^\/manage\/competitions\/([^/]+)/)?.[1];
+  const organizer = !session || canManageCompetitions(session.user);
   const captain = !!session?.user.roles.some(
     (role) => role.role === "clan_captain",
   );
@@ -169,7 +165,9 @@ export function Shell({
         <div className="manage-wrap manage-header-inner">
           <Brand href="/" />
           <div className="manage-head-actions">
-            {session && <AdminAlerts token={session.token} />}
+            {session?.user.roles.some(
+              (role) => role.role === "platform_admin",
+            ) && <AdminAlerts token={session.token} />}
             {overview ? <details className="studio-account" onKeyDown={(e) => { if (e.key === "Escape") { e.currentTarget.open = false; e.currentTarget.querySelector("summary")?.focus(); } }}><summary aria-label="Account options"><Icon name="menu" /></summary><div>
               {session && <small>{session.user.name}</small>}
               <a href="/">View public site <Icon name="diagonal" /></a>
@@ -200,9 +198,8 @@ export function Shell({
               href="/manage/directory"
               aria-current={section === "directory" ? "page" : undefined}
             >
-              {captain && !canManageCompetitions(session?.user) ? "My clan" : "Clans & players"}
+              {captain && !organizer ? "My clan" : "Clans & players"}
             </a>
-            {organizer && <a href={competitionId ? `/manage/organizers?competition=${competitionId}` : "/manage/organizers"} aria-current={section === "organizers" ? "page" : undefined}>Organizers</a>}
           </nav>
           {session && <small>{session.user.name}</small>}
         </div>
@@ -228,7 +225,7 @@ export function SignIn({
     setError("");
     try {
       const { data } = await api.login(email.trim(), password);
-      storeToken(data.token);
+      sessionStorage.setItem(tokenKey, data.token);
       onSuccess(data);
     } catch (err) {
       setError(errorMessage(err));
@@ -365,7 +362,7 @@ export default function CompetitionManager({
       : { kind: "list" });
   const [notice, setNotice] = useState("");
   useEffect(() => {
-    const token = getStoredToken();
+    const token = sessionStorage.getItem(tokenKey);
     if (!token) {
       setChecking(false);
       return;
@@ -377,7 +374,7 @@ export default function CompetitionManager({
       .catch((err) => {
         if (!controller.signal.aborted) {
           if (err instanceof ApiError && err.status === 401)
-            clearStoredToken();
+            sessionStorage.removeItem(tokenKey);
           setNotice(errorMessage(err));
         }
       })
@@ -387,7 +384,7 @@ export default function CompetitionManager({
     return () => controller.abort();
   }, []);
   useEffect(() => {
-    if (!session || !canAccessCompetitions(session.user)) return;
+    if (!session || !canManageCompetitions(session.user)) return;
     const controller = new AbortController();
     setEntries({ status: "loading" });
     getEntries(session.token, controller.signal)
@@ -407,14 +404,14 @@ export default function CompetitionManager({
         /* Local sign out remains available. */
       }
     }
-    clearStoredToken();
+    sessionStorage.removeItem(tokenKey);
     setSession(null);
     setView({ kind: "list" });
     setNotice("");
   }
   const canCreate = canManageCompetitions(session?.user);
   return (
-    <Shell session={session} onLogout={logout} overview={view.kind === "workspace" && !!session && canAccessCompetitions(session.user)}>
+    <Shell session={session} onLogout={logout} overview={view.kind === "workspace" && !!session && canManageCompetitions(session.user)}>
       {checking ? (
         <State>Checking your session…</State>
       ) : !session ? (
@@ -422,7 +419,7 @@ export default function CompetitionManager({
           <SignIn onSuccess={setSession} />
           {notice && <State>{notice}</State>}
         </>
-      ) : !canAccessCompetitions(session.user) ? (
+      ) : !canManageCompetitions(session.user) ? (
         <div className="manage-notice" role="status">
           <p className="manage-eyebrow">
             {session.user.roles.some((role) => role.role === "clan_captain")
@@ -474,6 +471,7 @@ export default function CompetitionManager({
           entries.data.find((entry) => entry.summary.id === view.eventId)?.detail ? (
             <EventWorkspace
               token={session.token}
+              user={session.user}
               event={entries.data.find((entry) => entry.summary.id === view.eventId)!.detail!}
               onEdit={(event) => setView({ kind: "form", event })}
             />
@@ -606,10 +604,12 @@ export default function CompetitionManager({
 }
 function EventWorkspace({
   token,
+  user,
   event: initialEvent,
   onEdit,
 }: {
   token: string;
+  user: User;
   event: ManageEvent;
   onEdit: (event: ManageEvent) => void;
 }) {
@@ -619,15 +619,14 @@ function EventWorkspace({
   const completedGames = games.filter((game) => game.has_results).length;
   const firstDate = event.days?.[0]?.date ?? null;
   const lastDate = event.days?.[event.days.length - 1]?.date ?? null;
+  const canInviteOrganizers = user.roles.some((role) => role.role === "platform_admin" || (role.role === "organizer" && (role.scope_type === "global" || (role.scope_type === "event" && role.scope_id === event.id))));
   const resultsUrl = `/manage/competitions/${encodeURIComponent(event.id)}/results`;
   const entriesUrl = `/manage/competitions/${encodeURIComponent(event.id)}/entries`;
   return (
     <div className="event-studio">
       <div className="studio-toolbar">
         <a href="/manage/competitions">← Competitions</a>
-        <div className="studio-toolbar-actions">
-          <button type="button" onClick={() => onEdit(event)}>Edit competition <Icon name="diagonal" /></button>
-        </div>
+        <button type="button" onClick={() => onEdit(event)}>Edit competition <Icon name="diagonal" /></button>
       </div>
       <header className="studio-heading">
         <span className="studio-emblem" aria-hidden="true"><Icon name="trophy" /></span>
@@ -637,6 +636,7 @@ function EventWorkspace({
       {(event.competition_type === "scrim" || event.recurrence)
         ? <ScrimRecurrenceControls token={token} event={event} onUpdated={setEvent} />
         : <p className="studio-date"><Icon name="calendar" />{formatDateRange(firstDate, lastDate)}</p>}
+      {canInviteOrganizers && <EventOrganizerAccess token={token} event={event} canAssignExisting={user.roles.some((role) => role.role === "platform_admin")} />}
       {event.skipped_at && <div className="studio-week-off" role="status"><strong>No games this week</strong><p>{event.skip_reason || "Squad entries and result entry are on hold for this week."}</p></div>}
       <div className="studio-overview-bar">
       <section className="studio-summary" aria-label="Selected weekend summary">
@@ -647,7 +647,6 @@ function EventWorkspace({
       <div className="studio-actions">
         <a className="studio-action-primary" href={resultsUrl}>Enter results <Icon name="arrow" /></a>
         <a className="studio-action-secondary" href={entriesUrl}>Manage slots <Icon name="trophy" /></a>
-        <a className="studio-action-secondary studio-print-slots" href={`/manage/competitions/${encodeURIComponent(event.id)}/check-in`}>Print slots & players <Icon name="print" /></a>
       </div>
       </div>
       <div className="studio-columns">
@@ -660,6 +659,84 @@ function EventWorkspace({
       </footer>
     </div>
   );
+}
+function EventOrganizerAccess({ token, event, canAssignExisting }: { token: string; event: ManageEvent; canAssignExisting: boolean }) {
+  const [query, setQuery] = useState("");
+  const [people, setPeople] = useState<Load<ManagePerson[]>>({ status: canAssignExisting ? "loading" : "ready", data: [] });
+  const [refresh, setRefresh] = useState(0);
+  const [busy, setBusy] = useState<string | number>("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!canAssignExisting) {
+      setPeople({ status: "ready", data: [] });
+      return;
+    }
+    const controller = new AbortController();
+    setPeople({ status: "loading" });
+    api.managePeople(token, 1, query.trim(), controller.signal)
+      .then((response) => setPeople({ status: "ready", data: response.data }))
+      .catch((reason) => {
+        if (!controller.signal.aborted) setPeople({ status: "error", message: errorMessage(reason) });
+      });
+    return () => controller.abort();
+  }, [token, query, refresh, canAssignExisting]);
+  async function invite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviteBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await api.inviteCompetitionOrganizer(token, event.id, inviteEmail.trim());
+      setInviteEmail("");
+      setNotice("Invitation sent. They can use the link in their email to create or confirm their account.");
+    } catch (reason) {
+      setError(reason instanceof ApiError ? [reason.message, ...Object.values(reason.errors).flat()].join(" ") : "Could not send the invitation.");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+  async function add(person: ManagePerson) {
+    setBusy(person.id);
+    setError("");
+    setNotice("");
+    try {
+      await api.assignCompetitionOrganizer(token, person.id, event.id);
+      setNotice(`${person.name} can now manage this competition.`);
+      setRefresh((value) => value + 1);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy("");
+    }
+  }
+  return <details className="studio-organizer-access">
+    <summary>Competition organizers <span>Invite others to help manage this competition</span><Icon name="chevron" /></summary>
+    <div className="studio-organizer-access-body">
+      <p>Invite by email. Each organizer gets the same access to edit this competition, manage squad slots, enter results and control its weekly schedule.</p>
+      <form onSubmit={(e) => void invite(e)}>
+        <label htmlFor="competition-organizer-invite-email">Organizer’s email</label>
+        <div><input id="competition-organizer-invite-email" required type="email" autoComplete="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="name@example.com" /><button type="submit" disabled={inviteBusy}>{inviteBusy ? "Sending…" : "Send invite"}</button></div>
+      </form>
+      {notice && <p className="studio-organizer-notice" role="status">{notice}</p>}
+      {error && <p className="studio-organizer-error" role="alert">{error}</p>}
+      {canAssignExisting && <>
+        <form onSubmit={(e) => { e.preventDefault(); setRefresh((value) => value + 1); }}>
+          <label htmlFor="competition-organizer-search">Or add an existing account</label>
+          <div><input id="competition-organizer-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name or email" /><button type="submit">Search</button></div>
+        </form>
+        {people.status === "loading" ? <p role="status">Loading accounts…</p> : people.status === "error" ? <p role="alert">{people.message}</p> : people.data.length ? <ul>
+        {people.data.map((person) => {
+          const assigned = person.roles.some((role) => role.role === "organizer" && role.scope_type === "event" && role.scope_id === event.id);
+          const global = person.roles.some((role) => (role.role === "organizer" && role.scope_type === "global") || role.role === "platform_admin");
+          return <li key={person.id}><span><strong>{person.name}</strong><small>{person.email}</small></span>{assigned ? <b>Added</b> : global ? <b>Already has full access</b> : <button type="button" disabled={busy === person.id} onClick={() => void add(person)}>{busy === person.id ? "Adding…" : "Add organizer"}</button>}</li>;
+        })}
+        </ul> : <p>No accounts found.</p>}
+      </>}
+    </div>
+  </details>;
 }
 function StudioSchedule({ event }: { event: ManageEvent }) {
   const [dayId, setDayId] = useState<string | null>(null);
@@ -711,7 +788,7 @@ function ScrimRecurrenceControls({ token, event, onUpdated }: { token: string; e
         <span className={`studio-series-state is-${recurring.state}`}><strong><i />{recurring.state === "active" ? "Every week" : recurring.state === "paused" ? "Paused" : "Ended"}</strong><small>{recurring.state === "ended" ? "Results retained" : recurring.state === "active" ? "Prepared Mondays" : "No end date"}</small></span>
       </div>
       {recurring.state !== "ended" && <details className="manage-workspace-series-settings"><summary>Manage weekly schedule <Icon name="chevron" /></summary><div>
-        <p>The next weekend is prepared on Monday after the previous weekend ends. Captains submit once for the weekend and can update their players on Saturday or Sunday.</p>
+        <p>Upcoming weekends are prepared every Monday. Each week has its own squad submissions, slots and results.</p>
         <label>Reason <span>Optional, visible to players</span><input maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Taking a break this weekend" /></label>
         <div className="manage-workspace-series-actions">
           {recurring.state === "active" && !hasResults && <button type="button" disabled={busy} onClick={() => change(event.skipped_at ? "restore" : "skip")}>{event.skipped_at ? "Play this week" : "Skip this week"}</button>}
@@ -835,7 +912,6 @@ function EventEntries({ token, event }: { token: string; event: ManageEvent }) {
         <p className="manage-eyebrow">SQUAD ENTRIES</p>
         <h1>{event.title}<span>.</span></h1>
         <p>Choose which submitted squads fill this competition’s slots.</p>
-        <a className="manage-secondary" href={`/manage/competitions/${encodeURIComponent(event.id)}/check-in`}><Icon name="print" />Print slots & players</a>
       </div>
       {notice && <div className="manage-success" role="status">{notice}</div>}
       {error && <div className="manage-error" role="alert">{error}</div>}
@@ -1058,7 +1134,6 @@ function EventForm({
         description: form.description.trim() || null,
         competition_type: form.competition_type || null,
         squad_capacity: form.squadCapacity,
-        track_player_kills: true,
         ...(form.score ? { scoring_rule_version_id: form.score } : {}),
       };
       if (!current) {
@@ -1166,7 +1241,7 @@ function EventForm({
                 <select
                   value={form.competition_type}
                   onChange={(e) =>
-                    setForm((current) => current ? { ...current, competition_type: e.target.value as Form["competition_type"] } : current)
+                    update("competition_type", e.target.value as Form["competition_type"])
                   }
                 >
                   <option value="">Choose a type</option>
@@ -1212,7 +1287,6 @@ function EventForm({
               </label>
             </div>
             {form.competition_type === "scrim" && <p className="manage-weekly-default-note">Scrims continue every week automatically until you pause or end the series. Squad entries, slots and results are separate for each week.</p>}
-            <div className="competition-kill-setting"><div className="competition-kill-setting-title"><Icon name="target" /><div><strong>Player stats included</strong><span>Add or swap actual players while entering results. Save partial scores and fill in missing details anytime.</span></div></div></div>
             <details className="manage-advanced">
               <summary>How scoring works</summary>
               <div>

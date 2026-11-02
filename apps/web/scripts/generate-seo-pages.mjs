@@ -84,6 +84,7 @@ function formatDate(value) {
 }
 
 const corePages = [
+  ["/rules", "Arewa CODM Scrim Rules & Banned Items | ArewaVanta", "See banned weapons, classes and vehicles for ArewaVanta CODM Battle Royale scrims. Shotguns are allowed."],
   ["/competitions", "CODM Scrims, Leagues & Tournaments in Nigeria | ArewaVanta", "Find upcoming and past Arewa CODM Battle Royale competitions in Nigeria. Explore weekly scrims, game schedules, participating squads and match results."],
   ["/leaderboard", "Arewa CODM Leaderboard — Squad & Player Rankings | ArewaVanta", "Follow Nigerian Arewa CODM Battle Royale squad standings and player rankings, including kills, wins and competition results."],
   ["/clans", "Arewa CODM Clans & Squads in Nigeria | ArewaVanta", "Discover Call of Duty: Mobile clans and Battle Royale squads from the Nigerian Arewa community. View squad lineups and competition history."],

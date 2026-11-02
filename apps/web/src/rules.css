@@ -1,0 +1,23 @@
+.public-page .rules-page { max-width: 860px; margin: 0 auto; padding: 44px 0 0; color: #253d30; }
+.rules-intro { padding-bottom: 25px; border-bottom: 2px solid #e66d4c; }
+.rules-intro > p:first-child { color: #9b633c; font-size: 10px; font-weight: 750; letter-spacing: 1.5px; }
+.public-page .rules-intro h1 { margin: 9px 0 12px; color: #253d30; font: 800 clamp(32px, 5vw, 46px)/1.15 Manrope, Arial, sans-serif; letter-spacing: -1.5px; text-transform: none; }
+.rules-intro h1 span { color: #df6245; }
+.rules-intro > p:last-child { font-size: 14px; line-height: 1.7; color: #647363; }
+.rules-allowed { display: flex; align-items: center; gap: 10px; margin: 22px 0; padding: 15px 18px; border: 1px solid #ccdccc; border-radius: 9px; background: #eaf2e5; color: #2d6544; font-size: 14px; }
+.rules-allowed svg { flex: none; width: 20px; height: 20px; }
+.rules-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.rules-group { min-width: 0; background: #fffefa; border: 1px solid #d6dfcf; border-radius: 11px; padding: 20px; }
+.rules-group:first-child { grid-row: span 2; }
+.public-page .rules-group h2 { margin: 0 0 14px; color: #2b4634; font: 750 16px/1.4 Manrope, Arial, sans-serif; text-transform: none; }
+.rules-group ul { margin: 0; padding: 0; list-style: none; }
+.rules-group li { display: flex; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid #e6ebdf; padding: 12px 0; font-size: 13px; line-height: 1.6; }
+.rules-group li:last-child { padding-bottom: 0; }
+.rules-group li > span { min-width: 0; overflow-wrap: anywhere; }
+.rules-group li > small { flex: none; color: #ac513b; font-size: 10px; font-weight: 700; }
+@media (max-width: 600px) {
+  .public-page .rules-page { padding-top: 28px; }
+  .rules-groups { grid-template-columns: 1fr; gap: 14px; }
+  .rules-group:first-child { grid-row: auto; }
+  .rules-group { padding: 18px; }
+}

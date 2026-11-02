@@ -22,6 +22,7 @@ final class SaveMatchResults
         private readonly ScoringEngine $scoring,
         private readonly ResultPermissions $permissions,
         private readonly AdminActivity $notifications,
+        private readonly AssignPlayerSquad $assignSquad,
     ) {}
 
     /** @param list<array<string, mixed>> $rows */
@@ -88,7 +89,7 @@ final class SaveMatchResults
                         ])->all(),
                     ];
                 }
-                $status = $row === null ? 'absent' : ($row['status'] ?? 'present');
+                $status = $row === null ? 'unentered' : ($row['status'] ?? 'present');
                 $present = $status === 'present';
                 $placement = $present ? ($row['placement'] ?? null) : null;
                 $teamKills = $present ? ($row['team_kills'] ?? null) : null;
@@ -111,9 +112,14 @@ final class SaveMatchResults
                         // Reuse an exact clan name where unambiguous (including retried saves).
                         $candidates = Player::query()->where('clan_id', $entry->squad->clan_id)
                             ->where('current_ign', $ign)->get();
-                        $player = $candidates->count() === 1 ? $candidates->first() : Player::query()->create([
+                        if ($candidates->count() > 1) {
+                            throw ValidationException::withMessages(['results' => 'More than one player is named '.$ign.'. Select the existing player from the clan list.']);
+                        }
+                        $player = $candidates->first() ?? Player::query()->create([
                             'clan_id' => $entry->squad->clan_id, 'current_ign' => $ign, 'status' => 'active',
                         ]);
+                        // New or unassigned profiles join this squad. Existing rosters are never duplicated by scoring.
+                        $this->assignSquad->handle($player, $entry->squad, onlyIfUnassigned: true);
                     }
                     if (isset($seenPlayers[$player->id])) {
                         throw ValidationException::withMessages(['results' => $player->current_ign.' is selected twice. Move them to the squad they played for so their kills are counted once.']);

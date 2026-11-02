@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api/client";
-import { Shell } from "./CompetitionManager";
-import { storeToken } from "./authStorage";
+import { Shell, tokenKey } from "./CompetitionManager";
 type Invitation = { clan: string; email: string; existing_account: boolean };
 export default function CaptainInvite() {
   const [invitationToken] = useState(() => /^[a-f0-9]{64}$/.test(window.location.hash.slice(1))
@@ -58,7 +57,7 @@ export default function CaptainInvite() {
           ? undefined
           : confirmation,
       );
-      storeToken(data.token);
+      sessionStorage.setItem(tokenKey, data.token);
       window.history.pushState(null, "", "/manage/directory");
       window.dispatchEvent(new PopStateEvent("popstate"));
     } catch (err) {

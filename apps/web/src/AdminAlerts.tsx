@@ -30,21 +30,11 @@ function keyBytes(value: string) {
   );
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
-function needsIosHomeScreenInstall() {
-  const isIos =
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return isIos && !isStandalone;
-}
 export default function AdminAlerts({ token }: { token: string }) {
   const [data, setData] = useState<Data | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [subscribed, setSubscribed] = useState(false);
-  const [subscriptionReady, setSubscriptionReady] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     const c = new AbortController();
@@ -59,46 +49,27 @@ export default function AdminAlerts({ token }: { token: string }) {
       navigator.serviceWorker
         .getRegistration("/")
         .then((reg) => reg?.pushManager.getSubscription())
-        .then((sub) => {
-          setSubscribed(!!sub);
-          setSubscriptionReady(true);
-        })
-        .catch(() => setSubscriptionReady(true));
-    else setSubscriptionReady(true);
+        .then((sub) => setSubscribed(!!sub))
+        .catch(() => {});
     return () => {
       c.abort();
       clearInterval(interval);
     };
   }, [token]);
   async function toggle() {
-    if (needsIosHomeScreenInstall()) {
-      setError(
-        "On iPhone or iPad, first add ArewaVanta to your Home Screen, then open it from its icon and enable notifications here. Web Push requires iOS/iPadOS 16.4 or later.",
-      );
-      return;
-    }
     if (!data?.push_public_key) {
-      setError("Push notifications aren’t configured for this service yet.");
+      setError("Browser notifications aren’t available yet.");
       return;
     }
-    if (
-      !("serviceWorker" in navigator) ||
-      !("PushManager" in window) ||
-      !("Notification" in window)
-    ) {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setError("This browser doesn’t support notifications.");
       return;
     }
     setBusy(true);
     setError("");
     try {
-      // Safari on iOS requires the permission request to come directly from
-      // the user's tap, so start it before awaiting service-worker operations.
-      const permissionRequest = subscribed
-        ? null
-        : Notification.requestPermission();
       const reg = await navigator.serviceWorker.register(
-        "/service-worker.js",
+        "/notification-worker.js",
       );
       const existing = await reg.pushManager.getSubscription();
       if (existing) {
@@ -106,7 +77,7 @@ export default function AdminAlerts({ token }: { token: string }) {
         await existing.unsubscribe();
         setSubscribed(false);
       } else {
-        const permission = await (permissionRequest ?? Promise.resolve(Notification.permission));
+        const permission = await Notification.requestPermission();
         if (permission !== "granted")
           throw new Error(
             "Notifications are blocked. Allow them in your browser settings and try again.",
@@ -172,22 +143,19 @@ export default function AdminAlerts({ token }: { token: string }) {
       {open && (
         <section className="admin-alert-panel" aria-label="Recent activity">
           <div className="admin-alert-heading">
-            <strong>Notifications & activity</strong>
+            <strong>Recent activity</strong>
             {data.unread > 0 && <button onClick={read}>Mark all read</button>}
           </div>
-          <p className="admin-alert-help">Get alerts when team slots change or match results are published.</p>
           <button
             className="admin-push-toggle"
-            disabled={busy || !subscriptionReady}
+            disabled={busy}
             onClick={toggle}
           >
             {busy
               ? "Updating…"
-              : !subscriptionReady
-                ? "Loading notification settings…"
               : subscribed
-                ? "Turn off push notifications"
-                : "Enable push notifications"}
+                ? "Turn off notifications"
+                : "Enable notifications"}
           </button>
           {error && (
             <p className="admin-alert-error" role="alert">

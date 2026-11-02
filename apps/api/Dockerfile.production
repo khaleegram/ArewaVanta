@@ -27,6 +27,7 @@ COPY php-production.ini /usr/local/etc/php/conf.d/99-arewavanta.ini
 COPY php-fpm-production.conf /usr/local/etc/php-fpm.d/zz-arewavanta.conf
 COPY entrypoint.production.sh /usr/local/bin/arewavanta-entrypoint
 RUN chmod +x /usr/local/bin/arewavanta-entrypoint \
+    && chmod -R a+rX /var/www/html \
     && mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 

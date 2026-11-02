@@ -141,7 +141,7 @@ export type PublicSquadResult = {
   clan_name: string | null;
   clan_tag?: string | null;
   clan_squad_count?: number | null;
-  participation_status: "present" | "absent";
+  participation_status: "present" | "absent" | "unentered";
   placement: number | null;
   team_kills: number;
   total_points: string;
@@ -458,7 +458,7 @@ export type EventSubmissionReview = {
 export type MatchResultInput = {
   team_kills?: number | null;
   squad_id: Id;
-  status?: "present" | "absent";
+  status?: "present" | "absent" | "unentered";
   placement?: number | null;
   players: { player_id?: Id; ign?: string; kills: number | null }[];
 };
@@ -473,7 +473,7 @@ export type SavedResult = {
     clan_name: string | null;
     clan_tag?: string | null;
     clan_squad_count?: number | null;
-    participation_status: "present" | "absent";
+    participation_status: "present" | "absent" | "unentered";
     placement: number | null;
     team_kills: number;
     team_kills_override?: number | null;
@@ -500,6 +500,7 @@ export type PublicMatchResult = {
   result: SavedResult;
 };
 export type ResultSheet = {
+  event_slots?: { squad_id: Id; slot_number: number | null }[];
   event: {
     track_player_kills: boolean;
     id: Id;
@@ -526,6 +527,7 @@ export type ResultSheet = {
     clan_tag: string;
     clan_squad_count?: number;
     slot_number: number | null;
+    roster_players?: { id: Id; ign: string }[];
     eligible_players: { id: Id; ign: string }[];
   }[];
   result: SavedResult | null;
@@ -544,7 +546,7 @@ export type MonthlyPlayer = {
   best_game: number | null; wins: number; squad_ids: Id[]; average_kills: number | null;
 };
 export type MonthlyMatch = {
-  id: Id; date: string; game: number; map: string; event: string; event_id: Id; status: "present" | "absent";
+  id: Id; date: string; game: number; map: string; event: string; event_id: Id; status: "present" | "absent" | "unentered";
   placement: number | null; kills: number; kills_confirmed: boolean; points: string;
   players: { id: Id; ign: string; kills: number | null }[];
 };

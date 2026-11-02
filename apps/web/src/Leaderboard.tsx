@@ -614,7 +614,7 @@ export default function LeaderboardPage() {
               </div>
               <span className="lb-rules">
                 {kind === "squads"
-                  ? "ArewaVanta Placement + Kills · 1 point per kill + placement"
+                  ? "AGA Balanced · 1 point per kill + placement"
                   : "Ranked by total kills · Equal kills share a rank"}
               </span>
             </div>

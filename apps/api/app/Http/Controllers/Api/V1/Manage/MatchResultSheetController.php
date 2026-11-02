@@ -40,6 +40,7 @@ final class MatchResultSheetController extends Controller
                 'track_player_kills' => true,
                 'maximum_position' => $event->maximum_position,
             ],
+            'event_slots' => $eventSlots->map(fn ($slot, $squadId): array => ['squad_id' => $squadId, 'slot_number' => $slot === null ? null : (int) $slot])->values(),
             'match' => [
                 'id' => $match->id,
                 'date' => $match->day->event_date->toDateString(),
@@ -52,6 +53,7 @@ final class MatchResultSheetController extends Controller
                     'id' => $membership->player->id,
                     'ign' => $membership->player->current_ign,
                 ]);
+                $rosterPlayers = $players->values()->all();
                 $previousResult = $editableResult?->squadResults->firstWhere('squad_id', $entry->squad_id);
                 foreach ($previousResult?->playerResults ?? [] as $previousPlayer) {
                     $players->put($previousPlayer->player_id, ['id' => $previousPlayer->player_id, 'ign' => $previousPlayer->ign_snapshot]);
@@ -67,6 +69,7 @@ final class MatchResultSheetController extends Controller
                     'clan_tag' => $entry->squad->clan->tag,
                     'clan_squad_count' => $entry->squad->clan->squads->count(),
                     'slot_number' => $eventSlots->get($entry->squad_id) === null ? null : (int) $eventSlots->get($entry->squad_id),
+                    'roster_players' => $rosterPlayers,
                     'eligible_players' => $players->values(),
                 ];
             })->values(),

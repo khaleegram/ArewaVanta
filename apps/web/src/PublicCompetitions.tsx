@@ -8,7 +8,7 @@ import type {
   PublicMatchResult,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
-import { leaderboardSharePath, pageMetadata, SITE_ORIGIN, usePageSeo } from "./seo";
+import { pageMetadata, SITE_ORIGIN, usePageSeo } from "./seo";
 import {
   competitionLabel as displayCompetitionLabel,
   countLabel,
@@ -485,7 +485,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                 </div>
                 <a
                   className="public-text-link"
-                  href={leaderboardSharePath(slug)}
+                  href={`/leaderboard?type=squads&event=${encodeURIComponent(slug)}`}
                 >
                   Full rankings →
                 </a>
@@ -659,7 +659,7 @@ export function MatchPage({
                             <div className="public-result-heading">
                               <div>
                                 <span className="public-row-label">
-                                  {row.participation_status === "absent" ? "ABSENT" : placementLabel(row.placement)}
+                                  {row.participation_status === "unentered" ? "NOT ENTERED" : row.participation_status === "absent" ? "ABSENT" : placementLabel(row.placement)}
                                 </span>
                                 <h3>
                                   {row.squad_slug ? (
@@ -677,27 +677,26 @@ export function MatchPage({
                             {row.participation_status === "present" && (
                               <>
                                 <div className="public-score-grid">
-                                  <div><span>Squad kills</span><strong>{row.kills_confirmed === false ? `${row.team_kills}+` : row.team_kills}</strong></div>
+                                  <div><span>Squad kills</span><strong>{row.team_kills}</strong></div>
                                   <div><span>Kill points</span><strong>{row.kill_points ?? "—"}</strong></div>
                                   <div>
                                     <span>{row.placement_multiplier !== null ? "Placement bonus" : "Placement points"}</span>
                                     <strong>{row.placement_multiplier !== null ? `×${row.placement_multiplier}` : (row.placement_points ?? "—")}</strong>
                                   </div>
                                 </div>
-                                {row.is_partial && <p className="public-notice">Some player or placement details are still being added. Known scores are shown.</p>}
-                                {row.players.length > 0 && <div className="public-match-players">
+                                <div className="public-match-players">
                                   <table className="public-player-table">
                                     <thead><tr><th>Player</th><th>Kills</th></tr></thead>
                                     <tbody>
                                       {row.players.map((player) => (
                                         <tr key={player.player_id}>
                                           <th scope="row"><a className="public-inline-link" href={`/players/${encodeURIComponent(player.player_id)}`}>{player.ign}</a></th>
-                                          <td>{player.kills ?? "Pending"}</td>
+                                          <td>{player.kills}</td>
                                         </tr>
                                       ))}
                                     </tbody>
                                   </table>
-                                </div>}
+                                </div>
                               </>
                             )}
                           </article>

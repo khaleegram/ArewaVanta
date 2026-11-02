@@ -78,6 +78,11 @@ export function usePageSeo(page: PageSeo) {
 }
 
 export const pageMetadata = {
+  rules: {
+    title: "Arewa CODM Scrim Rules & Banned Items | ArewaVanta",
+    description: "See banned weapons, classes and vehicles for ArewaVanta CODM Battle Royale scrims. Shotguns are allowed.",
+    path: "/rules",
+  },
   home: {
     title: "ArewaVanta | Arewa CODM Scrims & Tournaments in Nigeria",
     description: "ArewaVanta connects the Arewa Call of Duty: Mobile (CODM) community in Nigeria with weekly Battle Royale scrims, tournaments, squad standings, match results and player rankings.",

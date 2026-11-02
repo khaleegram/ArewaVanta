@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Manage;
 
+use App\Domain\Competition\AssignPlayerSquad;
 use App\Domain\Competition\OrganizationPermissions;
 use App\Domain\Notifications\AdminActivity;
 use App\Enums\Role;
@@ -146,7 +147,7 @@ final class OrganizationController extends Controller
         ])->values()]);
     }
 
-    public function addRosterPlayer(Request $request, Squad $squad, OrganizationPermissions $permissions): JsonResponse
+    public function addRosterPlayer(Request $request, Squad $squad, OrganizationPermissions $permissions, AssignPlayerSquad $assignSquad): JsonResponse
     {
         $squad->load('clan');
         abort_unless($permissions->canManageClan($request->user(), $squad->clan), 403);
@@ -158,9 +159,10 @@ final class OrganizationController extends Controller
             'current_ign' => ['nullable', 'required_without:player_id', 'prohibits:player_id', 'string', 'max:100'],
             'uid' => ['sometimes', 'nullable', 'prohibits:player_id', 'string', 'max:64'],
             'joined_at' => ['sometimes', 'required', 'date', 'before_or_equal:now'],
+            'move_from_squad_id' => ['sometimes', 'nullable', 'ulid', Rule::exists('squads', 'id')],
         ]);
 
-        $membership = DB::transaction(function () use ($request, $squad, $data, $permissions): SquadMembership {
+        $membership = DB::transaction(function () use ($request, $squad, $data, $permissions, $assignSquad): SquadMembership {
             $squad = Squad::query()->lockForUpdate()->findOrFail($squad->id);
             if (isset($data['player_id'])) {
                 $player = Player::query()->where('status', 'active')->lockForUpdate()->findOrFail($data['player_id']);
@@ -182,14 +184,10 @@ final class OrganizationController extends Controller
                 $player = Player::query()->create(['clan_id' => $squad->clan_id, 'current_ign' => trim($data['current_ign']), 'normalized_uid' => $uid, 'status' => 'active']);
             }
 
-            if ($squad->memberships()->where('player_id', $player->id)->whereNull('left_at')->exists()) {
-                throw ValidationException::withMessages(['player_id' => 'This player is already in the squad.']);
-            }
-            $membership = SquadMembership::query()->create([
-                'squad_id' => $squad->id,
-                'player_id' => $player->id,
-                'joined_at' => isset($data['joined_at']) ? CarbonImmutable::parse($data['joined_at'])->utc() : now(),
-            ]);
+            $membership = $assignSquad->handle(
+                $player, $squad, $data['move_from_squad_id'] ?? null,
+                isset($data['joined_at']) ? CarbonImmutable::parse($data['joined_at'])->utc() : null,
+            );
             $this->audit($request->user()->id, 'roster_player_added', 'squad', $squad->id, null, [
                 'player_id' => $player->id, 'ign' => $player->current_ign, 'joined_at' => $membership->joined_at->toIso8601String(),
             ]);
@@ -212,6 +210,7 @@ final class OrganizationController extends Controller
 
         DB::transaction(function () use ($request, $squad, $player): void {
             $squad = Squad::query()->lockForUpdate()->findOrFail($squad->id);
+            Player::query()->lockForUpdate()->findOrFail($player->id);
             $membership = $squad->memberships()->where('player_id', $player->id)->whereNull('left_at')->firstOrFail();
             $membership->left_at = now();
             $membership->save();
