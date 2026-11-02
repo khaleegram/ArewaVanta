@@ -5,7 +5,7 @@ import type {
   ResultSheet,
   ScreenshotImportTeam,
 } from "./api/types";
-import { Shell, SignIn, tokenKey, type Session } from "./CompetitionManager";
+import { Shell, SignIn, type Session } from "./CompetitionManager";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
 import { formatDate, squadIdentity } from "./presentation";
@@ -52,8 +52,7 @@ export default function ResultManager({ eventId }: { eventId: string }) {
   );
   const [dirty, setDirty] = useState(false);
   useEffect(() => {
-    const token = sessionStorage.getItem(tokenKey) || getStoredToken();
-    if (token) sessionStorage.setItem(tokenKey, token);
+    const token = getStoredToken();
     if (!token) {
       setChecking(false);
       return;
@@ -136,7 +135,7 @@ export default function ResultManager({ eventId }: { eventId: string }) {
           <button onClick={() => setRetry((n) => n + 1)}>Retry</button>
         </p>
       ) : (
-        <div className="score-workspace">
+        <div className="score-workspace" data-unsaved={dirty ? "true" : undefined}>
           <a
             className="score-back"
             href={`/manage/competitions/${encodeURIComponent(eventId)}`}
@@ -361,6 +360,12 @@ function ScoreWorkspace({
       window.removeEventListener("beforeunload", warn);
     };
   }, [initialized, rows, base, lockVersion, scoringVersion, draftKey, dirty]);
+  useEffect(() => {
+    const refresh = () => { if (!dirty && document.visibilityState === "visible") setRetry((value) => value + 1); };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("pageshow", refresh);
+    return () => { document.removeEventListener("visibilitychange", refresh); window.removeEventListener("pageshow", refresh); };
+  }, [dirty]);
   function update(id: string, change: (row: ScoreRow) => ScoreRow) {
     setRows((old) => ({ ...old, [id]: change(old[id]) }));
     setNotice("");
@@ -724,8 +729,7 @@ function ScoreWorkspace({
         </div>
       </div>
       <p className="score-table-help">
-        Expand a team to score players. Attendance and expand/collapse are
-        separate.
+        Tap a team to edit its players. Kills and points update as you type.
       </p>
       <div className="score-column-head" aria-hidden="true">
         <span>Slot / squad</span>

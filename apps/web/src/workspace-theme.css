@@ -1,0 +1,86 @@
+/* Shared management surfaces, loaded after individual page styles. */
+.manage-page.studio-shell { --workspace-ink:#22362d; --workspace-muted:#64736a; --workspace-line:#dde4dc; background:#f4f4ef; color:var(--workspace-ink); font-family:Manrope,Arial,sans-serif; }
+.manage-page.studio-shell .manage-main { padding-top:28px; padding-bottom:60px; }
+.manage-page.studio-shell :is(.manage-header,.manage-bar) { background:#fffefa; border-color:var(--workspace-line); }
+.manage-page.studio-shell .manage-header .brand > span { color:var(--workspace-ink); }
+.manage-page.studio-shell .manage-head-actions :is(a,button) { color:#52645a; }
+.manage-page.studio-shell .manage-nav a { color:#64736a; }
+.manage-page.studio-shell .manage-nav a[aria-current] { color:#1e5941; border-bottom-color:#1e5941; }
+.manage-page.studio-shell h1 { margin:8px 0 10px; font:800 clamp(26px,3.5vw,36px)/1.15 Manrope,Arial,sans-serif; letter-spacing:-.045em; text-transform:none; }
+.manage-page.studio-shell :is(.manage-page-heading,.manage-form-heading) { margin-bottom:24px; }
+.manage-page.studio-shell :is(.manage-eyebrow,.score-eyebrow) { color:#a9553e; letter-spacing:.12em; font-size:10px; }
+.manage-page.studio-shell :is(.manage-primary,.manage-secondary,.manage-panel,.manage-notice,.manage-empty,.manage-event,.directory-player-list) { border-radius:12px; }
+.manage-page.studio-shell .manage-primary { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; border:1px solid #1e5941; background:#1e5941; color:#fffefa; border-radius:9px; }
+.manage-page.studio-shell .manage-primary:hover { background:#164833; }
+.manage-page.studio-shell .manage-secondary { color:#315b43; background:#fffefa; border:1px solid #cdd9ca; border-radius:9px; }
+.manage-page.studio-shell :is(.manage-login,.manage-panel,.directory-player-list) { background:#fffefa; border-color:var(--workspace-line); color:var(--workspace-ink); }
+.manage-page.studio-shell :is(input,select,textarea):not([type="checkbox"]):not([type="radio"]) { background:#fffefa; color:#22362d; border:1px solid #cbd7c9; border-radius:8px; box-shadow:none; font-family:inherit; }
+.manage-page.studio-shell :is(input,textarea)::placeholder { color:#7b887d; }
+.manage-page.studio-shell :is(button,a,input,select,textarea,summary):focus-visible { outline:3px solid #d9926d; outline-offset:3px; }
+.manage-page.studio-shell .manage-notice { background:#edf2e9; color:#52645a; border:1px solid #d9e3d4; }
+.manage-page.studio-shell .manage-error { background:#fff1eb; color:#943b2d; border-color:#e8c4b8; border-radius:10px; }
+.manage-page.studio-shell .manage-success { background:#eaf3e6; color:#315b43; border-color:#c4d7bb; border-radius:10px; }
+.manage-page.studio-shell .manage-event { border:1px solid #dde4dc; overflow:hidden; }
+.manage-page.studio-shell .manage-event-actions { background:#fafbf6; border-color:#e3e9df; }
+.manage-page.studio-shell .manage-event-actions :is(a,button):not(.manage-primary) { color:#315b43; }
+.manage-page.studio-shell .manage-login { border-radius:16px; box-shadow:0 8px 32px #22362d08; }
+.manage-page.studio-shell .directory-controls { gap:12px; margin-bottom:20px; }
+.manage-page.studio-shell .directory-tabs { background:#e8eee3; padding:4px; border-radius:10px; }
+.manage-page.studio-shell .directory-tabs button { border:0; border-radius:7px; color:#65735f; background:transparent; min-height:38px; }
+.manage-page.studio-shell .directory-tabs button[aria-pressed="true"] { background:#fffefa; color:#1e5941; box-shadow:0 1px 4px #23372e12; }
+.manage-page.studio-shell .directory-search { align-items:center; }
+.manage-page.studio-shell .directory-search input { margin:0; padding:12px 14px; min-height:46px; }
+.manage-page.studio-shell .directory-search button { min-height:44px; border:1px solid #cdd9ca; background:#fffefa; color:#315b43; border-radius:8px; }
+.manage-page.studio-shell .directory-clan-tools { flex-wrap:wrap; gap:4px 16px; }
+.manage-page.studio-shell .directory-clan-tools :is(a,button) { min-height:40px; }
+.manage-page.studio-shell .directory-clan-toolbar { align-items:start; padding-block:8px; }
+.manage-page.studio-shell .directory-compact-clan { border-color:#dce4d8; box-shadow:0 2px 5px #23372e04; }
+.manage-page.studio-shell .directory-clan-toggle { min-height:76px; border:0; }
+.manage-page.studio-shell .directory-clan-toggle:hover { background:#f5f7f0; }
+.manage-page.studio-shell .directory-clan-label > strong { font-size:16px; font-weight:800; letter-spacing:-.025em; }
+.manage-page.studio-shell .directory-player-chips { list-style:none; display:flex; flex-wrap:wrap; padding:0; margin:0; }
+.manage-page.studio-shell .directory-roster-empty { color:#7b887d; font-size:12px; margin:0; }
+.manage-page.studio-shell .directory-person { border-color:#e1e7dd; }
+.manage-page.studio-shell .directory-person :is(strong,small) { color:#52645a; }
+.manage-page.studio-shell .directory-person button { color:#315b43; }
+.manage-page.studio-shell .directory-player-row { background:#fffefa; border-color:#e1e7dd; }
+.manage-page.studio-shell .directory-player-row :is(button,a) { color:#315b43; }
+.manage-page.studio-shell .directory-mark { background:#eaf0e5; color:#315b43; border-radius:9px; }
+.manage-page.studio-shell .directory-editor { margin-top:8px; }
+.manage-page.studio-shell .score-workspace { --score-soft:#edf2e9; --score-paper:#fffefa; --score-line:#dce4d8; --score-ink:#22362d; }
+.manage-page.studio-shell .score-back { margin-bottom:18px; font-size:12px; color:#607169; }
+.manage-page.studio-shell .score-page-heading { margin-bottom:20px; }
+.manage-page.studio-shell .score-page-heading h1 { font-size:clamp(27px,3vw,34px); }
+.manage-page.studio-shell .score-game-select { padding:16px; margin-bottom:14px; background:#fffefa; border:1px solid #dce4d8; border-radius:12px; }
+.manage-page.studio-shell .score-game-select select { max-width:none; flex:1; background:#f7f9f3; font-size:14px; font-weight:750; }
+.manage-page.studio-shell .score-match-bar { background:#fffefa; margin-bottom:18px; border-color:#dce4d8; padding:14px 16px; }
+.manage-page.studio-shell .score-toolbar { gap:12px; }
+.manage-page.studio-shell .score-filters { padding:4px; background:#e8eee3; border-radius:10px; gap:3px; }
+.manage-page.studio-shell .score-filters button { background:transparent; border:0; min-height:36px; font-size:11px; }
+.manage-page.studio-shell .score-filters button[aria-pressed="true"] { background:#fffefa; color:#1e5941; box-shadow:0 1px 3px #23372e10; }
+.manage-page.studio-shell .score-team { box-shadow:0 2px 5px #23372e04; border-color:#dce4d8; overflow:hidden; }
+.manage-page.studio-shell .score-team.is-open { border-color:#9bb69c; box-shadow:0 5px 20px #23372e08; }
+.manage-page.studio-shell .score-team-summary { min-height:72px; }
+.manage-page.studio-shell .score-slot { background:#edf2e7; color:#315b43; border-radius:9px; }
+.manage-page.studio-shell .score-team.is-open .score-slot { background:#1e5941; color:#fffefa; }
+.manage-page.studio-shell .score-save-bar { background:#fffefaf5; border-color:#cdd9c7; box-shadow:0 6px 24px #1d362713; }
+.manage-page.studio-shell .score-table-help { font-size:11px; color:#71806f; }
+.app-update-notice { position:fixed; z-index:200; right:20px; top:16px; width:min(430px,calc(100vw - 32px)); display:flex; align-items:center; gap:16px; padding:14px 16px; border:1px solid #ccd9c8; border-radius:12px; background:#fffefa; color:#22362d; font:12px/1.5 Manrope,Arial,sans-serif; box-shadow:0 8px 30px #23372e20; }
+.app-update-notice strong,.app-update-notice span { display:block; }
+.app-update-notice span { color:#64736a; font-size:11px; margin-top:3px; }
+.app-update-notice button { flex:none; min-height:40px; padding:8px 12px; border-radius:8px; border:0; background:#1e5941; color:#fffefa; font:inherit; font-weight:750; }
+@media(max-width:700px) {
+ .manage-page.studio-shell .manage-wrap { padding-inline:16px; }
+ .manage-page.studio-shell .manage-header-inner { padding-block:8px; gap:4px 10px; }
+ .manage-page.studio-shell .manage-bar .manage-wrap { gap:12px; }
+ .manage-page.studio-shell .manage-bar .manage-wrap > span,.manage-page.studio-shell .manage-bar .manage-wrap > small { display:none; }
+ .manage-page.studio-shell .manage-nav { width:100%; gap:20px; overflow-x:auto; scrollbar-width:none; }
+ .manage-page.studio-shell .manage-nav a { white-space:nowrap; }
+ .manage-page.studio-shell .manage-main { padding-top:20px; }
+ .manage-page.studio-shell .directory-clan-toolbar { gap:6px; }
+ .manage-page.studio-shell .directory-clan-tools { margin:0; gap:0 14px; }
+ .manage-page.studio-shell .score-game-select { padding:10px; gap:10px; }
+ .manage-page.studio-shell .score-game-select select { font-size:13px; }
+ .manage-page.studio-shell .score-match-actions button { font-size:11px; padding-inline:9px; }
+}
+@media print { .app-update-notice { display:none; } }

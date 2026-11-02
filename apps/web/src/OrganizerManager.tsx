@@ -6,6 +6,7 @@ import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
 import { countLabel, formatDate } from "./presentation";
 import { Icon } from "./ui";
+import "./organizer-manager.css";
 
 type Load<T> = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: T };
 const errorText = (error: unknown) => error instanceof ApiError ? error.message : "Something went wrong. Please try again.";

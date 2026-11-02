@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { appWorker } from "./AppUpdates";
 import { api, ApiError } from "./api/client";
 import { activityFullTime, activityText, activityTime } from "./presentation";
 type Data = {
@@ -68,9 +69,7 @@ export default function AdminAlerts({ token }: { token: string }) {
     setBusy(true);
     setError("");
     try {
-      const reg = await navigator.serviceWorker.register(
-        "/notification-worker.js",
-      );
+      const reg = await appWorker();
       const existing = await reg.pushManager.getSubscription();
       if (existing) {
         await api.unsubscribePush(token, existing.endpoint);

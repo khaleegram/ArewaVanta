@@ -1,4 +1,3 @@
-import type { SquadId } from "./data";
 
 type IconName =
   | "arrow"
@@ -125,76 +124,5 @@ export function Brand({
         <span className="brand-dot">.</span>
       </span>
     </a>
-  );
-}
-
-export function SquadMark({
-  id,
-  className = "",
-}: {
-  id: SquadId;
-  className?: string;
-}) {
-  const marks = {
-    reapers: (
-      <>
-        <path d="m15 14 13 5 4-13 5 13 12-5-6 23-11 16-12-16Z" />
-        <path
-          d="m20 28 10 5-6 4Zm24 0-10 5 6 4ZM28 41h8l-4 6Z"
-          fill="var(--mark-cutout, #f3f1e9)"
-        />
-        <path d="m18 13 8 3-5-8Zm28 0-8 3 5-8Z" />
-      </>
-    ),
-    wolves: (
-      <>
-        <path d="m10 8 19 12h6L54 8l-7 32-15 16-15-16Z" />
-        <path
-          d="m17 26 12 8-10-1Zm30 0-12 8 10-1ZM25 42l7-5 7 5-7 6Z"
-          fill="var(--mark-cutout, #f3f1e9)"
-        />
-      </>
-    ),
-    phantoms: (
-      <>
-        <path d="M15 30a17 17 0 0 1 34 0v23l-9-6-8 7-8-7-9 6Z" />
-        <path
-          d="m21 29 9 5-9 5Zm22 0-9 5 9 5Z"
-          fill="var(--mark-cutout, #f3f1e9)"
-        />
-      </>
-    ),
-    savannah: (
-      <>
-        <path
-          d="M32 5 55 18l-4 26-19 14-19-14-4-26Zm0 10L20 37h24Z"
-          fillRule="evenodd"
-        />
-        <path d="M24 43h16l-8 9Z" />
-      </>
-    ),
-    strikers: (
-      <>
-        <path d="M34 4 13 34h16l-4 25 27-36H36l8-19Z" />
-      </>
-    ),
-    guard: (
-      <>
-        <path
-          d="m32 5 23 9-5 26-18 18-18-18-5-26Zm0 10L21 37h9v10h4V37h9Z"
-          fillRule="evenodd"
-        />
-      </>
-    ),
-  };
-  return (
-    <svg
-      className={`squad-mark ${className}`}
-      viewBox="0 0 64 64"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      {marks[id]}
-    </svg>
   );
 }

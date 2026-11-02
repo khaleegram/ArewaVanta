@@ -5,6 +5,11 @@ import Rules from "./Rules";
 import LiveLeaderboard from "./LiveLeaderboard";
 import CompetitionManager from "./CompetitionManager";
 import DirectoryManager from "./DirectoryManager";
+import OrganizerManager from "./OrganizerManager";
+import ClanMonthlyReport from "./ClanMonthlyReport";
+import CompetitionCheckIn from "./CompetitionCheckIn";
+import PwaInstallPrompt from "./PwaInstallPrompt";
+import { AppUpdateNotice, startAppUpdates } from "./AppUpdates";
 import ResultManager from "./ResultManager";
 import CaptainInvite from "./CaptainInvite";
 import CompetitionOrganizerInvite from "./CompetitionOrganizerInvite";
@@ -36,6 +41,8 @@ import "./public-match.css";
 import "./rankings-page.css";
 import "./public-people-pages.css";
 import { applyPageSeo } from "./seo";
+import "./pwa-install.css";
+import "./workspace-theme.css";
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
 
@@ -47,10 +54,15 @@ function renderRoute() {
   const managerResultsMatch = path.match(/^\/manage\/competitions\/([^/]+)\/results$/);
   const managerEntriesMatch = path.match(/^\/manage\/competitions\/([^/]+)\/entries$/);
   const managerCompetitionMatch = path.match(/^\/manage\/competitions\/([^/]+)$/);
+  const checkInMatch = path.match(/^\/manage\/competitions\/([^/]+)\/check-in$/);
+  const monthlyMatch = path.match(/^\/manage\/clans\/([^/]+)\/reports$/);
   let page: React.ReactNode;
 
   if (path === "/rules") page = <Rules />;
   else if (path === "/leaderboard" || shortLeaderboard) page = <LiveLeaderboard />;
+  else if (checkInMatch) page = <CompetitionCheckIn eventId={decodeURIComponent(checkInMatch[1])} />;
+  else if (monthlyMatch) page = <ClanMonthlyReport clanId={decodeURIComponent(monthlyMatch[1])} />;
+  else if (path === "/manage/organizers") page = <OrganizerManager />;
   else if (managerResultsMatch) page = <ResultManager eventId={decodeURIComponent(managerResultsMatch[1])} />;
   else if (managerEntriesMatch) page = <CompetitionManager entriesEventId={decodeURIComponent(managerEntriesMatch[1])} />;
   else if (managerCompetitionMatch) page = <CompetitionManager workspaceEventId={decodeURIComponent(managerCompetitionMatch[1])} />;
@@ -124,7 +136,9 @@ function renderRoute() {
     <React.StrictMode>
       <React.Fragment key={`${window.location.pathname}${window.location.search}`}>
         {page}
+        <PwaInstallPrompt />
       </React.Fragment>
+      <AppUpdateNotice />
     </React.StrictMode>,
   );
 }
@@ -176,9 +190,11 @@ function handleInternalNavigation(event: MouseEvent) {
 document.addEventListener("click", handleInternalNavigation);
 window.addEventListener("popstate", renderRoute);
 renderRoute();
+const stopUpdates = startAppUpdates();
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    stopUpdates();
     document.removeEventListener("click", handleInternalNavigation);
     window.removeEventListener("popstate", renderRoute);
   });

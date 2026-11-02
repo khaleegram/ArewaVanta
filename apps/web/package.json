@@ -17,7 +17,8 @@
     "check:manager": "node scripts/check-manager.mjs",
     "check:directory": "node scripts/check-directory.mjs",
     "check:results-real": "node scripts/check-results-real.mjs",
-    "check:password-reset": "node scripts/check-password-reset.mjs"
+    "check:password-reset": "node scripts/check-password-reset.mjs",
+    "check:updates": "node scripts/check-app-updates.mjs"
   },
   "dependencies": {
     "@vercel/og": "^1.0.3",

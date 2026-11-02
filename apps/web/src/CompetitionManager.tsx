@@ -21,6 +21,7 @@ import {
   squadIdentity,
   submissionStatusLabel,
 } from "./presentation";
+import { clearStoredToken, getStoredToken, storeToken, tokenKey } from "./authStorage";
 import "./competition-manager.css";
 
 type Load<T> =
@@ -38,6 +39,8 @@ export function canManageCompetitions(user: User | null | undefined): boolean {
       (role.role === "organizer" && role.scope_type === "global"),
   );
 }
+export const canManageAnyClan = canAccessCompetitions;
+
 type Game = {
   id: string | null;
   map_code: string;
@@ -53,7 +56,7 @@ type Form = {
   squadCapacity: number;
   days: Day[];
 };
-export const tokenKey = "arewavanta-organizer-token";
+export { tokenKey };
 const errorMessage = (error: unknown) =>
   error instanceof ApiError
     ? error.message
@@ -152,12 +155,12 @@ export function Shell({
   section?: "competitions" | "directory" | "organizers";
   overview?: boolean;
 }) {
-  const organizer = !session || canManageCompetitions(session.user);
+  const organizer = !session || canAccessCompetitions(session.user);
   const captain = !!session?.user.roles.some(
     (role) => role.role === "clan_captain",
   );
   return (
-    <div className={`manage-page${overview ? " studio-shell" : ""}`}>
+    <div className="manage-page studio-shell">
       <a className="skip-link" href="#manage-main">
         Skip to content
       </a>
@@ -200,6 +203,7 @@ export function Shell({
             >
               {captain && !organizer ? "My clan" : "Clans & players"}
             </a>
+            {organizer && <a href="/manage/organizers" aria-current={section === "organizers" ? "page" : undefined}>Organizers</a>}
           </nav>
           {session && <small>{session.user.name}</small>}
         </div>
@@ -225,7 +229,7 @@ export function SignIn({
     setError("");
     try {
       const { data } = await api.login(email.trim(), password);
-      sessionStorage.setItem(tokenKey, data.token);
+      storeToken(data.token);
       onSuccess(data);
     } catch (err) {
       setError(errorMessage(err));
@@ -362,7 +366,7 @@ export default function CompetitionManager({
       : { kind: "list" });
   const [notice, setNotice] = useState("");
   useEffect(() => {
-    const token = sessionStorage.getItem(tokenKey);
+    const token = getStoredToken();
     if (!token) {
       setChecking(false);
       return;
@@ -374,7 +378,7 @@ export default function CompetitionManager({
       .catch((err) => {
         if (!controller.signal.aborted) {
           if (err instanceof ApiError && err.status === 401)
-            sessionStorage.removeItem(tokenKey);
+            clearStoredToken();
           setNotice(errorMessage(err));
         }
       })
@@ -404,7 +408,7 @@ export default function CompetitionManager({
         /* Local sign out remains available. */
       }
     }
-    sessionStorage.removeItem(tokenKey);
+    clearStoredToken();
     setSession(null);
     setView({ kind: "list" });
     setNotice("");

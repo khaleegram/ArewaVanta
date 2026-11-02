@@ -88,6 +88,7 @@ async function request<T>(path: string, options: Options = {}): Promise<T> {
   try {
     response = await fetch(`${base}${path}${query.size ? `?${query}` : ""}`, {
       method: options.method ?? "GET",
+      cache: "no-store",
       headers,
       body:
         options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -275,11 +276,11 @@ export const api = {
       method: "POST",
       body: { current_ign, uid },
     }),
-  managePeople: (token: string, page = 1, search = "", signal?: AbortSignal) =>
+  managePeople: (token: string, page = 1, search = "", signal?: AbortSignal, clanId?: string) =>
     request<ApiPage<ManagePerson>>("/manage/people", {
       token,
       signal,
-      query: { page, search },
+      query: { page, search, clan_id: clanId },
     }),
   assignCaptain: (token: string, userId: string | number, clanId: string) =>
     request<ApiData<{ id: Id }>>(
