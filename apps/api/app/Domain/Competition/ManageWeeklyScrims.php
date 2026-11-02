@@ -153,6 +153,8 @@ final class ManageWeeklyScrims
             $week->id = (string) Str::ulid();
             $week->slug = Str::limit(Str::slug($source->title), 150, '').'-'.$next->toDateString().'-'.strtolower($week->id);
             $week->series_week_date = $next->toDateString();
+            $highestAssignedSlot = (int) collect($series->default_slot_map ?? [])->whereNotNull('squad_id')->max('slot');
+            $week->squad_capacity = max($week->squad_capacity, $highestAssignedSlot);
             $week->save();
             foreach ($source->days as $sourceDay) {
                 $day = $sourceDay->replicate()->unsetRelations();

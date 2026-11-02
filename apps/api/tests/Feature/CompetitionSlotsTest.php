@@ -117,6 +117,18 @@ final class CompetitionSlotsTest extends TestCase
         $this->assertFalse($next->squadEntries()->where('squad_id', $a->id)->exists());
     }
 
+    public function test_new_week_keeps_a_high_permanent_slot_when_the_source_week_had_a_smaller_lobby(): void
+    {
+        [$actor, $series, $weeks, $a] = $this->fixture();
+        $series->update(['default_slot_map' => [['slot' => 22, 'squad_id' => $a->id]]]);
+        $weeks[2]->update(['squad_capacity' => 10]);
+        $this->travelTo(now('Africa/Lagos')->setDate(2026, 11, 16)->startOfDay());
+        $this->assertSame(1, app(ManageWeeklyScrims::class)->generate($series->fresh()));
+        $next = $series->events()->whereDate('series_week_date', '2026-11-21')->firstOrFail();
+        $this->assertSame(22, $next->squad_capacity);
+        $this->assertSame(22, $next->squadEntries()->where('squad_id', $a->id)->first()->slot_number);
+    }
+
     public function test_old_edit_versions_duplicate_assignments_and_captain_changes_are_rejected(): void
     {
         [$actor, $series, $weeks, $a, $b, $clan] = $this->fixture();
