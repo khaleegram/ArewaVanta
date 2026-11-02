@@ -25,6 +25,7 @@ final class SyncCompetitionSquads
         return DB::transaction(function () use ($actor, $event, $squadIds, $slotAssignments): CompetitionEvent {
             $event = CompetitionEvent::query()->lockForUpdate()->findOrFail($event->id);
             abort_unless($this->permissions->canManage($actor, $event), 403);
+            abort_if($event->series?->default_slot_map !== null, 409, 'This series uses permanent slots. Open Manage slots to change its standing assignments.');
             if (Squad::query()->whereIn('id', $squadIds)->count() !== count($squadIds)) {
                 throw ValidationException::withMessages(['squad_ids' => 'Choose existing squads.']);
             }

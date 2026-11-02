@@ -4,6 +4,8 @@ import type {
   AuthSession,
   CaptainSquadSubmissions,
   CompetitionTemplate,
+  CompetitionSlots,
+  SlotAssignment,
   CreateEventInput,
   EventStandings,
   EventSubmissionReview,
@@ -553,6 +555,10 @@ export const api = {
       body: { squad_ids: squadIds },
       signal,
     }),
+  competitionSlots: (token: string, eventId: Id, signal?: AbortSignal) =>
+    request<ApiData<CompetitionSlots>>(`/manage/events/${key(eventId)}/slots`, { token, signal }),
+  saveCompetitionSlots: (token: string, eventId: Id, slots: SlotAssignment[], expectedVersion: string) =>
+    request<ApiData<CompetitionSlots>>(`/manage/events/${key(eventId)}/slots`, { token, method: "PUT", body: { slots, expected_version: expectedVersion } }),
   eventSubmissions: (token: string, eventId: Id, signal?: AbortSignal) =>
     request<ApiData<EventSubmissionReview>>(
       `/manage/events/${key(eventId)}/submissions`,

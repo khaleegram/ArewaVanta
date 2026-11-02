@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Manage\ClanPlayerController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionEventController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionOrganizerController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionOrganizerInvitationController;
+use App\Http\Controllers\Api\V1\Manage\CompetitionSlotsController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionSquadsController;
 use App\Http\Controllers\Api\V1\Manage\CompetitionTemplateController;
 use App\Http\Controllers\Api\V1\Manage\DirectoryController;
@@ -134,6 +135,8 @@ Route::prefix('v1')->group(function (): void {
             ->name('events.show');
         Route::post('/events/{event}/organizer-invitations', [CompetitionOrganizerInvitationController::class, 'send'])->middleware('throttle:10,1')->name('events.organizer-invitations.store');
         Route::get('/events/{event}/organizers', CompetitionOrganizerController::class)->name('events.organizers.index');
+        Route::get('/events/{event}/slots', [CompetitionSlotsController::class, 'show'])->name('events.slots.show');
+        Route::put('/events/{event}/slots', [CompetitionSlotsController::class, 'update'])->name('events.slots.update');
         Route::get('/events/{event}/submissions', [EventSquadSubmissionController::class, 'forEvent'])->name('events.submissions.index');
         Route::patch('/events/{event}/submissions/{submission}', [EventSquadSubmissionController::class, 'decide'])->name('events.submissions.update');
         Route::get('/events/{event}/export/results', [EventExportController::class, 'results'])->name('events.export.results');

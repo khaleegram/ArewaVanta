@@ -33,7 +33,7 @@ final class EventSquadSubmissionController extends Controller
                 ->lessThan(CarbonImmutable::today($submission->event->timezone));
         });
         $known = $submissions->keyBy('event_id');
-        $events = CompetitionEvent::query()->with('days')
+        $events = CompetitionEvent::query()->with(['days', 'series'])
             ->with(['squadEntries' => fn ($query) => $query->where('status', 'active')])
             ->withCount(['squadEntries as squad_count' => fn ($query) => $query->where('status', 'active')])
             ->where('visibility', 'public')->whereNull('skipped_at')->get()
@@ -50,16 +50,17 @@ final class EventSquadSubmissionController extends Controller
             ->groupBy(fn (CompetitionEvent $event): string => $event->series_id !== null
                 ? 'series:'.$event->series_id
                 : 'title:'.Str::of($event->title)->lower()->squish()->toString())
-            ->map(fn ($weeks) => $weeks->sortBy(fn (CompetitionEvent $event): string =>
-                $event->days->min(fn ($day): string => $day->event_date->toDateString()) ?? '9999-12-31'
+            ->map(fn ($weeks) => $weeks->sortBy(fn (CompetitionEvent $event): string => $event->days->min(fn ($day): string => $day->event_date->toDateString()) ?? '9999-12-31'
             )->first());
         $events = $events->filter(fn (CompetitionEvent $event): bool => $event->competition_type !== 'scrim')
-            ->concat($weeklyEvents)->sortBy(fn (CompetitionEvent $event): string =>
-                $event->days->min(fn ($day): string => $day->event_date->toDateString()) ?? '9999-12-31'
+            ->concat($weeklyEvents)->sortBy(fn (CompetitionEvent $event): string => $event->days->min(fn ($day): string => $day->event_date->toDateString()) ?? '9999-12-31'
             )
             ->map(function (CompetitionEvent $event) use ($known, $squad): array {
                 $startDate = $event->days->min(fn ($day): string => $day->event_date->toDateString());
                 $endDate = $event->days->max(fn ($day): string => $day->event_date->toDateString());
+
+                $assigned = $event->squadEntries->firstWhere('squad_id', $squad->id);
+                $permanent = collect($event->series?->default_slot_map ?? [])->firstWhere('squad_id', $squad->id);
 
                 return [
                     'id' => $event->id,
@@ -71,12 +72,11 @@ final class EventSquadSubmissionController extends Controller
                     'end_date' => $endDate,
                     'squad_capacity' => $event->squad_capacity,
                     'squad_count' => $event->squad_count,
-                    'status' => $known->get($event->id)?->status,
+                    'status' => $assigned !== null ? 'selected' : $known->get($event->id)?->status,
                     'submission_id' => $known->get($event->id)?->id,
-                    'slot_number' => $known->get($event->id)?->status === 'selected'
-                        ? $event->squadEntries->firstWhere('squad_id', $squad->id)?->slot_number
-                        : null,
-                    'can_submit' => ! $event->days()->whereHas('matches', fn ($query) => $query->whereNotNull('current_published_revision_id'))->exists(),
+                    'slot_number' => $assigned?->slot_number,
+                    'permanent' => $permanent !== null,
+                    'can_submit' => $assigned === null,
                 ];
             })->values();
 

@@ -72,9 +72,10 @@ final class WeeklyScrimSeriesTest extends TestCase
         $this->assertDatabaseCount('events', 2);
     }
 
-    public function test_weekly_scrims_copy_the_schedule_and_scoring_without_carrying_over_slots_or_results(): void
+    public function test_weekly_scrims_carry_constant_slots_and_schedule_without_copying_results(): void
     {
         [$actor, $event] = $this->scrim();
+        $this->travelTo(now()->setDate(2026, 11, 2)->setTime(10, 0));
         $squad = Squad::factory()->for(Clan::factory())->create(['squad_number' => 1]);
         EventSquad::query()->create(['event_id' => $event->id, 'squad_id' => $squad->id, 'slot_number' => 18, 'status' => 'active']);
         $event->days->first()->matches->first()->update(['map_code' => 'blackout', 'map_label' => 'Blackout']);
@@ -85,7 +86,8 @@ final class WeeklyScrimSeriesTest extends TestCase
         $this->assertSame('2026-11-08', $next->days->last()->event_date->toDateString());
         $this->assertSame('Blackout', $next->days->first()->matches->first()->map_label);
         $this->assertSame($event->days->first()->matches->first()->rules_snapshot, $next->days->first()->matches->first()->rules_snapshot);
-        $this->assertSame(0, $next->squadEntries()->count());
+        $this->assertSame(1, $next->squadEntries()->count());
+        $this->assertSame(18, $next->squadEntries()->first()->slot_number);
         $this->assertSame(0, $next->submissions()->count());
         $this->assertNull($next->days->first()->matches->first()->current_published_revision_id);
         $this->assertSame(18, $event->squadEntries()->first()->slot_number);

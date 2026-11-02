@@ -13,9 +13,9 @@ use Illuminate\Validation\ValidationException;
 
 final class ApplySeriesSlots
 {
-    public function handle(CompetitionSeries $series, CompetitionEvent $week): int
+    public function handle(CompetitionSeries $series, CompetitionEvent $week, bool $replace = false): int
     {
-        return DB::transaction(function () use ($series, $week): int {
+        return DB::transaction(function () use ($series, $week, $replace): int {
             $series = CompetitionSeries::query()->lockForUpdate()->findOrFail($series->id);
             $week = CompetitionEvent::query()->lockForUpdate()->findOrFail($week->id);
             if ($week->series_id !== $series->id || $week->series_week_date === null
@@ -34,9 +34,16 @@ final class ApplySeriesSlots
             if ($slots->pluck('slot')->duplicates()->isNotEmpty() || $slots->pluck('squad_id')->duplicates()->isNotEmpty()) {
                 throw ValidationException::withMessages(['slots' => 'Each permanent slot must belong to one squad.']);
             }
-            $squads = Squad::query()->whereIn('id', $slots->pluck('squad_id'))->where('status', 'active')->get()->keyBy('id');
+            $squads = Squad::query()->whereIn('id', $slots->pluck('squad_id'))->get()->keyBy('id');
             $entries = $week->squadEntries()->lockForUpdate()->get();
             $added = 0;
+            if ($replace) {
+                $week->squadEntries()->update(['status' => 'inactive', 'slot_number' => null]);
+                $entries = $week->squadEntries()->lockForUpdate()->get();
+                foreach ($matches as $match) {
+                    $match->squadEntries()->whereNotIn('squad_id', $slots->pluck('squad_id'))->update(['entry_status' => 'excluded']);
+                }
+            }
             foreach ($slots as $slot) {
                 $number = (int) $slot['slot'];
                 if ($number < 1 || $number > $week->squad_capacity) {
@@ -47,8 +54,8 @@ final class ApplySeriesSlots
                 }
                 $existing = $entries->firstWhere('squad_id', $slot['squad_id']);
                 $occupant = $entries->firstWhere('slot_number', $number);
-                if (($existing !== null && ($existing->slot_number !== $number || $existing->status !== 'active'))
-                    || ($occupant !== null && $occupant->squad_id !== $slot['squad_id'])) {
+                if (! $replace && (($existing !== null && ($existing->slot_number !== $number || $existing->status !== 'active'))
+                    || ($occupant !== null && $occupant->squad_id !== $slot['squad_id']))) {
                     throw ValidationException::withMessages(['slots' => 'This week already has different slot assignments. Review them before applying permanent slots.']);
                 }
                 if ($existing === null) {
@@ -59,7 +66,18 @@ final class ApplySeriesSlots
                     $entries->push($entry);
                     $added++;
                 }
+                if ($replace && $existing !== null) {
+                    $existing->update(['status' => 'active', 'slot_number' => $number]);
+                }
                 foreach ($matches as $match) {
+                    if ($replace) {
+                        MatchSquad::query()->updateOrCreate(
+                            ['match_id' => $match->id, 'squad_id' => $slot['squad_id']],
+                            ['entry_status' => 'expected'],
+                        );
+
+                        continue;
+                    }
                     MatchSquad::query()->firstOrCreate(
                         ['match_id' => $match->id, 'squad_id' => $slot['squad_id']],
                         ['entry_status' => 'expected'],

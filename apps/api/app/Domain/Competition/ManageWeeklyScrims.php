@@ -136,6 +136,13 @@ final class ManageWeeklyScrims
             if ($source === null) {
                 return 0;
             }
+            if ($series->default_slot_map === null) {
+                $slots = $source->squadEntries()->where('status', 'active')->whereNotNull('slot_number')->get()
+                    ->map(fn ($entry): array => ['slot' => $entry->slot_number, 'squad_id' => $entry->squad_id])->all();
+                if ($slots !== []) {
+                    $series->update(['default_slot_map' => $slots, 'default_slots_effective_from' => $next->toDateString()]);
+                }
+            }
             $anchor = $source->days->min('event_date');
             $last = $source->days->max('event_date');
             if ($anchor->diffInDays($last) >= 7) {

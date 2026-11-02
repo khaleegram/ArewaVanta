@@ -416,6 +416,7 @@ export type CaptainSquadSubmissions = {
     submission_id: Id | null;
     slot_number: number | null;
     can_submit: boolean;
+    permanent?: boolean;
   }[];
   submissions: {
     id: Id;
@@ -636,4 +637,21 @@ export type ClanMonthlyReport = {
   timeline: { date: string; summary: MonthlySummary }[];
   competitions: { id: Id; title: string; slug: string; summary: MonthlySummary }[];
   notes: string[];
+};
+
+export type SlotSquad = {
+  id: Id;
+  name: string;
+  number: number | null;
+  clan: { id: Id; name: string; tag: string };
+  players: { id: Id; ign: string }[];
+};
+export type SlotAssignment = { slot: number; squad_id: Id | null; reserved_clan_id: Id | null };
+export type CompetitionSlots = {
+  event: { id: Id; title: string; capacity: number; permanent: boolean; effective_from: string | null; can_edit: boolean };
+  version: string;
+  slots: (SlotAssignment & { squad: SlotSquad | null; reserved_clan: { id: Id; name: string; tag: string } | null })[];
+  squads: SlotSquad[];
+  clans: { id: Id; name: string; tag: string }[];
+  updated_weeks?: Id[];
 };

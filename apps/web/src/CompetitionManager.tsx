@@ -22,6 +22,7 @@ import {
   submissionStatusLabel,
 } from "./presentation";
 import { clearStoredToken, getStoredToken, storeToken, tokenKey } from "./authStorage";
+import SlotManager from "./SlotManager";
 import "./competition-manager.css";
 
 type Load<T> =
@@ -388,7 +389,7 @@ export default function CompetitionManager({
     return () => controller.abort();
   }, []);
   useEffect(() => {
-    if (!session || !canManageCompetitions(session.user)) return;
+    if (!session || !canAccessCompetitions(session.user)) return;
     const controller = new AbortController();
     setEntries({ status: "loading" });
     getEntries(session.token, controller.signal)
@@ -415,7 +416,7 @@ export default function CompetitionManager({
   }
   const canCreate = canManageCompetitions(session?.user);
   return (
-    <Shell session={session} onLogout={logout} overview={view.kind === "workspace" && !!session && canManageCompetitions(session.user)}>
+    <Shell session={session} onLogout={logout} overview={view.kind === "workspace" && !!session && canAccessCompetitions(session.user)}>
       {checking ? (
         <State>Checking your session…</State>
       ) : !session ? (
@@ -423,7 +424,7 @@ export default function CompetitionManager({
           <SignIn onSuccess={setSession} />
           {notice && <State>{notice}</State>}
         </>
-      ) : !canManageCompetitions(session.user) ? (
+      ) : !canAccessCompetitions(session.user) ? (
         <div className="manage-notice" role="status">
           <p className="manage-eyebrow">
             {session.user.roles.some((role) => role.role === "clan_captain")
@@ -842,7 +843,7 @@ function EventSquadsOverview({ token, event }: { token: string; event: ManageEve
               <span className="studio-slot"><small>Slot</small><b>{squad.slot_number ?? "—"}</b></span>
               <strong>{squadIdentity({ name: squad.name, squadNumber: squad.squad_number, clanTag: squad.clan_tag, clanName: squad.clan, clanSquadCount: squad.clan_squad_count })}</strong>
             </li>)}
-          </ul> : <p className="studio-empty">No slots assigned yet. Select squads from the submitted entries.</p>
+          </ul> : <p className="studio-empty">No slots assigned yet. Open Manage to assign squads directly.</p>
         ) : submissions.status === "loading" ? <State>Loading submitted squads…</State>
           : submissions.status === "error" ? <State retry={() => setRetry((value) => value + 1)}>{submissions.message}</State>
           : pending.length ? <ul>
@@ -861,134 +862,7 @@ function EventSquadsOverview({ token, event }: { token: string; event: ManageEve
   );
 }
 function EventEntries({ token, event }: { token: string; event: ManageEvent }) {
-  const [entries, setEntries] = useState<Load<EventSubmissionReview>>({ status: "loading" });
-  const [refresh, setRefresh] = useState(0);
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [slotSelections, setSlotSelections] = useState<Record<string, string>>({});
-  useEffect(() => {
-    const controller = new AbortController();
-    setEntries({ status: "loading" });
-    api.eventSubmissions(token, event.id, controller.signal)
-      .then(({ data }) => setEntries({ status: "ready", data }))
-      .catch((err) => {
-        if (!controller.signal.aborted) setEntries({ status: "error", message: errorMessage(err) });
-      });
-    return () => controller.abort();
-  }, [token, event.id, refresh]);
-  async function decide(submissionId: string, decision: "select" | "not_selected" | "pending", slotNumber?: number) {
-    setBusy(submissionId);
-    setError("");
-    setNotice("");
-    try {
-      const currentStatus = entries.status === "ready"
-        ? entries.data.clans.flatMap((clan) => clan.squads).find((squad) => squad.submission_id === submissionId)?.status
-        : undefined;
-      await api.decideEventSubmission(token, event.id, submissionId, decision, slotNumber);
-      setNotice(decision === "select"
-        ? `${currentStatus === "selected" ? "Game-day slot updated to" : "Assigned game-day slot"} #${slotNumber}.`
-        : decision === "pending" ? "Slot returned to review." : "Submission marked not selected.");
-      setRefresh((value) => value + 1);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy("");
-    }
-  }
-  const content = entries.status === "ready" ? entries.data : null;
-  const full = !!content && content.event.selected_count >= content.event.squad_capacity;
-  function chosenSlot(submissionId: string, assignedSlot: number | null): string {
-    return slotSelections[submissionId] ?? (assignedSlot === null ? "" : String(assignedSlot));
-  }
-  function slotIsReserved(slotNumber: number, exceptSubmissionId: string): boolean {
-    if (!content) return false;
-    return content.clans.some((clan) => clan.squads.some((other) => {
-      if (other.submission_id === exceptSubmissionId || !["pending", "selected"].includes(other.status)) return false;
-      const otherSlot = slotSelections[other.submission_id] ?? (other.slot_number === null ? "" : String(other.slot_number));
-      return Number(otherSlot) === slotNumber;
-    }));
-  }
-  return (
-    <>
-      <div className="manage-form-heading">
-        <a className="manage-back" href={`/manage/competitions/${encodeURIComponent(event.id)}`}>← {event.title}</a>
-        <p className="manage-eyebrow">SQUAD ENTRIES</p>
-        <h1>{event.title}<span>.</span></h1>
-        <p>Choose which submitted squads fill this competition’s slots.</p>
-      </div>
-      {notice && <div className="manage-success" role="status">{notice}</div>}
-      {error && <div className="manage-error" role="alert">{error}</div>}
-      {entries.status === "loading" && <State>Loading clan submissions…</State>}
-      {entries.status === "error" && <State retry={() => setRefresh((value) => value + 1)}>{entries.message}</State>}
-      {content && (
-        <>
-          <section className="manage-entry-capacity" aria-label="Squad slot count">
-            <div><strong>{content.event.selected_count}</strong><span> of {content.event.squad_capacity} slots filled</span></div>
-            <div><strong>{content.event.pending_count}</strong><span> {content.event.pending_count === 1 ? "squad" : "squads"} awaiting review</span></div>
-          </section>
-          {!content.clans.length ? (
-            <State>No clan squads have been submitted for this competition yet.</State>
-          ) : (
-            <div className="manage-entry-clans">
-              {content.clans.map((clan) => (
-                <section className="manage-entry-clan" key={clan.id}>
-                  <header><span>{clan.tag}</span><strong>{clan.name}</strong></header>
-                  {clan.squads.map((squad) => (
-                    <article className="manage-entry-squad" key={squad.submission_id}>
-                      <div className="manage-entry-squad-main">
-                        <div className="manage-entry-title"><strong>{squadIdentity({
-                          name: squad.name,
-                          squadNumber: squad.squad_number,
-                          clanTag: clan.tag,
-                          clanName: clan.name,
-                          clanSquadCount: squad.clan_squad_count,
-                        })}</strong><span className={`manage-entry-status is-${squad.status}`}>{submissionStatusLabel(squad.status, "organizer")}</span>{squad.status === "selected" && squad.slot_number !== null && <span className="manage-entry-slot-label">GAME SLOT #{squad.slot_number}</span>}</div>
-                        <p>{squad.players.length ? squad.players.join(" · ") : "No players listed"}</p>
-                      </div>
-                      <div className="manage-entry-actions">
-                        {(squad.status === "pending" || squad.status === "selected") && (
-                          <>
-                            <label className="manage-slot-picker">
-                              <span className="sr-only">Game-day slot for {squadIdentity({name: squad.name, squadNumber: squad.squad_number, clanTag: clan.tag, clanName: clan.name, clanSquadCount: squad.clan_squad_count})}</span>
-                              <select
-                                aria-label={`Game-day slot for ${squadIdentity({name: squad.name, squadNumber: squad.squad_number, clanTag: clan.tag, clanName: clan.name, clanSquadCount: squad.clan_squad_count})}`}
-                                value={chosenSlot(squad.submission_id, squad.slot_number)}
-                                onChange={(change) => setSlotSelections((current) => ({ ...current, [squad.submission_id]: change.target.value }))}
-                              >
-                                <option value="">Choose slot</option>
-                                {Array.from({ length: content.event.squad_capacity }, (_, index) => index + 1).map((slotNumber) => (
-                                  <option key={slotNumber} value={slotNumber} disabled={slotIsReserved(slotNumber, squad.submission_id)}>
-                                    Slot {slotNumber}{slotIsReserved(slotNumber, squad.submission_id) ? " · assigned" : ""}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <button
-                              className="manage-primary"
-                              type="button"
-                              disabled={busy === squad.submission_id || !chosenSlot(squad.submission_id, squad.slot_number) || (squad.status === "pending" && full) || (squad.status === "selected" && Number(chosenSlot(squad.submission_id, squad.slot_number)) === squad.slot_number)}
-                              onClick={() => decide(squad.submission_id, "select", Number(chosenSlot(squad.submission_id, squad.slot_number)))}
-                            >
-                              {busy === squad.submission_id ? "Saving…" : squad.status === "pending" ? "Assign slot" : "Update slot"}
-                            </button>
-                          </>
-                        )}
-                        {squad.status === "pending" && <button type="button" disabled={busy === squad.submission_id} onClick={() => decide(squad.submission_id, "not_selected")}>Not selected</button>}
-                        {squad.status === "selected" && (
-                          <button type="button" disabled={busy === squad.submission_id} onClick={() => decide(squad.submission_id, "pending")}>Return to review</button>
-                        )}
-                      </div>
-                    </article>
-                  ))}
-                </section>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </>
-  );
+  return <SlotManager token={token} event={event} />;
 }
 function EventForm({
   token,
@@ -1290,7 +1164,7 @@ function EventForm({
                 />
               </label>
             </div>
-            {form.competition_type === "scrim" && <p className="manage-weekly-default-note">Scrims continue every week automatically until you pause or end the series. Squad entries, slots and results are separate for each week.</p>}
+            {form.competition_type === "scrim" && <p className="manage-weekly-default-note">Scrims continue every week automatically until you pause or end the series. Squads keep their slots each week until an organizer changes or releases them. Results stay with their original weekend.</p>}
             <details className="manage-advanced">
               <summary>How scoring works</summary>
               <div>

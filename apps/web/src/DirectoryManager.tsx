@@ -253,9 +253,9 @@ function SquadSubmissions({ token, squadId, onManageRoster }: { token: string; s
     <section ref={sectionRef} className="directory-submissions" aria-label="Weekly scrim and competition squad submissions">
       <div className="directory-submissions-heading">
         <div>
-          <strong>Next weekly scrim</strong>
+          <strong>Your scrim slot</strong>
         </div>
-        <span className="directory-weekly-cadence">Submit any time before results are published</span>
+        <span className="directory-weekly-cadence">Assigned slots carry forward every week</span>
       </div>
       {notice && <p className="directory-submission-notice" role="status">{notice}</p>}
       {error && <p className="directory-submission-error" role="alert">{error}</p>}
@@ -277,21 +277,21 @@ function SquadSubmissions({ token, squadId, onManageRoster }: { token: string; s
                 </div>
                 <div className="directory-weekly-actions">
                   {event.status === "selected" ? (
-                    <span className="directory-submission-status">{event.slot_number ? `Slot ${event.slot_number} confirmed` : "Slot confirmed"}</span>
+                    <span className="directory-submission-status">{event.slot_number ? `${event.permanent ? "Permanent slot" : "Slot"} ${event.slot_number}` : "Slot assigned"}</span>
                   ) : event.status === "pending" ? (
                     <>
                       <span className="directory-submission-status">Waiting for organizer to assign a slot</span>
                       {event.can_submit && event.submission_id && <button type="button" className="directory-secondary-action" disabled={busy === event.id} onClick={() => withdraw(event.submission_id!, event.id)}>{busy === event.id ? "…" : "Withdraw"}</button>}
                     </>
                   ) : canSubmit ? (
-                    <button type="button" className="directory-primary-action" disabled={busy === event.id} onClick={() => submit(event.id)}>{busy === event.id ? "Submitting…" : event.status ? "Submit this week again" : "Submit this squad for the weekend"}</button>
-                  ) : <span className="directory-submission-status">Results have started · entries are closed</span>}
+                    <button type="button" className="directory-primary-action" disabled={busy === event.id} onClick={() => submit(event.id)}>{busy === event.id ? "Sending…" : "Request a slot"}</button>
+                  ) : <span className="directory-submission-status">Contact an organizer for a slot</span>}
                   <button type="button" className="directory-lineup-action" onClick={onManageRoster}>Update Saturday / Sunday players</button>
                 </div>
-                <p className="directory-weekly-help">Submit each squad once per weekend. You can change its players on Saturday or Sunday.</p>
+                <p className="directory-weekly-help">Your squad keeps its assigned slot. Update its players whenever needed.</p>
               </article>
             );
-          }) : <div className="directory-no-weekly"><strong>No upcoming weekly scrim is scheduled yet.</strong><span>Once the next weekend is prepared, it will appear here. Captains can submit any time before results are published.</span></div>}
+          }) : <div className="directory-no-weekly"><strong>No upcoming weekly scrim is scheduled yet.</strong><span>Once the next weekend is prepared, it will appear here. Assigned slots carry forward automatically.</span></div>}
           {otherEvents.length > 0 && (
             <details className="directory-other-competitions">
               <summary>Other competitions <span>{otherEvents.length}</span></summary>

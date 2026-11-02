@@ -18,7 +18,8 @@
     "check:directory": "node scripts/check-directory.mjs",
     "check:results-real": "node scripts/check-results-real.mjs",
     "check:password-reset": "node scripts/check-password-reset.mjs",
-    "check:updates": "node scripts/check-app-updates.mjs"
+    "check:updates": "node scripts/check-app-updates.mjs",
+    "check:slots": "node scripts/check-slots.mjs"
   },
   "dependencies": {
     "@vercel/og": "^1.0.3",
