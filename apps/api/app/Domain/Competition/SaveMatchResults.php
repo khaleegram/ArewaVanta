@@ -26,9 +26,9 @@ final class SaveMatchResults
     ) {}
 
     /** @param list<array<string, mixed>> $rows */
-    public function handle(User $actor, CompetitionMatch $match, array $rows, bool $checkVersion = false, ?int $expectedLockVersion = null, bool $checkScoringVersion = false, ?string $expectedScoringVersionId = null, bool $patchMode = false): MatchResult
+    public function handle(User $actor, CompetitionMatch $match, array $rows, bool $checkVersion = false, ?int $expectedLockVersion = null, bool $checkScoringVersion = false, ?string $expectedScoringVersionId = null, bool $patchMode = false, bool $notify = true): MatchResult
     {
-        return DB::transaction(function () use ($actor, $match, $rows, $checkVersion, $expectedLockVersion, $checkScoringVersion, $expectedScoringVersionId, $patchMode): MatchResult {
+        return DB::transaction(function () use ($actor, $match, $rows, $checkVersion, $expectedLockVersion, $checkScoringVersion, $expectedScoringVersionId, $patchMode, $notify): MatchResult {
             CompetitionEvent::query()->lockForUpdate()->findOrFail($match->day()->value('event_id'));
             $match = CompetitionMatch::query()->with(['day.event', 'squadEntries.squad', 'currentResult.squadResults.playerResults.player'])
                 ->lockForUpdate()->findOrFail($match->id);
@@ -165,12 +165,14 @@ final class SaveMatchResults
                 ->unique()
                 ->values()
                 ->all();
-            $this->notifications->notifyClanCaptains(
-                $clanIds,
-                'Match '.$match->match_index.' results for '.$event->title.' have been updated. Check your squad standings.',
-                '/leaderboard?type=squads&event='.rawurlencode($event->slug),
-                'results-'.$match->id,
-            );
+            if ($notify) {
+                $this->notifications->notifyClanCaptains(
+                    $clanIds,
+                    'Match '.$match->match_index.' results for '.$event->title.' have been updated. Check your squad standings.',
+                    '/leaderboard?type=squads&event='.rawurlencode($event->slug),
+                    'results-'.$match->id,
+                );
+            }
 
             return $revision->load(['squadResults.squad.clan.squads:id,clan_id', 'squadResults.playerResults']);
         });

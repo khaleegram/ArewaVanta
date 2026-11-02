@@ -68,7 +68,8 @@ final class MatchResultSheetController extends Controller
                     'clan_id' => $entry->squad->clan_id,
                     'clan_tag' => $entry->squad->clan->tag,
                     'clan_squad_count' => $entry->squad->clan->squads->count(),
-                    'slot_number' => $eventSlots->get($entry->squad_id) === null ? null : (int) $eventSlots->get($entry->squad_id),
+                    'slot_number' => $entry->source_team_number ?? ($eventSlots->get($entry->squad_id) === null ? null : (int) $eventSlots->get($entry->squad_id)),
+                    'source_team_number' => $entry->source_team_number,
                     'roster_players' => $rosterPlayers,
                     'eligible_players' => $players->values(),
                 ];

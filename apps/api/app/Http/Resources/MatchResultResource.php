@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\MatchResult;
+use App\Models\MatchSquad;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -12,11 +13,14 @@ final class MatchResultResource extends JsonResource
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
+        $sourceTeams = MatchSquad::query()->where('match_id', $this->match_id)->pluck('source_team_number', 'squad_id');
+
         return [
             'saved_at' => $this->published_at,
             'lock_version' => $this->lock_version,
             'results' => $this->whenLoaded('squadResults', fn () => $this->squadResults->map(static fn ($result): array => [
                 'squad_id' => $result->squad_id,
+                'source_team_number' => $sourceTeams->get($result->squad_id),
                 'squad_name' => $result->squad_name_snapshot,
                 'squad_number' => $result->squad?->squad_number,
                 'squad_slug' => $result->squad?->slug,

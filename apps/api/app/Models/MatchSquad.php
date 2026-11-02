@@ -7,10 +7,15 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['match_id', 'squad_id', 'entry_status'])]
+#[Fillable(['match_id', 'squad_id', 'entry_status', 'source_team_number'])]
 class MatchSquad extends Model
 {
     use HasUlids;
+
+    protected function casts(): array
+    {
+        return ['source_team_number' => 'integer'];
+    }
 
     public function match(): BelongsTo
     {

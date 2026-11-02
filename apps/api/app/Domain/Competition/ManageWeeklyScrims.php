@@ -67,6 +67,7 @@ final class ManageWeeklyScrims
             if ($series !== null) {
                 $this->generate($series);
             }
+
             return $event->fresh(['series.events.days', 'season', 'scoringRuleVersion.preset', 'scoringRuleVersion.tiers',
                 'days.matches.squadEntries.squad.clan.squads:id,clan_id', 'squadEntries.squad.clan.squads:id,clan_id']);
         });
@@ -157,6 +158,7 @@ final class ManageWeeklyScrims
                     $match->save();
                 }
             }
+            app(ApplySeriesSlots::class)->handle($series, $week);
             $seriesEventIds = $series->events()->pluck('id');
             DB::table('role_assignments')->where('role', Role::Organizer->value)
                 ->where('scope_type', RoleScope::Event->value)->whereIn('scope_id', $seriesEventIds)

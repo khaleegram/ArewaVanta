@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['timezone', 'next_week_date', 'paused_at', 'ended_at', 'created_by'])]
+#[Fillable(['timezone', 'next_week_date', 'paused_at', 'ended_at', 'created_by', 'default_slot_map', 'default_slots_effective_from'])]
 final class CompetitionSeries extends Model
 {
     use HasFactory, HasUlids;
@@ -17,7 +17,7 @@ final class CompetitionSeries extends Model
 
     protected function casts(): array
     {
-        return ['next_week_date' => 'immutable_date', 'paused_at' => 'immutable_datetime', 'ended_at' => 'immutable_datetime'];
+        return ['next_week_date' => 'immutable_date', 'paused_at' => 'immutable_datetime', 'ended_at' => 'immutable_datetime', 'default_slot_map' => 'array', 'default_slots_effective_from' => 'immutable_date'];
     }
 
     public function events(): HasMany
