@@ -13,6 +13,7 @@ use App\Models\CompetitionMatch;
 use App\Models\CompetitionSeries;
 use App\Models\EventDay;
 use App\Models\EventSquad;
+use App\Models\EventSquadSubmission;
 use App\Models\MatchSquad;
 use App\Models\Player;
 use App\Models\RoleAssignment;
@@ -132,6 +133,7 @@ final class CompetitionSlotsTest extends TestCase
     public function test_old_edit_versions_duplicate_assignments_and_captain_changes_are_rejected(): void
     {
         [$actor, $series, $weeks, $a, $b, $clan] = $this->fixture();
+        $submission = EventSquadSubmission::query()->create(['event_id' => $weeks[1]->id, 'squad_id' => $a->id, 'status' => 'pending', 'submitted_by' => $actor->id, 'submitted_at' => now()]);
         $body = $this->payload($weeks[1]);
         $this->putJson('/api/v1/manage/events/'.$weeks[1]->id.'/squads', ['squad_ids' => []])->assertConflict();
         $duplicate = $body;
@@ -141,6 +143,7 @@ final class CompetitionSlotsTest extends TestCase
         $move['slots'][0]['squad_id'] = null;
         $move['slots'][1]['squad_id'] = $a->id;
         $this->putJson('/api/v1/manage/events/'.$weeks[1]->id.'/slots', $move)->assertOk();
+        $this->assertSame('selected', $submission->fresh()->status);
         $this->putJson('/api/v1/manage/events/'.$weeks[1]->id.'/slots', $body)->assertConflict();
         $captain = User::factory()->create();
         RoleAssignment::factory()->for($captain)->create(['role' => Role::ClanCaptain->value, 'scope_type' => RoleScope::Clan->value, 'scope_id' => $clan->id]);

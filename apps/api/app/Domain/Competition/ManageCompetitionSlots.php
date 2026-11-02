@@ -115,6 +115,7 @@ final class ManageCompetitionSlots
                         $week->update(['squad_capacity' => min(25, (int) collect($book)->max('slot'))]);
                     }
                     $this->apply->handle($series, $week, replace: true);
+                    $this->syncRequests($week, $assigned->values()->all(), $actor);
                     $updatedWeeks[] = $week->id;
                 }
             } else {
@@ -133,6 +134,7 @@ final class ManageCompetitionSlots
                         MatchSquad::query()->updateOrCreate(['match_id' => $match->id, 'squad_id' => $slot['squad_id']], ['entry_status' => 'expected']);
                     }
                 }
+                $this->syncRequests($event, $assigned->values()->all(), $actor);
                 $updatedWeeks[] = $event->id;
             }
             AuditLog::query()->create(['actor_user_id' => $actor->id, 'action' => 'competition_slots_updated', 'entity_type' => $series === null ? 'competition_event' : 'competition_series', 'entity_id' => $series?->id ?? $event->id,
@@ -141,5 +143,14 @@ final class ManageCompetitionSlots
 
             return $this->show($actor, $fresh) + ['updated_weeks' => $updatedWeeks];
         });
+    }
+
+    /** @param list<string> $assigned */
+    private function syncRequests(CompetitionEvent $week, array $assigned, User $actor): void
+    {
+        $week->submissions()->whereIn('squad_id', $assigned)->whereIn('status', ['pending', 'not_selected'])
+            ->update(['status' => 'selected', 'decided_by' => $actor->id, 'decided_at' => now()]);
+        $week->submissions()->whereNotIn('squad_id', $assigned)->where('status', 'selected')
+            ->update(['status' => 'not_selected', 'decided_by' => $actor->id, 'decided_at' => now()]);
     }
 }
