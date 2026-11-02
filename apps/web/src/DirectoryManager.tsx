@@ -137,7 +137,7 @@ function ClanCard({
           <div className="directory-clan-toolbar">
             <div className="directory-clan-views" aria-label={`${clan.name} sections`}>
               {canSubmit ? <button type="button" aria-pressed={panel === "squads"} onClick={() => setPanel("squads")}>Squads & players</button> : <strong className="directory-section-label">Squads & players</strong>}
-              {canSubmit && clan.squads.length > 0 && <button type="button" aria-pressed={panel === "entry"} onClick={() => setPanel("entry")}>Weekend entry</button>}
+              {canSubmit && clan.squads.length > 0 && <button type="button" aria-pressed={panel === "entry"} onClick={() => setPanel("entry")}>Slot &amp; lineup</button>}
             </div>
             <div className="directory-clan-tools">
               <a className="directory-monthly-report" href={`/manage/clans/${encodeURIComponent(clan.id)}/reports`}>Monthly report <Icon name="arrow" /></a>
@@ -161,7 +161,7 @@ function ClanCard({
             </>
           ) : selectedSquad && (
             <div className="directory-clan-entry">
-              <div className="directory-entry-squad"><label htmlFor={`clan-${clan.id}-entry-squad`}>Submit squad</label><select id={`clan-${clan.id}-entry-squad`} value={selectedSquad.id} onChange={(event) => setSelectedSquadId(event.target.value)}>{clan.squads.map((squad) => <option key={squad.id} value={squad.id}>{squad.name}</option>)}</select></div>
+              <div className="directory-entry-squad"><label htmlFor={`clan-${clan.id}-entry-squad`}>Squad</label><select id={`clan-${clan.id}-entry-squad`} value={selectedSquad.id} onChange={(event) => setSelectedSquadId(event.target.value)}>{clan.squads.map((squad) => <option key={squad.id} value={squad.id}>{squad.name}</option>)}</select></div>
               <SquadSubmissions key={selectedSquad.id} token={token} squadId={selectedSquad.id} onManageRoster={() => onRoster(selectedSquad)} />
             </div>
           )}
@@ -219,7 +219,7 @@ function SquadSubmissions({ token, squadId, onManageRoster }: { token: string; s
     setNotice("");
     try {
       await api.submitSquadForEvent(token, squadId, eventId);
-      setNotice("Squad submitted. The organizer can now assign a slot.");
+      setNotice("Slot request sent. An organizer can assign this squad.");
       setRefresh((value) => value + 1);
     } catch (err) {
       setError(message(err));
