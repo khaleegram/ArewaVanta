@@ -80,7 +80,7 @@ export function usePageSeo(page: PageSeo) {
 export const pageMetadata = {
   rules: {
     title: "Arewa CODM Scrim Rules & Banned Items | ArewaVanta",
-    description: "See banned weapons, classes and vehicles for ArewaVanta CODM Battle Royale scrims. Shotguns are allowed.",
+    description: "See the six allowed classes, banned weapons and vehicles, punishments and assigned-slot rules for ArewaVanta CODM scrims. Shotguns are allowed.",
     path: "/rules",
   },
   home: {
