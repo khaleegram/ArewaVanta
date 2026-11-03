@@ -13,6 +13,7 @@ use App\Models\Squad;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 final class ManageCompetitionSlots
@@ -90,13 +91,29 @@ final class ManageCompetitionSlots
             if (count($slots) !== $capacity || collect($slots)->pluck('slot')->sort()->values()->all() !== range(1, $capacity)) {
                 throw ValidationException::withMessages(['slots' => 'Include each lobby slot once.']);
             }
+            foreach ($slots as &$slot) {
+                if (filled($slot['new_clan_id'] ?? null)) {
+                    if (filled($slot['squad_id'] ?? null) || filled($slot['reserved_clan_id'] ?? null)) {
+                        throw ValidationException::withMessages(['slots' => 'Choose one assignment for each slot.']);
+                    }
+                    $clan = Clan::query()->lockForUpdate()->findOrFail($slot['new_clan_id']);
+                    $number = ((int) $clan->squads()->max('squad_number')) + 1;
+                    $id = (string) Str::ulid();
+                    $entry = new Squad(['clan_id' => $clan->id, 'name' => 'Squad '.$number, 'squad_number' => $number,
+                        'slug' => 'squad-'.$number.'-'.strtolower($id), 'status' => 'active', 'captain_user_id' => $actor->id]);
+                    $entry->id = $id;
+                    $entry->save();
+                    $slot['squad_id'] = $id;
+                }
+            }
+            unset($slot);
             $assigned = collect($slots)->pluck('squad_id')->filter();
             if ($assigned->duplicates()->isNotEmpty()) {
-                throw ValidationException::withMessages(['slots' => 'A squad can have one permanent slot. Move or swap its current slot.']);
+                    throw ValidationException::withMessages(['slots' => 'A clan can have one permanent slot. Move or swap its current slot.']);
             }
             foreach ($slots as $slot) {
                 if (filled($slot['squad_id'] ?? null) && filled($slot['reserved_clan_id'] ?? null)) {
-                    throw ValidationException::withMessages(['slots' => 'Assign a squad or reserve a clan slot, one at a time.']);
+                    throw ValidationException::withMessages(['slots' => 'Assign a clan slot or a reservation, one at a time.']);
                 }
             }
             $book = collect($slots)->filter(fn ($slot): bool => filled($slot['squad_id'] ?? null) || filled($slot['reserved_clan_id'] ?? null))

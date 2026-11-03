@@ -51,6 +51,7 @@ final class BuildEventStandings
             $squad = $entry->squad;
             $aggregates[$squad->id] = [
                 'squad' => $squad,
+                'slot_number' => $events->count() === 1 ? $entry->slot_number : null,
                 'total_points' => BigDecimal::zero(),
                 'total_kills' => 0,
                 'matches_played' => 0,
@@ -128,11 +129,14 @@ final class BuildEventStandings
                     'slug' => $aggregate['squad']->slug,
                     'tag' => $aggregate['squad']->tag,
                     'clan' => [
+                        'id' => $aggregate['squad']->clan->id,
                         'name' => $aggregate['squad']->clan->name,
+                        'slug' => $aggregate['squad']->clan->slug,
                         'tag' => $aggregate['squad']->clan->tag,
                         'squad_count' => $aggregate['squad']->clan->squads->count(),
                     ],
                 ],
+                'slot_number' => $aggregate['slot_number'],
                 'matches_played' => $aggregate['matches_played'],
                 'total_kills' => $aggregate['total_kills'],
                 'wins' => $aggregate['wins'],

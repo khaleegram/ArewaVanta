@@ -221,8 +221,17 @@ await page.route("**/api/v1/**", (route) => {
     path === "/api/v1/manage/matches/m1/screenshot-import" &&
     route.request().method() === "POST"
   )
-    return route.fulfill({ json: { data: imported } });
-  return route.fulfill({ status: 404, json: { message: "Not found." } });
+    return route.fulfill({ json: { data: imported } });  if (path === "/api/v1/manage/matches/m1/players")
+    return route.fulfill({
+      json: {
+        data: [
+          { id: "p1", ign: "GrBtness", clan: "Kano Clan" },
+          { id: "p2", ign: "SILKY", clan: "Sokoto Clan" },
+          { id: "p3", ign: "GUEST1", clan: "Sokoto Clan" },
+        ],
+        meta: { has_more: false },
+      },
+    });  return route.fulfill({ status: 404, json: { message: "Not found." } });
 });
 
 await page.goto(
@@ -242,38 +251,47 @@ await page.locator('input[type="file"]').setInputFiles(screenshotFile);
 await page.getByRole("button", { name: "Read screenshots" }).click();
 await page.getByText("TEAM12", { exact: true }).waitFor();
 assert.equal(await page.getByText("NEW PLAYER", { exact: true }).count(), 1);
-assert.equal(await page.getByText("No slot", { exact: true }).count(), 1);
-await page.getByRole("button", { name: "Use guest" }).click();
-await page.getByText("Existing guest selected", { exact: true }).waitFor();
+assert.equal(
+  await page.getByText("Choose this team’s squad", { exact: true }).count(),
+  1,
+);
+await page.getByRole("button", { name: "Use existing guest" }).click();
+await page.getByText("Player confirmed", { exact: true }).waitFor();
+const newPlayerRow = page
+  .locator(".score-import-player-review")
+  .filter({ hasText: "NEW PLAYER" });
+await newPlayerRow
+  .getByRole("button", { name: "Change / find player" })
+  .click();
+await newPlayerRow.getByText("Create new player on save").waitFor();
+await newPlayerRow.getByRole("button", { name: "Create new player on save" }).click();
 await page.getByRole("button", { name: "Add TEAM18 as late entry" }).click();
 assert.equal(await page.getByLabel("Game slot").inputValue(), "18");
 await page
-  .getByRole("button", { name: "Close late squad panel" })
+  .getByRole("button", { name: "Close add slot panel" })
   .click();
 await page.getByLabel("Quick map command").fill("TEAM18 is Slot 6");
 await page.getByRole("button", { name: "Map team" }).click();
-await page.getByText("Mapped", { exact: true }).nth(1).waitFor();
 assert.equal(
   await page.getByLabel("Map TEAM18 to an app slot").inputValue(),
   "s2",
 );
-await page
-  .getByRole("checkbox", { name: /Create 1 new player profile/ })
-  .check();
 await page.screenshot({
   path: "artifacts/import-panel-1280.png",
   fullPage: true,
 });
 page.once("dialog", (dialog) => dialog.accept());
 await page.getByRole("button", { name: "Apply to draft" }).click();
+await page.getByText(/merged into the score draft/).waitFor();
+await page.getByRole("button", { name: "Review score draft" }).click();
 await page
   .locator("#score-s1")
-  .getByLabel("Placement for KC · Kano Clan")
+  .getByLabel("Placement for Kano Clan")
   .waitFor();
 assert.equal(
   await page
     .locator("#score-s1")
-    .getByLabel("Placement for KC · Kano Clan")
+    .getByLabel("Placement for Kano Clan")
     .inputValue(),
   "1",
 );

@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers\Api\V1\Manage;
 
-use App\Domain\Competition\EligibleMatchRoster;
 use App\Domain\Competition\ResultPermissions;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MatchResultResource;
 use App\Models\CompetitionMatch;
+use App\Models\Player;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 final class MatchResultSheetController extends Controller
 {
-    public function __invoke(Request $request, CompetitionMatch $match, ResultPermissions $permissions, EligibleMatchRoster $eligibleRoster): JsonResponse
+    public function __invoke(Request $request, CompetitionMatch $match, ResultPermissions $permissions): JsonResponse
     {
         $match->load([
             'day.event',
@@ -24,7 +24,9 @@ final class MatchResultSheetController extends Controller
         abort_unless($permissions->canManage($request->user(), $event), 403);
 
         $eventSlots = $event->squadEntries()->where('status', 'active')->pluck('slot_number', 'squad_id');
-        $rosters = $eligibleRoster->forMatch($match);
+        $clanPlayers = Player::query()->where('status', 'active')
+            ->whereIn('clan_id', $match->squadEntries->map(fn ($entry) => $entry->squad->clan_id)->unique())
+            ->orderBy('current_ign')->get(['id', 'clan_id', 'current_ign'])->groupBy('clan_id');
         $legacyResult = $match->resultRecords()->whereIn('status', ['draft', 'revision_draft', 'submitted'])
             ->where('revision_number', '>', $match->currentResult?->revision_number ?? 0)
             ->with(['squadResults.squad.clan.squads:id,clan_id', 'squadResults.playerResults'])->reorder()->orderByDesc('revision_number')->first();
@@ -48,12 +50,11 @@ final class MatchResultSheetController extends Controller
                 'map_label' => $match->map_label,
                 'scoring' => $match->rules_snapshot,
             ],
-            'squads' => $match->squadEntries->where('entry_status', 'expected')->sortBy(fn ($entry) => $eventSlots->get($entry->squad_id, 999))->map(static function ($entry) use ($rosters, $editableResult, $eventSlots): array {
-                $players = $rosters->get($entry->squad_id, collect())->map(static fn ($membership): array => [
-                    'id' => $membership->player->id,
-                    'ign' => $membership->player->current_ign,
+            'squads' => $match->squadEntries->where('entry_status', 'expected')->sortBy(fn ($entry) => $eventSlots->get($entry->squad_id, 999))->map(static function ($entry) use ($clanPlayers, $editableResult, $eventSlots): array {
+                $players = $clanPlayers->get($entry->squad->clan_id, collect())->mapWithKeys(static fn ($player): array => [
+                    $player->id => ['id' => $player->id, 'ign' => $player->current_ign],
                 ]);
-                $rosterPlayers = $players->values()->all();
+                $rosterPlayers = [];
                 $previousResult = $editableResult?->squadResults->firstWhere('squad_id', $entry->squad_id);
                 foreach ($previousResult?->playerResults ?? [] as $previousPlayer) {
                     $players->put($previousPlayer->player_id, ['id' => $previousPlayer->player_id, 'ign' => $previousPlayer->ign_snapshot]);

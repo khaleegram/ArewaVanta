@@ -22,7 +22,6 @@ final class SaveMatchResults
         private readonly ScoringEngine $scoring,
         private readonly ResultPermissions $permissions,
         private readonly AdminActivity $notifications,
-        private readonly AssignPlayerSquad $assignSquad,
     ) {}
 
     /** @param list<array<string, mixed>> $rows */
@@ -37,7 +36,7 @@ final class SaveMatchResults
             $entries = $match->squadEntries->where('entry_status', 'expected');
             $input = collect($rows)->keyBy('squad_id');
             if ($input->keys()->diff($entries->pluck('squad_id'))->isNotEmpty()) {
-                throw ValidationException::withMessages(['results' => 'Every result must belong to a squad assigned to this match.']);
+                throw ValidationException::withMessages(['results' => 'Every result must belong to a clan slot assigned to this match.']);
             }
 
             $rules = ScoringRules::fromArray($match->rules_snapshot['rules']);
@@ -118,11 +117,9 @@ final class SaveMatchResults
                         $player = $candidates->first() ?? Player::query()->create([
                             'clan_id' => $entry->squad->clan_id, 'current_ign' => $ign, 'status' => 'active',
                         ]);
-                        // New or unassigned profiles join this squad. Existing rosters are never duplicated by scoring.
-                        $this->assignSquad->handle($player, $entry->squad, onlyIfUnassigned: true);
                     }
                     if (isset($seenPlayers[$player->id])) {
-                        throw ValidationException::withMessages(['results' => $player->current_ign.' is selected twice. Move them to the squad they played for so their kills are counted once.']);
+                        throw ValidationException::withMessages(['results' => $player->current_ign.' is selected twice. Keep them in the one slot they played for so their kills are counted once.']);
                     }
                     $seenPlayers[$player->id] = true;
                     $playerKills = $playerInput['kills'] ?? null;

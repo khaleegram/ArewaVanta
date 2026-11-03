@@ -113,9 +113,19 @@ for (const width of [360, 390, 430, 768, 1440]) {
         },
       });
     if (path === "/api/v1/manage/events" && method === "POST") {
+      if (failure) {
+        failure = false;
+        return route.fulfill({
+          status: 422,
+          json: {
+            message: "Competition could not be saved.",
+            errors: { title: ["Competition error."] },
+          },
+        });
+      }
       creates++;
       assert.equal(data.title, "Weekend test");
-      assert.equal(data.squad_capacity, 20);
+      assert.equal(data.squad_capacity, 25);
       assert.equal(data.scoring_rule_version_id, "score1");
       event = {
         id: "e1",
@@ -216,7 +226,7 @@ for (const width of [360, 390, 430, 768, 1440]) {
     "Isolated",
     "Blackout",
   ]);
-  assert.equal(await page.getByLabel("Maximum participating squads").inputValue(), "20");
+  assert.equal(await page.getByLabel("Maximum participating slots").inputValue(), "25");
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > innerWidth,
   );
@@ -233,19 +243,20 @@ for (const width of [360, 390, 430, 768, 1440]) {
   failure = true;
   await page.getByRole("button", { name: "Save competition" }).click();
   await page
-    .getByText("Schedule could not be saved.", { exact: false })
+    .getByText("Competition could not be saved.", { exact: false })
     .first()
     .waitFor();
-  assert.equal(creates, 1);
+  assert.equal(creates, 0);
   await page.getByRole("button", { name: "Save competition" }).click();
   await page.getByText("Competition saved.").waitFor();
   assert.equal(creates, 1);
+  await page.getByRole("link", { name: "Manage competition" }).click();
   await page.getByRole("button", { name: "Edit competition" }).click();
   await page.getByLabel("Competition name").fill("Weekend updated");
   await page.getByLabel("Competition type").selectOption("league");
   await page.getByLabel("Scoring preset").selectOption("score2");
   await page.locator(".manage-game input").nth(0).fill("Blackout");
-  await page.getByLabel("Maximum participating squads").fill("24");
+  await page.getByLabel("Maximum participating slots").fill("24");
   await page.getByRole("button", { name: "Save competition" }).click();
   await page.getByText("Weekend updated").waitFor();
   assert.equal(event.days[0].matches[0].map_label, "Blackout");

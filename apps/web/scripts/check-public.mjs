@@ -12,7 +12,8 @@ const squad = {
   name: "Kano Squad",
   slug: "kano-squad",
   tag: "KS",
-  clan: { name: "Kano Clan", tag: "KC" },
+  slot_number: 6,
+  clan: { name: "Kano Clan", tag: "KC", slug: "kano" },
 };
 const event = {
   id: "e1",
@@ -117,11 +118,13 @@ const clan = {
   slug: "kano",
   tag: "KC",
   bio: "A community clan",
+  players: [{ id: "p1", current_ign: "ACE" }],
   squads: [{ id: "s1", name: squad.name, slug: squad.slug, tag: "KS" }],
 };
 const profile = {
   id: "p1",
   current_ign: "ACE",
+  clan: { id: "c1", name: "Kano Clan", slug: "kano", tag: "KC" },
   current_squads: [
     {
       id: "s1",
@@ -217,9 +220,9 @@ for (const width of [360, 390, 430, 1440]) {
   await page.getByText("Blackout").waitFor();
   await page.getByRole("button", { name: "Standings", exact: true }).click();
   await page.getByText("19.00").waitFor();
-  await page.getByRole("button", { name: "Squads (1)" }).click();
-  await page.getByRole("link", { name: /Kano Squad/ }).waitFor();
-  await open("/competitions/weekend/games/m1", "Match results");
+  await page.getByRole("button", { name: "Clan slots (1)" }).click();
+  await page.getByRole("link", { name: /Kano Clan/ }).waitFor();
+  await open("/competitions/weekend/games/m1", "Clan slot results");
   await page.getByText("19.00").waitFor();
   await page.getByRole("link", { name: "ACE", exact: true }).waitFor();
   await page.getByText("9.00", { exact: true }).waitFor();
@@ -228,15 +231,12 @@ for (const width of [360, 390, 430, 1440]) {
       path: "artifacts/public-match-390.png",
       fullPage: true,
     });
-  await open("/competitions/weekend/games/m2", "Results have not been saved");
+  await open("/competitions/weekend/games/m2", "Results are not available");
   await open("/clans", "Kano Clan");
   await page.getByRole("link", { name: /Kano Clan/ }).click();
-  await page.getByRole("link", { name: /Kano Squad/ }).click();
-  await page.getByText("Competition history").waitFor();
-  await page.getByText("Rank 1").waitFor();
   await page.getByRole("link", { name: /ACE/ }).click();
   await page.getByText("Played as OLD ACE").waitFor();
-  await page.getByRole("link", { name: "Kano Clan", exact: true }).waitFor();
+  await page.getByRole("link", { name: "← Players", exact: true }).waitFor();
   await open("/players", "ACE");
   await page.getByRole("link", { name: /ACE/ }).click();
   await page.getByText("10.00").waitFor();

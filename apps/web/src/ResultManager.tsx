@@ -8,7 +8,7 @@ import type {
 import { Shell, SignIn, type Session } from "./CompetitionManager";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
-import { formatDate, squadIdentity } from "./presentation";
+import { formatDate } from "./presentation";
 import { matchesPlayerSearch } from "./playerSearch";
 import { ScorePlayers } from "./ScorePlayers";
 import { ScoreLateEntry } from "./ScoreLateEntry";
@@ -590,7 +590,7 @@ function ScoreWorkspace({
       setLateSlot(null);
       setOpen(created.data.squad_id);
       setNotice(
-        "Squad added to this game. Existing saved scores were kept. Map the screenshot team to its new slot if needed.",
+        "Clan slot added to this game. Existing saved scores were kept. Map the screenshot team to its new slot if needed.",
       );
     } finally {
       setAdding(false);
@@ -661,7 +661,7 @@ function ScoreWorkspace({
               setLate((value) => !value);
             }}
           >
-            ＋ Add squad / slot
+            ＋ Add clan / slot
           </button>
         </div>
       </div>
@@ -708,8 +708,8 @@ function ScoreWorkspace({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Find slot, clan or squad"
-          aria-label="Find slot, clan or squad"
+          placeholder="Find slot or clan"
+          aria-label="Find slot or clan"
         />
         <div className="score-filters" aria-label="Filter teams">
           {[
@@ -732,7 +732,7 @@ function ScoreWorkspace({
         Tap a team to edit its players. Kills and points update as you type.
       </p>
       <div className="score-column-head" aria-hidden="true">
-        <span>Slot / squad</span>
+        <span>Slot / clan</span>
         <span>Attendance</span>
         <span>Place</span>
         <span>Kills</span>
@@ -745,13 +745,7 @@ function ScoreWorkspace({
           if (!row) return null;
           const expanded = open === squad.id;
           const changed = dirtyIds.includes(squad.id);
-          const identity = squadIdentity({
-            name: squad.name,
-            squadNumber: squad.squad_number,
-            clanTag: squad.clan_tag,
-            clanName: squad.clan,
-            clanSquadCount: squad.clan_squad_count,
-          });
+          const identity = squad.clan;
           return (
             <section
               id={`score-${squad.id}`}
@@ -916,7 +910,7 @@ function ScoreWorkspace({
         <p className="score-empty">
           {data.squads.length
             ? "No teams match this filter."
-            : "No squads yet. Add a squad and its game slot above."}
+            : "No slots yet. Add a clan and its game slot above."}
         </p>
       )}
       {!importOpen && (

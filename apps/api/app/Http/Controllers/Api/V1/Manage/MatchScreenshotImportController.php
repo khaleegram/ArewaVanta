@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1\Manage;
 
-use App\Domain\Competition\EligibleMatchRoster;
 use App\Domain\Competition\ResultPermissions;
 use App\Domain\Competition\ScreenshotImport\DeepSeekScreenshotReader;
 use App\Domain\Competition\ScreenshotImport\ScreenshotImportFailed;
@@ -49,7 +48,6 @@ final class MatchScreenshotImportController extends Controller
             $request,
             $match,
             $permissions,
-            app(EligibleMatchRoster::class),
         );
         $sheet = $sheetResponse->getData(true)['data'];
         $mapped = $mapper->map($extraction, $sheet);

@@ -99,154 +99,20 @@ function NewPlayerForm({
   );
 }
 
-export function ClanPlayerPool({
-  token,
-  clan,
-  onRosterChange,
-}: {
-  token: string;
-  clan: ManageClan;
-  onRosterChange: () => void;
-}) {
+export function ClanPlayerPool({ token, clan }: { token: string; clan: ManageClan }) {
   const [revision, setRevision] = useState(0);
   const players = useClanPlayers(token, clan.id, revision);
   const [creating, setCreating] = useState(false);
-  const [selectedSquadId, setSelectedSquadId] = useState(
-    clan.squads[0]?.id ?? "",
-  );
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
-  const unassigned =
-    players.status === "ready"
-      ? players.data.filter((player) => player.squads.length === 0)
-      : [];
-  const targetSquad =
-    clan.squads.find((squad) => squad.id === selectedSquadId) ?? clan.squads[0];
-  async function assign(player: ClanPlayer) {
-    if (!targetSquad || busy) return;
-    setBusy(player.id);
-    setError("");
-    setNotice("");
-    try {
-      await api.addRosterPlayer(token, targetSquad.id, player.id);
-      setNotice(`${player.current_ign} added to ${targetSquad.name}.`);
-      setRevision((value) => value + 1);
-      onRosterChange();
-    } catch (error) {
-      setError(errorText(error));
-    } finally {
-      setBusy("");
-    }
-  }
-  return (
-    <section
-      className="clan-players clan-player-pool"
-      aria-label={`${clan.name} unassigned players`}
-    >
-      <div className="clan-players-heading">
-        <div>
-          <h3>
-            Unassigned players{" "}
-            {players.status === "ready" && <span>{unassigned.length}</span>}
-          </h3>
-          <p>In this clan, ready to join a squad.</p>
-        </div>
-        <button
-          type="button"
-          className="clan-player-add"
-          onClick={() => setCreating(true)}
-          disabled={creating || !!busy}
-        >
-          <Icon name="plus" />
-          Add new player
-        </button>
-      </div>
-      {creating && (
-        <NewPlayerForm
-          onCancel={() => setCreating(false)}
-          onCreate={async (ign, uid) => {
-            await api.createClanPlayer(token, clan.id, ign, uid);
-            setCreating(false);
-            setNotice(`${ign} added to this clan.`);
-            setRevision((value) => value + 1);
-          }}
-        />
-      )}
-      {error && (
-        <p className="clan-player-error" role="alert">
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p className="clan-player-notice" role="status">
-          {notice}
-        </p>
-      )}
-      {players.status === "loading" ? (
-        <p className="clan-player-empty">Loading clan players…</p>
-      ) : players.status === "error" ? (
-        <div className="clan-player-empty" role="alert">
-          {players.message}
-          <button
-            type="button"
-            onClick={() => setRevision((value) => value + 1)}
-          >
-            Try again
-          </button>
-        </div>
-      ) : unassigned.length ? (
-        <>
-          {targetSquad ? (
-            <div className="clan-pool-target">
-              <label htmlFor={`clan-${clan.id}-pool-target`}>
-                Add players to
-              </label>
-              <select
-                id={`clan-${clan.id}-pool-target`}
-                value={targetSquad.id}
-                onChange={(event) => setSelectedSquadId(event.target.value)}
-                disabled={!!busy}
-              >
-                {clan.squads.map((squad) => (
-                  <option key={squad.id} value={squad.id}>
-                    {squad.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <p className="clan-player-empty">
-              Create a squad to assign these players.
-            </p>
-          )}
-          <ul className="clan-player-items">
-            {unassigned.map((player) => (
-              <li key={player.id}>
-                <strong>{player.current_ign}</strong>
-                {targetSquad && (
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => assign(player)}
-                    aria-label={`Add ${player.current_ign} to ${targetSquad.name}`}
-                  >
-                    {busy === player.id ? "Adding…" : "Add to squad"}
-                    <Icon name="plus" />
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : (
-        <p className="clan-player-empty">
-          No unassigned players. New players added here will appear in this
-          list.
-        </p>
-      )}
-    </section>
-  );
+  const visible = players.status === "ready" ? players.data.filter((player) => matchesPlayerSearch(player.current_ign, query)) : [];
+  return <section className="clan-players clan-player-pool" aria-label={`${clan.name} players`}>
+    <div className="clan-players-heading"><div><h3>Clan players {players.status === "ready" && <span>{players.data.length}</span>}</h3><p>Players can play in any of this clan’s slots.</p></div><button type="button" className="clan-player-add" onClick={() => setCreating(true)} disabled={creating}><Icon name="plus" />Add new player</button></div>
+    {creating && <NewPlayerForm onCancel={() => setCreating(false)} onCreate={async (ign, uid) => { await api.createClanPlayer(token, clan.id, ign, uid); setCreating(false); setNotice(`${ign} added to this clan.`); setRevision((value) => value + 1); }} />}
+    {notice && <p className="clan-player-notice" role="status">{notice}</p>}
+    <label className="clan-player-search"><span className="sr-only">Search clan players</span><input type="search" placeholder="Search player names" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+    {players.status === "loading" ? <p className="clan-player-empty">Loading clan players…</p> : players.status === "error" ? <div className="clan-player-empty" role="alert">{players.message}<button type="button" onClick={() => setRevision((value) => value + 1)}>Try again</button></div> : visible.length ? <ul className="clan-player-items">{visible.map((player) => <li key={player.id}><strong>{player.current_ign}</strong></li>)}</ul> : <p className="clan-player-empty">{query ? "No matching clan players." : "No players added yet."}</p>}
+  </section>;
 }
 
 export function ClanRoster({

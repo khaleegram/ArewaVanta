@@ -72,13 +72,13 @@ export function ScoreLateEntry({
     <section className="score-late-entry" aria-labelledby="late-entry-title">
       <header>
         <div>
-          <h2 id="late-entry-title">Add a late squad</h2>
+          <h2 id="late-entry-title">Add a clan slot</h2>
           <p>Add to this game without changing its saved results.</p>
         </div>
         <button
           type="button"
           disabled={busy}
-          aria-label="Close late squad panel"
+          aria-label="Close add slot panel"
           onClick={onClose}
         >
           ×
@@ -113,7 +113,7 @@ export function ScoreLateEntry({
             </select>
           </label>
           <label>
-            Squad
+            Slot entry
             <select
               disabled={!clan}
               value={squadId}
@@ -126,16 +126,16 @@ export function ScoreLateEntry({
                 if (entry?.slot_number) setSlot(String(entry.slot_number));
               }}
             >
-              <option value="">Choose squad</option>
-              {clan?.squads.map((s) => (
+              <option value="">Choose an existing slot or add a new one</option>
+              {clan?.squads.filter((s) => (sheet.event_slots ?? []).some((entry) => entry.squad_id === s.id && entry.slot_number !== null)).map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name}
+                  Slot {(sheet.event_slots ?? []).find((entry) => entry.squad_id === s.id)?.slot_number}
                   {sheet.squads.some((entry) => entry.id === s.id)
                     ? " · Already in game"
                     : ""}
                 </option>
               ))}
-              <option value="new">＋ Create next squad</option>
+              <option value="new">＋ Add a new slot</option>
             </select>
           </label>
           <label>
@@ -174,7 +174,7 @@ export function ScoreLateEntry({
                 setError(
                   e instanceof ApiError
                     ? Object.values(e.errors).flat().join(" ") || e.message
-                    : "Could not add the squad. Try again.",
+                    : "Could not add the slot. Try again.",
                 );
               }
             }}

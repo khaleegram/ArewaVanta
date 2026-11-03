@@ -8,11 +8,9 @@ use App\Models\Clan;
 use App\Models\CompetitionEvent;
 use App\Models\EventDay;
 use App\Models\EventSquad;
-use App\Models\Player;
 use App\Models\RoleAssignment;
 use App\Models\ScoringRuleVersion;
 use App\Models\Squad;
-use App\Models\SquadMembership;
 use App\Models\User;
 use Database\Seeders\ArewaVantaFoundationSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -35,50 +33,42 @@ final class EventCheckInReportTest extends TestCase
         EventDay::query()->create(['event_id' => $event->id, 'event_date' => '2026-11-07', 'label' => 'Saturday', 'sort_order' => 1]);
         EventDay::query()->create(['event_id' => $event->id, 'event_date' => '2026-11-08', 'label' => 'Sunday', 'sort_order' => 2]);
         $squads = [];
-        $players = [];
+        $clans = [];
         foreach ([8, 2] as $slot) {
-            $clan = Clan::factory()->create();
+            $clan = Clan::factory()->create(['name' => 'Clan '.$slot]);
             $squad = Squad::factory()->for($clan)->create();
-            $player = Player::factory()->create(['clan_id' => $clan->id, 'current_ign' => 'Tagged Player '.$slot, 'normalized_uid' => 'PRIVATE-'.$slot]);
-            SquadMembership::query()->create(['squad_id' => $squad->id, 'player_id' => $player->id, 'joined_at' => now()]);
             EventSquad::query()->create(['event_id' => $event->id, 'squad_id' => $squad->id, 'status' => 'active', 'slot_number' => $slot]);
             $squads[] = $squad;
-            $players[] = $player;
+            $clans[] = $clan;
         }
 
-        return [$organizer, $event, $squads, $players];
+        return [$organizer, $event, $squads, $clans];
     }
 
-    public function test_report_lists_assigned_slots_in_order_with_current_players_and_no_private_fields(): void
+    public function test_report_lists_assigned_clan_slots_in_order_without_private_fields(): void
     {
-        [$organizer, $event, $squads, $players] = $this->fixture();
+        [$organizer, $event] = $this->fixture();
         $unselected = Squad::factory()->create();
         EventSquad::query()->create(['event_id' => $event->id, 'squad_id' => $unselected->id, 'status' => 'removed', 'slot_number' => 3]);
         $response = $this->actingAs($organizer, 'sanctum')->getJson("/api/v1/manage/events/{$event->id}/check-in");
         $response->assertOk()->assertJsonPath('data.event.id', $event->id)->assertJsonCount(2, 'data.event.days')
             ->assertJsonCount(2, 'data.slots')->assertJsonPath('data.slots.0.slot_number', 2)->assertJsonPath('data.slots.1.slot_number', 8)
-            ->assertJsonPath('data.slots.1.players.0.ign', 'Tagged Player 8')->assertJsonMissingPath('data.slots.0.players.0.uid');
+            ->assertJsonPath('data.slots.1.clan.name', 'Clan 8')->assertJsonMissingPath('data.slots.0.players');
         $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
-        $this->assertStringNotContainsString('PRIVATE-', $response->getContent());
         $this->assertStringNotContainsString($organizer->email, $response->getContent());
     }
 
-    public function test_report_reloads_current_lineups_and_excludes_removed_inactive_and_foreign_players(): void
+    public function test_report_uses_current_clan_names_and_excludes_inactive_slots(): void
     {
-        [$organizer, $event, $squads, $players] = $this->fixture();
-        $squad = $squads[0];
+        [$organizer, $event, $squads, $clans] = $this->fixture();
         $this->actingAs($organizer, 'sanctum')->getJson("/api/v1/manage/events/{$event->id}/check-in")
-            ->assertOk()->assertJsonPath('data.slots.1.players.0.ign', 'Tagged Player 8');
-        $players[0]->update(['current_ign' => 'Renamed Player']);
-        $this->getJson("/api/v1/manage/events/{$event->id}/check-in")->assertOk()->assertJsonPath('data.slots.1.players.0.ign', 'Renamed Player');
-        SquadMembership::query()->where('squad_id', $squad->id)->where('player_id', $players[0]->id)->update(['left_at' => now()]);
-        $newPlayer = Player::factory()->create(['clan_id' => $squad->clan_id, 'current_ign' => 'Replacement']);
-        $inactive = Player::factory()->create(['clan_id' => $squad->clan_id, 'status' => 'inactive']);
-        foreach ([$newPlayer, $inactive, $players[1]] as $player) {
-            SquadMembership::query()->create(['squad_id' => $squad->id, 'player_id' => $player->id, 'joined_at' => now()]);
-        }
+            ->assertOk()->assertJsonPath('data.slots.1.clan.name', 'Clan 8');
+        $clans[0]->update(['name' => 'Renamed Clan']);
         $this->getJson("/api/v1/manage/events/{$event->id}/check-in")->assertOk()
-            ->assertJsonCount(1, 'data.slots.1.players')->assertJsonPath('data.slots.1.players.0.ign', 'Replacement');
+            ->assertJsonPath('data.slots.1.clan.name', 'Renamed Clan');
+        EventSquad::query()->where('event_id', $event->id)->where('slot_number', 8)->update(['status' => 'inactive']);
+        $this->getJson("/api/v1/manage/events/{$event->id}/check-in")->assertOk()
+            ->assertJsonCount(1, 'data.slots')->assertJsonPath('data.slots.0.slot_number', 2);
     }
 
     public function test_report_is_restricted_to_organizers_with_competition_access(): void

@@ -4,7 +4,6 @@ import type {
   ManageEvent,
   RecurrenceAction,
   ManageEventSummary,
-  EventSubmissionReview,
   ScheduleInput,
   ScoringPreset,
   ManagePerson,
@@ -18,7 +17,6 @@ import {
   formatDateRange,
   gamesWithResults,
   scoringLabel,
-  squadIdentity,
   submissionStatusLabel,
 } from "./presentation";
 import { clearStoredToken, getStoredToken, storeToken, tokenKey } from "./authStorage";
@@ -434,7 +432,7 @@ export default function CompetitionManager({
           <strong>Competition management is for ArewaVanta organizers.</strong>
           <p>
             {session.user.roles.some((role) => role.role === "clan_captain")
-              ? "Your account manages your clan and its squads."
+              ? "Your account manages your clan and its players."
               : "This account does not have permission to manage competitions."}
           </p>
           {session.user.roles.some((role) => role.role === "clan_captain") && (
@@ -494,7 +492,7 @@ export default function CompetitionManager({
               <h1>
                 Competitions<span>.</span>
               </h1>
-              <p>Dates, squads and results in one place.</p>
+              <p>Dates, clan slots and results in one place.</p>
             </div>
             {canCreate && (
               <button
@@ -564,12 +562,12 @@ export default function CompetitionManager({
                       </span>
                       <span>
                         <strong>{summary.squad_count}</strong> of{" "}
-                        {summary.squad_capacity} squad slots filled
+                        {summary.squad_capacity} slots filled
                       </span>
                       <span>
                         {summary.pending_submission_count
-                          ? `${countLabel(summary.pending_submission_count, "squad")} awaiting review`
-                          : "No squads awaiting review"}
+                          ? `${countLabel(summary.pending_submission_count, "request")} awaiting review`
+                          : "No requests awaiting review"}
                       </span>
                       {detail && (
                         <span>
@@ -642,10 +640,10 @@ function EventWorkspace({
         ? <ScrimRecurrenceControls token={token} event={event} onUpdated={setEvent} />
         : <p className="studio-date"><Icon name="calendar" />{formatDateRange(firstDate, lastDate)}</p>}
       {canInviteOrganizers && <EventOrganizerAccess token={token} event={event} canAssignExisting={user.roles.some((role) => role.role === "platform_admin")} />}
-      {event.skipped_at && <div className="studio-week-off" role="status"><strong>No games this week</strong><p>{event.skip_reason || "Squad entries and result entry are on hold for this week."}</p></div>}
+      {event.skipped_at && <div className="studio-week-off" role="status"><strong>No games this week</strong><p>{event.skip_reason || "Slot and result entry are on hold for this week."}</p></div>}
       <div className="studio-overview-bar">
       <section className="studio-summary" aria-label="Selected weekend summary">
-        <div><strong>{event.squads?.length ?? 0}<span> / {event.squad_capacity}</span></strong><span>Squad slots</span></div>
+        <div><strong>{event.squads?.length ?? 0}<span> / {event.squad_capacity}</span></strong><span>Clan slots</span></div>
         <div><strong>{games.length}</strong><span>Games</span></div>
         <div><strong>{completedGames}<span> / {games.length}</span></strong><span>Results saved</span></div>
       </section>
@@ -720,7 +718,7 @@ function EventOrganizerAccess({ token, event, canAssignExisting }: { token: stri
   return <details className="studio-organizer-access">
     <summary>Competition organizers <span>Invite others to help manage this competition</span><Icon name="chevron" /></summary>
     <div className="studio-organizer-access-body">
-      <p>Invite by email. Each organizer gets the same access to edit this competition, manage squad slots, enter results and control its weekly schedule.</p>
+      <p>Invite by email. Each organizer gets the same access to edit this competition, manage clan slots, enter results and control its weekly schedule.</p>
       <form onSubmit={(e) => void invite(e)}>
         <label htmlFor="competition-organizer-invite-email">Organizer’s email</label>
         <div><input id="competition-organizer-invite-email" required type="email" autoComplete="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="name@example.com" /><button type="submit" disabled={inviteBusy}>{inviteBusy ? "Sending…" : "Send invite"}</button></div>
@@ -793,7 +791,7 @@ function ScrimRecurrenceControls({ token, event, onUpdated }: { token: string; e
         <span className={`studio-series-state is-${recurring.state}`}><strong><i />{recurring.state === "active" ? "Every week" : recurring.state === "paused" ? "Paused" : "Ended"}</strong><small>{recurring.state === "ended" ? "Results retained" : recurring.state === "active" ? "Prepared Mondays" : "No end date"}</small></span>
       </div>
       {recurring.state !== "ended" && <details className="manage-workspace-series-settings"><summary>Manage weekly schedule <Icon name="chevron" /></summary><div>
-        <p>Upcoming weekends are prepared every Monday. Each week has its own squad submissions, slots and results.</p>
+        <p>Upcoming weekends are prepared every Monday. Clan slots carry forward, and each week has its own results.</p>
         <label>Reason <span>Optional, visible to players</span><input maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Taking a break this weekend" /></label>
         <div className="manage-workspace-series-actions">
           {recurring.state === "active" && !hasResults && <button type="button" disabled={busy} onClick={() => change(event.skipped_at ? "restore" : "skip")}>{event.skipped_at ? "Play this week" : "Skip this week"}</button>}
@@ -808,58 +806,14 @@ function ScrimRecurrenceControls({ token, event, onUpdated }: { token: string; e
     {error && <p className="manage-workspace-series-error" role="alert">{error} <button type="button" disabled={busy} onClick={() => setError("")}>Dismiss</button></p>}
   </section>;
 }
-function EventSquadsOverview({ token, event }: { token: string; event: ManageEvent }) {
-  const [submissions, setSubmissions] = useState<Load<EventSubmissionReview>>({ status: "loading" });
-  const [retry, setRetry] = useState(0);
-  const [activeList, setActiveList] = useState<"assigned" | "waiting">("assigned");
-  useEffect(() => {
-    const controller = new AbortController();
-    setSubmissions({ status: "loading" });
-    api.eventSubmissions(token, event.id, controller.signal)
-      .then(({ data }) => setSubmissions({ status: "ready", data }))
-      .catch((error) => {
-        if (!controller.signal.aborted) setSubmissions({ status: "error", message: errorMessage(error) });
-      });
-    return () => controller.abort();
-  }, [token, event.id, retry]);
-  const pending = submissions.status === "ready"
-    ? submissions.data.clans.flatMap((clan) => clan.squads
-      .filter((squad) => squad.status === "pending")
-      .map((squad) => ({ clan, squad })))
-    : [];
+function EventSquadsOverview({ event }: { token: string; event: ManageEvent }) {
   const assigned = event.squads ?? [];
   const entriesUrl = `/manage/competitions/${encodeURIComponent(event.id)}/entries`;
-  return (
-    <section className="studio-card studio-squads" aria-labelledby="competition-squads-heading">
-      <header className="studio-card-head"><div><span className="studio-section-icon" aria-hidden="true"><Icon name="trophy" /></span><h2 id="competition-squads-heading">Squads &amp; slots</h2></div><a href={entriesUrl}>Manage <Icon name="arrow" /></a></header>
-      <div className="studio-squad-tabs" aria-label="Squad lists">
-        <button type="button" aria-pressed={activeList === "assigned"} onClick={() => setActiveList("assigned")}>Assigned <span>{assigned.length}</span></button>
-        <button type="button" aria-pressed={activeList === "waiting"} onClick={() => setActiveList("waiting")}>Waiting <span>{submissions.status === "ready" ? pending.length : "—"}</span></button>
-      </div>
-      <div className="studio-lineup">
-        {activeList === "assigned" ? (
-          assigned.length ? <ul>
-            {assigned.map((squad) => <li key={squad.id}>
-              <span className="studio-slot"><small>Slot</small><b>{squad.slot_number ?? "—"}</b></span>
-              <strong>{squadIdentity({ name: squad.name, squadNumber: squad.squad_number, clanTag: squad.clan_tag, clanName: squad.clan, clanSquadCount: squad.clan_squad_count })}</strong>
-            </li>)}
-          </ul> : <p className="studio-empty">No slots assigned yet. Open Manage to assign squads directly.</p>
-        ) : submissions.status === "loading" ? <State>Loading submitted squads…</State>
-          : submissions.status === "error" ? <State retry={() => setRetry((value) => value + 1)}>{submissions.message}</State>
-          : pending.length ? <ul>
-            {pending.slice(0, 6).map(({ clan, squad }) => <li key={squad.submission_id}>
-              <span className="studio-clan-mark" aria-hidden="true">{clan.tag || clan.name.slice(0, 2)}</span>
-              <span><strong>{squadIdentity({ name: squad.name, squadNumber: squad.squad_number, clanTag: clan.tag, clanName: clan.name, clanSquadCount: squad.clan_squad_count })}</strong><small>{squad.players.length ? squad.players.join(", ") : "No players listed"}</small></span>
-            </li>)}
-            {pending.length > 6 && <li><a href={entriesUrl}>View {pending.length - 6} more submitted squads <Icon name="arrow" /></a></li>}
-          </ul> : <p className="studio-empty">No squads waiting for a slot.</p>}
-      </div>
-      <div className="studio-capacity">
-        <div className="studio-capacity-note"><span><strong>{Math.max(0, event.squad_capacity - assigned.length)}</strong> slots available</span><span>{assigned.length} / {event.squad_capacity} filled</span></div>
-        <progress aria-label="Assigned competition slots" value={assigned.length} max={Math.max(1, event.squad_capacity)} />
-      </div>
-    </section>
-  );
+  return <section className="studio-card studio-squads" aria-labelledby="competition-slots-heading">
+    <header className="studio-card-head"><div><span className="studio-section-icon" aria-hidden="true"><Icon name="trophy" /></span><h2 id="competition-slots-heading">Clan slots</h2></div><a href={entriesUrl}>Manage <Icon name="arrow" /></a></header>
+    <div className="studio-lineup">{assigned.length ? <ul>{assigned.map((entry) => <li key={entry.id}><span className="studio-slot"><small>Slot</small><b>{entry.slot_number ?? "—"}</b></span><strong>{entry.clan}</strong></li>)}</ul> : <p className="studio-empty">No slots assigned yet. Open Manage to assign a clan.</p>}</div>
+    <div className="studio-capacity"><div className="studio-capacity-note"><span><strong>{Math.max(0, event.squad_capacity - assigned.length)}</strong> slots available</span><span>{assigned.length} / {event.squad_capacity} filled</span></div><progress aria-label="Assigned competition slots" value={assigned.length} max={Math.max(1, event.squad_capacity)} /></div>
+  </section>;
 }
 function EventEntries({ token, event }: { token: string; event: ManageEvent }) {
   return <SlotManager token={token} event={event} />;
@@ -1076,7 +1030,7 @@ function EventForm({
               : "Create competition"}
           <span>.</span>
         </h1>
-        <p>Set the competition. Clan captains submit their squads next.</p>
+        <p>Set the competition, then assign slots to clans.</p>
       </div>
       {options.status === "loading" && (
         <State>Loading scoring options…</State>
@@ -1164,7 +1118,7 @@ function EventForm({
                 />
               </label>
             </div>
-            {form.competition_type === "scrim" && <p className="manage-weekly-default-note">Scrims continue every week automatically until you pause or end the series. Squads keep their slots each week until an organizer changes or releases them. Results stay with their original weekend.</p>}
+            {form.competition_type === "scrim" && <p className="manage-weekly-default-note">Scrims continue every week automatically until you pause or end the series. Clans keep their slots each week until an organizer changes or releases them. Results stay with their original weekend.</p>}
             <details className="manage-advanced">
               <summary>How scoring works</summary>
               <div>
@@ -1324,13 +1278,13 @@ function EventForm({
             <div className="manage-panel-heading">
               <div>
                 <span>03</span>
-                <h2>Squad slots</h2>
+                <h2>Clan slots</h2>
               </div>
-              <p>Captains submit each clan squad. You assign the available slots.</p>
+              <p>Assign each slot to a clan. Captains manage a shared clan player pool.</p>
             </div>
             <div className="manage-capacity-setting">
               <label className="manage-field">
-                Maximum participating squads
+                Maximum participating slots
                 <input
                   type="number"
                   min={1}
@@ -1339,7 +1293,7 @@ function EventForm({
                   value={form.squadCapacity}
                   onChange={(event) => update("squadCapacity", Number(event.target.value))}
                 />
-                <span>Standard CODM BR supports 100 players: 25 four-player squads. Set fewer slots when needed.</span>
+                <span>Standard CODM BR supports 100 players: 25 four-player slots. Set fewer slots when needed.</span>
               </label>
               <div><strong>{form.squadCapacity}</strong><span> competition slots</span></div>
             </div>
@@ -1355,7 +1309,7 @@ function EventForm({
                   form.days.reduce((n, d) => n + d.games.length, 0),
                   "game",
                 )}{" "}
-                · {form.squadCapacity} squad slots
+                · {form.squadCapacity} clan slots
               </span>
             </div>
             <div>

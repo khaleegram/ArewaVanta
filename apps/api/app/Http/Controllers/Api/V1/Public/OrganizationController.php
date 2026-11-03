@@ -15,7 +15,7 @@ final class OrganizationController extends Controller
     {
         $filters = $request->validate(['search' => ['sometimes', 'nullable', 'string', 'max:100']]);
         $search = Str::lower($filters['search'] ?? '');
-        $clans = Clan::query()->with('squads')
+        $clans = Clan::query()->with(['squads', 'players' => fn ($query) => $query->where('status', 'active')->orderBy('current_ign')])
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->whereRaw('LOWER(name) LIKE ?', ['%'.$search.'%'])->orWhereRaw('LOWER(tag) LIKE ?', ['%'.$search.'%'])))
             ->orderBy('name')->orderBy('id')->paginate(20);
@@ -28,7 +28,7 @@ final class OrganizationController extends Controller
 
     public function clan(string $clan): JsonResponse
     {
-        $model = Clan::query()->with('squads')->where('slug', $clan)->firstOrFail();
+        $model = Clan::query()->with(['squads', 'players' => fn ($query) => $query->where('status', 'active')->orderBy('current_ign')])->where('slug', $clan)->firstOrFail();
 
         return response()->json(['data' => $this->clanData($model)]);
     }
@@ -54,6 +54,9 @@ final class OrganizationController extends Controller
         return [
             'id' => $clan->id, 'name' => $clan->name, 'slug' => $clan->slug, 'tag' => $clan->tag, 'bio' => $clan->bio,
             'squad_count' => $clan->squads->count(),
+            'players' => $clan->players->map(static fn ($player): array => [
+                'id' => $player->id, 'current_ign' => $player->current_ign,
+            ])->values(),
             'squads' => $clan->squads->map(static fn (Squad $squad): array => [
                 'id' => $squad->id, 'name' => $squad->name, 'squad_number' => $squad->squad_number,
                 'slug' => $squad->slug, 'tag' => $squad->tag,

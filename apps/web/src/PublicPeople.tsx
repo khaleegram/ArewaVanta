@@ -74,7 +74,7 @@ export function ClanListing() {
     <Shell>
       <div className="public-clans-index">
         <header className="public-clans-heading">
-          <div><p className="public-kicker">AREWA CODM COMMUNITY</p><h1>Clans<span>.</span></h1><p>Find a clan and see the squads representing it.</p></div>
+          <div><p className="public-kicker">AREWA CODM COMMUNITY</p><h1>Clans<span>.</span></h1><p>Find a clan and see its players and competition history.</p></div>
           {clans.status === "ready" && <span className="public-clans-count">{clans.data.meta.total} registered</span>}
         </header>
         <DirectorySearch label="Search clans" onSearch={(value) => { setPage(1); setSearch(value); }} />
@@ -83,7 +83,7 @@ export function ClanListing() {
           {clans.status === "ready" && clans.data.data.map((clan) => (
             <a key={clan.id} href={clanUrl(clan.slug)} className="public-clan-index-row">
               <span className="public-clan-index-tag">{clan.tag || "CLAN"}</span>
-              <span className="public-clan-index-copy"><strong>{clan.name}</strong><small>{clan.squads.length} {clan.squads.length === 1 ? "squad" : "squads"}</small></span>
+              <span className="public-clan-index-copy"><strong>{clan.name}</strong><small>{clan.players?.length ?? 0} {(clan.players?.length ?? 0) === 1 ? "player" : "players"}</small></span>
               <span className="public-clan-index-open">View <Icon name="arrow" /></span>
             </a>
           ))}
@@ -100,10 +100,10 @@ export function ClanPage({ slug }: { slug: string }) {
   );
   const clanName = clan.status === "ready" ? clan.data.name : "Arewa CODM Clan";
   const clanDescription = clan.status === "ready"
-    ? `${clan.data.name}${clan.data.tag ? ` (${clan.data.tag})` : ""} is an Arewa CODM clan in Nigeria. View its ${clan.data.squads.length} squads and their players on ArewaVanta.`
-    : "View an Arewa CODM clan’s squads, players and competition history in Nigeria.";
+    ? `${clan.data.name}${clan.data.tag ? ` (${clan.data.tag})` : ""} is an Arewa CODM clan in Nigeria. View its ${clan.data.players?.length ?? 0} players and competition history on ArewaVanta.`
+    : "View an Arewa CODM clan’s players and competition history in Nigeria.";
   usePageSeo({
-    title: `${clanName} — Arewa CODM Clan & Squads | ArewaVanta`,
+    title: `${clanName} — Arewa CODM Clan & Players | ArewaVanta`,
     description: clanDescription,
     path: clan.status === "ready" ? clanUrl(clan.data.slug) : `/clans/${encodeURIComponent(slug)}`,
     schema: clan.status === "ready" ? {
@@ -114,7 +114,7 @@ export function ClanPage({ slug }: { slug: string }) {
       description: clan.data.bio || clanDescription,
       sport: "Call of Duty: Mobile Battle Royale",
       url: `${SITE_ORIGIN}${clanUrl(clan.data.slug)}`,
-      member: clan.data.squads.map((squad) => ({ "@type": "SportsTeam", name: squad.name, url: `${SITE_ORIGIN}${squadUrl(squad.slug)}` })),
+      member: clan.data.players?.map((player) => ({ "@type": "Person", name: player.current_ign, url: `${SITE_ORIGIN}${playerUrl(player.id)}` })),
     } : undefined,
   });
   return (
@@ -127,23 +127,23 @@ export function ClanPage({ slug }: { slug: string }) {
           <header className="public-clan-hero">
             <span className="public-clan-hero-tag">{clan.data.tag || "CLAN"}</span>
             <div><p className="public-kicker">AREWA CLAN</p><h1>{clan.data.name}<span>.</span></h1>{clan.data.bio && <p>{clan.data.bio}</p>}</div>
-            <span className="public-clan-hero-count">{clan.data.squads.length}<small>{clan.data.squads.length === 1 ? "SQUAD" : "SQUADS"}</small></span>
+            <span className="public-clan-hero-count">{clan.data.players?.length ?? 0}<small>{(clan.data.players?.length ?? 0) === 1 ? "PLAYER" : "PLAYERS"}</small></span>
           </header>
           <section className="public-clan-squads">
-            <div className="public-clan-section-head"><div><p className="public-kicker">THE LINEUP</p><h2>Clan squads<span>.</span></h2></div><span>{clan.data.squads.length}</span></div>
+            <div className="public-clan-section-head"><div><p className="public-kicker">THE ROSTER</p><h2>Clan players<span>.</span></h2></div><span>{clan.data.players?.length ?? 0}</span></div>
             <div className="public-clan-squad-list">
-              {clan.data.squads.length ? (
+              {clan.data.players?.length ? (
               <>
-              {clan.data.squads.map((squad) => (
-                <a key={squad.id} href={squadUrl(squad.slug)} className="public-clan-squad-row">
-                  <span className="public-clan-squad-no">{squad.squad_number == null ? "—" : String(squad.squad_number).padStart(2, "0")}</span>
-                  <span><strong>{squadIdentity({ name: squad.name, squadNumber: squad.squad_number, clanTag: clan.data.tag, clanName: clan.data.name, clanSquadCount: clan.data.squad_count ?? clan.data.squads.length })}</strong><small>{clan.data.tag} · {clan.data.name}</small></span>
+              {clan.data.players.map((player) => (
+                <a key={player.id} href={playerUrl(player.id)} className="public-clan-squad-row">
+                  <span className="public-clan-squad-no">{player.current_ign.slice(0, 2).toUpperCase()}</span>
+                  <span><strong>{player.current_ign}</strong><small>{clan.data.tag} · {clan.data.name}</small></span>
                   <Icon name="arrow" />
                 </a>
               ))}
               </>
               ) : (
-                <div className="public-notice">No squads registered yet.</div>
+                <div className="public-notice">No players registered yet.</div>
               )}
             </div>
           </section>
@@ -305,8 +305,8 @@ export function PlayerPage({ id }: { id: string }) {
   );
   const playerName = player.status === "ready" ? player.data.current_ign : "Arewa CODM Player";
   const playerDescription = player.status === "ready"
-    ? `${playerName} is a Call of Duty: Mobile Battle Royale player in the Arewa community. View squad affiliations, match appearances, kills and competition history.`
-    : "View an Arewa CODM player’s squad affiliations, match appearances and competition statistics.";
+    ? `${playerName} is a Call of Duty: Mobile Battle Royale player in the Arewa community. View clan affiliation, match appearances, kills and competition history.`
+    : "View an Arewa CODM player’s clan affiliation, match appearances and competition statistics.";
   usePageSeo({
     title: `${playerName} — Arewa CODM Player Profile | ArewaVanta`,
     description: playerDescription,
@@ -317,7 +317,7 @@ export function PlayerPage({ id }: { id: string }) {
       name: player.data.current_ign,
       url: `${SITE_ORIGIN}${playerUrl(player.data.id)}`,
       description: playerDescription,
-      memberOf: player.data.current_squads?.map((squad) => ({ "@type": "SportsTeam", name: squad.name, url: `${SITE_ORIGIN}${squadUrl(squad.slug)}` })),
+      memberOf: player.data.clan ? { "@type": "SportsOrganization", name: player.data.clan.name, url: `${SITE_ORIGIN}${clanUrl(player.data.clan.slug)}` } : undefined,
     } : undefined,
   });
   return (
@@ -334,16 +334,14 @@ export function PlayerPage({ id }: { id: string }) {
                 <h1>{player.data.current_ign}<span>.</span></h1>
                 {player.data.uid && <p className="public-player-uid">CODM UID <strong>{player.data.uid}</strong></p>}
               </div>
-              {!!player.data.current_squads?.length && (
+              {player.data.clan && (
                 <div className="public-player-affiliations">
-                  <small>PLAYING WITH</small>
-                  {player.data.current_squads.map((squad) => (
-                    <a key={squad.id} href={squadUrl(squad.slug)}>
-                      {squad.clan.tag && <b>{squad.clan.tag}</b>}
-                      <span>{squad.clan.name}{squad.clan.squad_count != null && squad.clan.squad_count > 1 && squad.squad_number ? ` (${squad.squad_number})` : ""}</span>
-                      <Icon name="arrow" />
-                    </a>
-                  ))}
+                  <small>CLAN</small>
+                  <a href={clanUrl(player.data.clan.slug)}>
+                    {player.data.clan.tag && <b>{player.data.clan.tag}</b>}
+                    <span>{player.data.clan.name}</span>
+                    <Icon name="arrow" />
+                  </a>
                 </div>
               )}
             </header>
@@ -362,7 +360,7 @@ export function PlayerPage({ id }: { id: string }) {
                       <span className="public-player-match-date">{dateText(match.event_date)}</span>
                       <span className="public-player-match-info">
                         <strong>{match.event_title}</strong>
-                        <small>Game {match.match_index} · {match.map_label} · {squadIdentity({ name: match.squad_name, squadNumber: match.squad_number, clanTag: match.clan_tag, clanName: match.clan_name, clanSquadCount: match.clan_squad_count })}</small>
+                        <small>Game {match.match_index} · {match.map_label} · {match.clan_name ?? match.squad_name}</small>
                         {match.ign_snapshot !== player.data.current_ign && <small>Played as {match.ign_snapshot}</small>}
                       </span>
                       <span className="public-player-match-kills"><strong>{match.kills}</strong><small>KILLS</small></span>

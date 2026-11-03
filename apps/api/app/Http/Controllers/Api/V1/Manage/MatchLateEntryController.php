@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1\Manage;
 
-use App\Domain\Competition\EligibleMatchRoster;
 use App\Domain\Competition\ResultPermissions;
 use App\Http\Controllers\Controller;
 use App\Models\Clan;
@@ -48,11 +47,11 @@ final class MatchLateEntryController extends Controller
             $taken = $event->squadEntries()->where('slot_number', $data['slot_number'])
                 ->where('squad_id', '!=', $squad->id)->exists();
             if ($taken) {
-                throw ValidationException::withMessages(['slot_number' => 'This slot belongs to another squad. Choose a free slot.']);
+                throw ValidationException::withMessages(['slot_number' => 'This slot belongs to another clan. Choose a free slot.']);
             }
             $entry = $event->squadEntries()->where('squad_id', $squad->id)->first();
             if ($entry?->slot_number !== null && (int) $entry->slot_number !== $data['slot_number']) {
-                throw ValidationException::withMessages(['slot_number' => 'This squad already has slot '.$entry->slot_number.'. Use its existing slot.']);
+                throw ValidationException::withMessages(['slot_number' => 'This clan already has slot '.$entry->slot_number.'. Use its existing slot.']);
             }
             EventSquad::query()->updateOrCreate(
                 ['event_id' => $event->id, 'squad_id' => $squad->id],
@@ -66,7 +65,7 @@ final class MatchLateEntryController extends Controller
             return $squad->id;
         });
 
-        $sheet = app(MatchResultSheetController::class)($request, $match, $permissions, app(EligibleMatchRoster::class));
+        $sheet = app(MatchResultSheetController::class)($request, $match, $permissions);
 
         return response()->json(['data' => ['squad_id' => $squadId, 'sheet' => $sheet->getData(true)['data']]], 201);
     }

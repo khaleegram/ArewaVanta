@@ -25,6 +25,7 @@ final class MatchResultResource extends JsonResource
                 'squad_number' => $result->squad?->squad_number,
                 'squad_slug' => $result->squad?->slug,
                 'clan_name' => $result->squad?->clan?->name,
+                'clan_slug' => $result->squad?->clan?->slug,
                 'clan_tag' => $result->squad?->clan?->tag,
                 'clan_squad_count' => $result->squad?->clan?->squads?->count(),
                 'participation_status' => $result->participation_status,

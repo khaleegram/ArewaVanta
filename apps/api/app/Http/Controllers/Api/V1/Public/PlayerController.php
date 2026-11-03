@@ -29,7 +29,7 @@ final class PlayerController extends Controller
 
     public function show(Player $player): JsonResponse
     {
-        $player->load(['squadMemberships' => fn ($query) => $query->whereNull('left_at')->with('squad.clan.squads:id,clan_id')]);
+        $player->load(['clan', 'squadMemberships' => fn ($query) => $query->whereNull('left_at')->with('squad.clan.squads:id,clan_id')]);
         $publishedResults = DB::table('revision_player_results as player_results')
             ->join('match_result_revisions as revisions', 'revisions.id', '=', 'player_results.revision_id')
             ->join('match_squad_results as squad_results', 'squad_results.id', '=', 'player_results.match_squad_result_id')
@@ -68,6 +68,10 @@ final class PlayerController extends Controller
         return response()->json(['data' => [
             'id' => $player->id,
             'current_ign' => $player->current_ign,
+            'clan' => $player->clan === null ? null : [
+                'id' => $player->clan->id, 'name' => $player->clan->name,
+                'slug' => $player->clan->slug, 'tag' => $player->clan->tag,
+            ],
             'current_squads' => $player->squadMemberships->map(static fn ($membership): array => [
                 'id' => $membership->squad->id,
                 'name' => $membership->squad->name,

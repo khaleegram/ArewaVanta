@@ -102,73 +102,28 @@ function SquadPlayers({ token, squadId }: { token: string; squadId: string }) {
     </div>
   );
 }
-function ClanCard({
-  clan, token, initiallyOpen, canEditCaptains, canSubmit, busy, onEdit, onCaptains, onAddSquad, onRoster,
-}: {
-  clan: ManageClan;
-  token: string;
-  initiallyOpen: boolean;
-  canEditCaptains: boolean;
-  canSubmit: boolean;
-  busy: boolean;
-  onEdit: () => void;
-  onCaptains: () => void;
-  onAddSquad: () => void;
-  onRoster: (squad: Squad) => void;
+function ClanSlots({ token, clan }: { token: string; clan: ManageClan }) {
+  const [load, setLoad] = useState<Load<number[]>>({ status: "loading" });
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all(clan.squads.map((entry) => api.squadEventSubmissions(token, entry.id, controller.signal)))
+      .then((responses) => {
+        const numbers = responses.flatMap(({ data }) => data.opportunities.filter((event) => event.permanent && event.status === "selected" && event.slot_number !== null).map((event) => event.slot_number!));
+        setLoad({ status: "ready", data: [...new Set(numbers)].sort((a, b) => a - b) });
+      }).catch((error) => { if (!controller.signal.aborted) setLoad({ status: "error", message: message(error) }); });
+    return () => controller.abort();
+  }, [token, clan.id]);
+  return <div className="manage-notice" role="status">{load.status === "loading" ? "Loading your slots…" : load.status === "error" ? `Couldn’t load slots: ${load.message}` : load.data.length ? `Your assigned slots: ${load.data.join(", ")}` : "No assigned slots found for the current scrims."}</div>;
+}
+function ClanCard({ clan, token, initiallyOpen, canEditCaptains, canSubmit, busy, onEdit, onCaptains }: {
+  clan: ManageClan; token: string; initiallyOpen: boolean; canEditCaptains: boolean; canSubmit: boolean; busy: boolean;
+  onEdit: () => void; onCaptains: () => void; onAddSquad: () => void; onRoster: (squad: Squad) => void;
 }) {
   const [expanded, setExpanded] = useState(initiallyOpen);
-  const [panel, setPanel] = useState<"squads" | "entry">("squads");
-  const [selectedSquadId, setSelectedSquadId] = useState(clan.squads[0]?.id ?? "");
-  const [rosterRevision, setRosterRevision] = useState(0);
-  const selectedSquad = clan.squads.find((squad) => squad.id === selectedSquadId) ?? clan.squads[0];
   const bodyId = `clan-${clan.id}-body`;
-
-  return (
-    <article className="directory-compact-clan">
-      <div className="directory-compact-head">
-        <button type="button" className="directory-clan-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setExpanded(!expanded)}>
-          <span className="directory-clan-avatar" aria-hidden="true">{Array.from(clan.tag || clan.name).slice(0, 3).join("")}</span>
-          <span className="directory-clan-label"><strong>{clan.name}</strong><span>{clan.tag && <b>{clan.tag}</b>}{clan.squads.length} {clan.squads.length === 1 ? "squad" : "squads"}</span></span>
-          <Icon name="chevron" className={expanded ? "is-expanded" : ""} />
-        </button>
-      </div>
-      {expanded && (
-        <div id={bodyId} className="directory-clan-body">
-          <div className="directory-clan-toolbar">
-            <div className="directory-clan-views" aria-label={`${clan.name} sections`}>
-              {canSubmit ? <button type="button" aria-pressed={panel === "squads"} onClick={() => setPanel("squads")}>Squads & players</button> : <strong className="directory-section-label">Squads & players</strong>}
-              {canSubmit && clan.squads.length > 0 && <button type="button" aria-pressed={panel === "entry"} onClick={() => setPanel("entry")}>Slot &amp; lineup</button>}
-            </div>
-            <div className="directory-clan-tools">
-              <a className="directory-monthly-report" href={`/manage/clans/${encodeURIComponent(clan.id)}/reports`}>Monthly report <Icon name="arrow" /></a>
-              {canEditCaptains && <button type="button" onClick={onCaptains}>Team captains</button>}
-              <button type="button" disabled={busy} onClick={onEdit}>Edit clan</button>
-              <button type="button" className="directory-add-squad" onClick={onAddSquad}><Icon name="plus" />Add squad</button>
-            </div>
-          </div>
-          {panel === "squads" ? (
-            <>
-            <div className="directory-squad-rows">
-              {clan.squads.length === 0 ? <div className="directory-clan-empty"><strong>Your first squad starts here.</strong><p>Add a squad, then add its players.</p><button type="button" onClick={onAddSquad}>Add squad <Icon name="plus" /></button></div> : clan.squads.map((squad, index) => (
-                <div className="directory-squad-row" key={squad.id}>
-                  <div className="directory-squad-row-name"><span className="directory-row-number">{String(squad.squad_number ?? index + 1).padStart(2, "0")}</span><strong>{squad.name || `Squad ${index + 1}`}</strong>{squad.tag && <small>{squad.tag}</small>}</div>
-                  <SquadPlayers key={`${squad.id}-${rosterRevision}`} token={token} squadId={squad.id} />
-                  <button type="button" className="directory-edit-players" onClick={() => onRoster(squad)}>Edit players <Icon name="arrow" /></button>
-                </div>
-              ))}
-            </div>
-            <ClanPlayerPool token={token} clan={clan} onRosterChange={() => setRosterRevision((value) => value + 1)} />
-            </>
-          ) : selectedSquad && (
-            <div className="directory-clan-entry">
-              <div className="directory-entry-squad"><label htmlFor={`clan-${clan.id}-entry-squad`}>Squad</label><select id={`clan-${clan.id}-entry-squad`} value={selectedSquad.id} onChange={(event) => setSelectedSquadId(event.target.value)}>{clan.squads.map((squad) => <option key={squad.id} value={squad.id}>{squad.name}</option>)}</select></div>
-              <SquadSubmissions key={selectedSquad.id} token={token} squadId={selectedSquad.id} onManageRoster={() => onRoster(selectedSquad)} />
-            </div>
-          )}
-        </div>
-      )}
-    </article>
-  );
+  return <article className="directory-compact-clan"><div className="directory-compact-head"><button type="button" className="directory-clan-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setExpanded(!expanded)}><span className="directory-clan-avatar" aria-hidden="true">{Array.from(clan.tag || clan.name).slice(0, 3).join("")}</span><span className="directory-clan-label"><strong>{clan.name}</strong><span>{clan.tag}</span></span><Icon name="chevron" className={expanded ? "is-expanded" : ""} /></button></div>
+    {expanded && <div id={bodyId} className="directory-clan-body"><div className="directory-clan-toolbar"><strong className="directory-section-label">Clan players</strong><div className="directory-clan-tools"><a className="directory-monthly-report" href={`/manage/clans/${encodeURIComponent(clan.id)}/reports`}>Monthly report <Icon name="arrow" /></a>{canEditCaptains && <button type="button" onClick={onCaptains}>Team captains</button>}<button type="button" disabled={busy} onClick={onEdit}>Edit clan</button></div></div>{canSubmit && <ClanSlots token={token} clan={clan} />}<ClanPlayerPool token={token} clan={clan} /></div>}
+  </article>;
 }
 function nextSquadName(clan: ManageClan): string {
   const highest = clan.squads.reduce((max, squad) => {
@@ -480,12 +435,12 @@ export default function DirectoryManager() {
                 {captainOnly ? "CLAN CAPTAIN WORKSPACE" : "ORGANIZER WORKSPACE"}
               </p>
               <h1>
-                {captainOnly ? "My clan & squads" : "Clans & players"}<span>.</span>
+                {captainOnly ? "My clan & players" : "Clans & players"}<span>.</span>
               </h1>
               <p>
                 {captainOnly
-                  ? "Manage your clan, squads and players."
-                  : "Manage the community, squads and players."}
+                  ? "Manage your clan and its players."
+                  : "Manage the community and its players."}
               </p>
             </div>
             {global && (
@@ -516,7 +471,7 @@ export default function DirectoryManager() {
                 setPage(1);
               }}
             >
-              Clans &amp; squads
+              Clans
             </button>
             {global && (
               <button
@@ -543,7 +498,7 @@ export default function DirectoryManager() {
             <label>
               <span className="sr-only">Search {tab}</span>
               <input
-                placeholder={tab === "clans" ? "Find a clan or squad…" : "Search players…"}
+                placeholder={tab === "clans" ? "Find a clan…" : "Search players…"}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 maxLength={100}
@@ -573,7 +528,7 @@ export default function DirectoryManager() {
                 />
               ) : (
                 <div className="directory-clans directory-compact">
-                  <div className="directory-compact-summary"><span>{visibleClans.length} {visibleClans.length === 1 ? "clan" : "clans"}</span><span>{visibleClans.reduce((total, clan) => total + clan.squads.length, 0)} squads</span></div>
+                  <div className="directory-compact-summary"><span>{visibleClans.length} {visibleClans.length === 1 ? "clan" : "clans"}</span></div>
                   {visibleClans.map((clan) => (
                       <ClanCard
                         key={`${clan.id}-${search}`}
@@ -823,7 +778,7 @@ function Editor({
         )}
         {view.kind === "player" && global && (
           <>
-            <label className="manage-field">Clan<select value={playerClanId} onChange={(event) => setPlayerClanId(event.target.value)}><option value="">No clan yet</option>{clanChoices.map((clan) => <option key={clan.id} value={clan.id}>{clan.name}</option>)}</select><span>Players with a clan appear in that clan’s squad picker.</span></label>
+            <label className="manage-field">Clan<select value={playerClanId} onChange={(event) => setPlayerClanId(event.target.value)}><option value="">No clan yet</option>{clanChoices.map((clan) => <option key={clan.id} value={clan.id}>{clan.name}</option>)}</select><span>Players with a clan appear in that clan’s player pool.</span></label>
             <label className="manage-field">
               CODM UID <span>Optional · private by default</span>
               <input
@@ -1000,7 +955,7 @@ function Captains({
         </h1>
         <p>
           Team captains can manage every clan. Clan captains manage this clan and
-          its squads.
+          its players.
         </p>
       </div>
       {success && (

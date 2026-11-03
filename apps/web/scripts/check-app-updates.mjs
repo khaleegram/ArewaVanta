@@ -51,7 +51,8 @@ try {
     else if (path.endsWith("/manage/clans")) data = clans;
     else if (path.endsWith("/manage/events/e1")) data = event;
     else if (path.endsWith("/result-sheet")) data = sheet;
-    else if (path.includes("/roster")) data = [{ membership_id: "member1", player_id: "player1", ign: "NE・Player one" }];
+    else if (path.endsWith("/manage/clans/c1/players")) data = [{ id: "p1", current_ign: "NE・Player one", squads: [] }];
+    else if (path.endsWith("/manage/clans/c2/players")) data = [{ id: "p2", current_ign: "B1 Player", squads: [] }];
     else if (path.endsWith("/players")) data = [];
     else return route.fulfill({ status: 404, json: { message: "Fixture endpoint missing: " + path } });
     return route.fulfill({ json: { data, meta: { current_page: 1, last_page: 1, total: Array.isArray(data) ? data.length : 1 } } });
@@ -77,7 +78,7 @@ try {
   assert.equal(await page.locator(".directory-clan-body").count(), 0);
   await page.getByRole("button", { name: /Northern Elites/ }).click();
   await page.getByText("NE・Player one").first().waitFor();
-  assert.equal(await page.getByRole("button", { name: "Edit players" }).count(), 2);
+  assert.equal(await page.getByRole("button", { name: "Add new player" }).count(), 1);
   assert.equal(await page.getByRole("link", { name: "Monthly report" }).count(), 1);
   assert.equal(await page.getByText("Submit to competition", { exact: true }).count(), 0);
   assert.equal(await page.locator(".manage-header").evaluate((node) => getComputedStyle(node).backgroundColor), "rgb(255, 254, 250)");
@@ -87,7 +88,7 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Directory overflow: ${width}`);
     await page.screenshot({ path: `artifacts/directory-current-${width}.png`, fullPage: true });
   }
-  console.log("Compact directory, clan roster, persistent login and legacy cache cleanup passed.");
+  console.log("Compact directory, clan player pool, persistent login and legacy cache cleanup passed.");
   await page.goto(origin + "/manage/competitions/e1/results?match=m1");
   await page.getByRole("heading", { name: "Enter results." }).waitFor();
   await page.locator(".score-team").first().waitFor();

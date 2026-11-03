@@ -20,7 +20,7 @@ for (const width of [360, 390, 430, 768, 1440]) {
   const meta = { current_page: 1, last_page: 1, total: 1 };
   let clans = [];
   let players = [];
-  let roster = [];
+  let clanPlayers = [];
   let counter = 0;
   const person = {
     id: 2,
@@ -59,21 +59,17 @@ for (const width of [360, 390, 430, 768, 1440]) {
       Object.assign(clans[0], body);
       return route.fulfill({ json: { data: clans[0] } });
     }
-    if (path === "/api/v1/manage/clans/c1/squads") {
-      const squad = {
-        id: `s${++counter}`,
-        slug: `s${counter}`,
-        ...body,
-        name: `Squad ${counter}`,
-        squad_number: counter,
+    if (path === "/api/v1/manage/clans/c1/players" && method === "GET")
+      return route.fulfill({ json: { data: clanPlayers } });
+    if (path === "/api/v1/manage/clans/c1/players" && method === "POST") {
+      const player = {
+        id: `p${++counter}`,
+        current_ign: body.current_ign,
+        uid: body.uid ?? null,
+        squads: [],
       };
-      clans[0].squads.push(squad);
-      return route.fulfill({ status: 201, json: { data: squad } });
-    }
-    if (path.startsWith("/api/v1/manage/squads/") && method === "PATCH") {
-      const squad = clans[0].squads.find((s) => path.endsWith(s.id));
-      Object.assign(squad, body);
-      return route.fulfill({ json: { data: squad } });
+      clanPlayers.push(player);
+      return route.fulfill({ status: 201, json: { data: player } });
     }
     if (path === "/api/v1/players")
       return route.fulfill({
@@ -92,23 +88,6 @@ for (const width of [360, 390, 430, 768, 1440]) {
     if (path === "/api/v1/manage/players/p1" && method === "PATCH") {
       Object.assign(players[0], body);
       return route.fulfill({ json: { data: players[0] } });
-    }
-    if (path === "/api/v1/manage/squads/s1/roster" && method === "GET")
-      return route.fulfill({ json: { data: roster } });
-    if (path === "/api/v1/manage/squads/s1/roster" && method === "POST") {
-      roster = [
-        {
-          membership_id: "m1",
-          player_id: body.player_id,
-          ign: players[0].current_ign,
-          joined_at: "2026-01-01",
-        },
-      ];
-      return route.fulfill({ status: 201, json: { data: roster[0] } });
-    }
-    if (path === "/api/v1/manage/squads/s1/roster/p1" && method === "DELETE") {
-      roster = [];
-      return route.fulfill({ status: 204 });
     }
     return route.fulfill({
       status: 404,
@@ -146,38 +125,21 @@ for (const width of [360, 390, 430, 768, 1440]) {
   await page.getByText("Captain removed.").waitFor();
   assert.equal(person.roles.length, 0);
   await page.getByRole("button", { name: "← Clans & players" }).click();
-  await page.getByRole("button", { name: "Add squad" }).click();
-  const firstSquadName = page.getByLabel("Automatically assigned squad name");
-  assert.equal(await firstSquadName.inputValue(), "Squad 1");
-  assert.equal(await firstSquadName.isEditable(), false);
-  await Promise.all([
-    page.waitForResponse(
-      (response) =>
-        response.url().endsWith("/api/v1/manage/clans/c1/squads") &&
-        response.request().method() === "POST",
-    ),
-    page.getByRole("button", { name: "Create squad" }).click(),
-  ]);
-  await page.getByText("Numbered squad created.").waitFor();
-  await page.getByRole("button", { name: "Add squad" }).waitFor();
-  await page.getByRole("button", { name: "Add squad" }).click();
-  const secondSquadName = page.getByLabel("Automatically assigned squad name");
-  assert.equal(await secondSquadName.inputValue(), "Squad 2");
-  assert.equal(await secondSquadName.isEditable(), false);
-  await Promise.all([
-    page.waitForResponse(
-      (response) =>
-        response.url().endsWith("/api/v1/manage/clans/c1/squads") &&
-        response.request().method() === "POST",
-    ),
-    page.getByRole("button", { name: "Create squad" }).click(),
-  ]);
-  await page.getByRole("button", { name: "Add squad" }).waitFor();
-  assert.equal(clans[0].squads.length, 2);
-  assert.deepEqual(
-    clans[0].squads.map((squad) => squad.name),
-    ["Squad 1", "Squad 2"],
-  );
+  await page.getByRole("button", { name: "Add new player" }).click();
+  await page.getByLabel("Player IGN").fill("ACE");
+  await page.getByLabel(/CODM UID/).fill("UID-1");
+  await page.getByRole("button", { name: "Save new player" }).click();
+  await page.getByText("ACE added to this clan.").waitFor();
+  assert.equal(clanPlayers.length, 1);
+  assert.equal(clanPlayers[0].current_ign, "ACE");
+  await page.getByRole("button", { name: "Add new player" }).click();
+  await page.getByLabel("Player IGN").fill("BEN");
+  await page.getByRole("button", { name: "Save new player" }).click();
+  await page.getByText("BEN added to this clan.").waitFor();
+  assert.equal(clanPlayers.length, 2);
+  await page.getByText("ACE", { exact: true }).waitFor();
+  await page.getByText("BEN", { exact: true }).waitFor();
+  assert.equal(await page.getByText("squad", { exact: false }).count(), 0);
   if (width === 390 || width === 1440)
     await page.screenshot({
       path: `artifacts/directory-clans-${width}.png`,
@@ -203,29 +165,11 @@ for (const width of [360, 390, 430, 768, 1440]) {
   await page.getByRole("button", { name: "Save changes" }).click();
   await page.getByText("ACE TWO").waitFor();
   assert.equal(players[0].current_ign, "ACE TWO");
-  await page.getByRole("button", { name: "Clans & squads" }).click();
-  await page
-    .getByRole("button", { name: "Roster", exact: true })
-    .first()
-    .click();
-  await page.getByText("No players have been added to this squad yet.").waitFor();
-  await page.getByLabel("Player IGN").fill("ACE");
-  await page.getByText("ACE TWO", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "+ Add", exact: true }).click();
-  await page.getByText("ACE TWO added to this squad.").waitFor();
-  assert.equal(roster.length, 1);
-  page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Remove", exact: true }).click();
-  await page.getByText("ACE TWO removed from this squad.").waitFor();
-  assert.equal(roster.length, 0);
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth,
-    ),
-    false,
-  );
+  await page.getByRole("button", { name: "Clans", exact: true }).click();
+  await page.getByRole("button", { name: "Add new player" }).waitFor();
+  assert.equal(await page.getByText("squad", { exact: false }).count(), 0);
   assert.deepEqual(errors, []);
-  console.log(`PASS ${width}px clan, squads, player and roster workflows`);
+  console.log(`PASS ${width}px clan, player pool and directory workflows`);
   await page.close();
 }
 const errorPage = await browser.newPage({

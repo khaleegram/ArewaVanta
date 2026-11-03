@@ -68,7 +68,7 @@ function Leaders({ entries, kind }: { entries: SpotlightEntry[]; kind: Kind }) {
           <Icon name="trophy" /> The front runners
         </span>
         <small>
-          {kind === "squads" ? "Squad standings" : "Individual performance"}
+          {kind === "squads" ? "Clan slot standings" : "Individual performance"}
         </small>
       </div>
       <div className="arena-podium">
@@ -171,7 +171,7 @@ function Tabs({
         >
           <Icon name={item === "squads" ? "trophy" : "target"} />
           <span>
-            {item === "squads" ? "Squad standings" : "Player rankings"}
+            {item === "squads" ? "Clan slot standings" : "Player rankings"}
           </span>
         </button>
       ))}
@@ -527,7 +527,7 @@ export default function LiveLeaderboard() {
             .map((row) => ({
               id: row.squad.id,
               rank: row.rank,
-              name: `${row.squad.clan.name}${(row.squad.clan.squad_count ?? 1) > 1 ? ` (${row.squad.squad_number ?? 1})` : ""}`,
+              name: `${row.squad.clan.name}${row.slot_number != null ? ` · Slot ${row.slot_number}` : (row.squad.clan.squad_count ?? 1) > 1 ? ` · Entry ${row.squad.squad_number ?? 1}` : ""}`,
               tag: row.squad.clan.tag || row.squad.name.slice(0, 2),
               score: row.total_points,
               detail: `${countLabel(row.total_kills, "kill")} · ${countLabel(row.wins, "win")} · ${countLabel(row.matches_played, "game")}`,
@@ -591,14 +591,14 @@ export default function LiveLeaderboard() {
             </h1>
             <p>
               {kind === "squads"
-                ? "The squads, the wins, the race to the top. This is where the North keeps score."
+                ? "The clans, the wins, the race to the top. This is where the North keeps score."
                 : "The sharpest aim. The biggest games. Meet the players making their mark."}
             </p>
           </div>
           <div className="arena-hero-stats">
             <div>
               <span>
-                {kind === "squads" ? "SQUADS IN THE RACE" : "RANKED PLAYERS"}
+                {kind === "squads" ? "CLAN SLOTS IN THE RACE" : "RANKED PLAYERS"}
               </span>
               <strong>
                 {kind === "squads"
@@ -771,7 +771,7 @@ export default function LiveLeaderboard() {
                       <div>
                         <span className="arena-kicker">THE FULL PICTURE</span>
                         <h2 id="rankings-title">
-                          Squad standings<span>{squadCount}</span>
+                          Clan slot standings<span>{squadCount}</span>
                         </h2>
                         <p>
                           {activeContext.title} · Ranked by points, kills and
@@ -791,11 +791,11 @@ export default function LiveLeaderboard() {
                     <div className="arena-tools">
                       <label className="arena-search">
                         <Icon name="target" />
-                        <span className="sr-only">Search squads</span>
+                        <span className="sr-only">Search clans</span>
                         <input
                           type="search"
                           value={query}
-                          placeholder="Find your clan or squad…"
+                          placeholder="Find your clan…"
                           onChange={(e) => setQuery(e.target.value)}
                         />
                       </label>
@@ -858,9 +858,9 @@ export default function LiveLeaderboard() {
                               <span>
                                 <strong>
                                   {row.squad.clan.name}
-                                  {(row.squad.clan.squad_count ?? 1) > 1
-                                    ? ` (${row.squad.squad_number ?? 1})`
-                                    : ""}
+                                  {row.slot_number != null
+                                    ? ` · Slot ${row.slot_number}`
+                                    : (row.squad.clan.squad_count ?? 1) > 1 ? ` · Entry ${row.squad.squad_number ?? 1}` : ""}
                                 </strong>
                                 <small>
                                   {row.matches_played > 0
@@ -897,9 +897,13 @@ export default function LiveLeaderboard() {
                               <SquadBreakdown row={row} />
                               <a
                                 className="arena-profile-link"
-                                href={`/squads/${encodeURIComponent(row.squad.slug)}`}
+                                href={
+                                  row.squad.clan.slug
+                                    ? `/clans/${encodeURIComponent(row.squad.clan.slug)}`
+                                    : `/squads/${encodeURIComponent(row.squad.slug)}`
+                                }
                               >
-                                View squad profile <Icon name="arrow" />
+                                View clan <Icon name="arrow" />
                               </a>
                             </div>
                           )}
@@ -909,7 +913,7 @@ export default function LiveLeaderboard() {
                     {!rows.length && (
                       <Notice>
                         {query
-                          ? "No squads match your search."
+                          ? "No clans match your search."
                           : "Squads will appear here when competition slots are assigned."}
                       </Notice>
                     )}

@@ -14,19 +14,38 @@ try {
   }
   const user = { id: 1, name: "Organizer", roles: [{ role: "organizer", scope_type: "event", scope_id: "e1" }] };
   const event = { id: "e1", title: "Arewa Weekend Scrims", slug: "weekly", squad_capacity: 25, days: [], squads: [], recurrence: { id: "series", state: "active", weeks: [] } };
-  const squads = Array.from({ length: 25 }, (_, i) => i + 1).filter((n) => ![2, 24, 25].includes(n)).map((n) => ({
-    id: `s${n}`, name: "Squad 1", number: n === 14 ? 2 : 1,
-    clan: { id: `c${n}`, name: n === 1 ? "BAGATATAS" : [13, 14].includes(n) ? "Northern Elites" : `Clan ${n}`, tag: n === 1 ? "B1" : [13, 14].includes(n) ? "NE" : `C${n}` },
-    players: Array.from({ length: 4 }, (_, i) => ({ id: `p-${n}-${i}`, ign: `${n === 1 ? "B1" : "NE"} · Player ${i + 1}` })),
+  const clans = Array.from({ length: 23 }, (_, index) => ({
+    id: `c${index + 1}`,
+    name: index === 0 ? "BAGATATAS" : [12, 13].includes(index) ? "Northern Elites" : `Clan ${index + 1}`,
+    tag: index === 0 ? "B1" : [12, 13].includes(index) ? "NE" : `C${index + 1}`,
   }));
-  const late = { id: "late1", name: "Squad 2", number: 2, clan: { id: "cnew", name: "New Clan", tag: "NEW" }, players: [] };
+  const newClan = { id: "cnew", name: "New Clan", tag: "NEW" };
   const apex = { id: "apex", name: "Apex Fury", tag: "AF" };
-  const choices = [...squads, late];
+  const clanChoices = [...clans, newClan, apex];
+  const squadForSlot = (slot) => slot === 1 ? clans[0] : [13, 14].includes(slot) ? clans[12] : clans[slot - 1];
+  let nextSquad = 0;
+  const squads = [];
+  const makeSquad = (clan, slot) => {
+    const squad = { id: `hidden-${slot}-${++nextSquad}`, name: `Squad ${nextSquad}`, number: nextSquad, clan, players: [] };
+    squads.push(squad);
+    return squad;
+  };
   let version = "1".repeat(64);
   let conflict = false;
   let saved = 0;
-  let book = Array.from({ length: 25 }, (_, i) => ({ slot: i + 1, squad_id: squads.find((s) => s.id === `s${i + 1}`)?.id ?? null, reserved_clan_id: i + 1 === 24 ? apex.id : null }));
-  const response = () => ({ event: { ...event, capacity: 25, permanent: true, effective_from: "2026-11-07", can_edit: true }, version, slots: book.map((slot) => ({ ...slot, squad: choices.find((s) => s.id === slot.squad_id) ?? null, reserved_clan: slot.reserved_clan_id === apex.id ? apex : null })), squads: choices, clans: [...choices.map((s) => s.clan), apex] });
+  let book = Array.from({ length: 25 }, (_, index) => {
+    const slot = index + 1;
+    if ([2, 25].includes(slot)) return { slot, squad_id: null, reserved_clan_id: null };
+    if (slot === 24) return { slot, squad_id: null, reserved_clan_id: apex.id };
+    return { slot, squad_id: makeSquad(squadForSlot(slot), slot).id, reserved_clan_id: null };
+  });
+  const response = () => ({
+    event: { ...event, capacity: 25, permanent: true, effective_from: "2026-11-07", can_edit: true },
+    version,
+    slots: book.map((slot) => ({ ...slot, squad: squads.find((squad) => squad.id === slot.squad_id) ?? null, reserved_clan: clanChoices.find((clan) => clan.id === slot.reserved_clan_id) ?? null })),
+    squads,
+    clans: clanChoices,
+  });
   browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || "/opt/google/chrome/chrome", headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 950 } });
   const errors = [];
@@ -43,10 +62,17 @@ try {
         const input = request.postDataJSON();
         if (conflict) return route.fulfill({ status: 409, json: { message: "Another organizer changed these slots. Reload the latest list before saving." } });
         assert.equal(input.expected_version, version);
-        assert.equal(new Set(input.slots.filter((s) => s.squad_id).map((s) => s.squad_id)).size, input.slots.filter((s) => s.squad_id).length);
         saved++;
-        if (saved === 1) { assert.equal(input.slots[0].squad_id, "s13"); assert.equal(input.slots[12].squad_id, "s1"); }
-        book = input.slots;
+        book = input.slots.map((slot) => {
+          let squadId = slot.squad_id ?? null;
+          if (slot.new_clan_id) {
+            const clan = clanChoices.find((entry) => entry.id === slot.new_clan_id);
+            assert.ok(clan, `Unknown clan ${slot.new_clan_id}`);
+            squadId = makeSquad(clan, slot.slot).id;
+          }
+          return { slot: slot.slot, squad_id: squadId, reserved_clan_id: slot.reserved_clan_id ?? null };
+        });
+        assert.equal(new Set(book.filter((slot) => slot.squad_id).map((slot) => slot.squad_id)).size, book.filter((slot) => slot.squad_id).length);
         version = String(saved + 1).repeat(64);
       }
       return route.fulfill({ json: { data: response() } });
@@ -54,13 +80,13 @@ try {
     return route.fulfill({ status: 404, json: { message: "Fixture endpoint missing: " + path } });
   });
   await page.goto(origin + "/manage/competitions/e1/entries");
-  await page.getByRole("heading", { name: "Permanent slots." }).waitFor();
+  await page.getByRole("heading", { name: "Clan slots." }).waitFor();
   await page.locator(".slot-card").last().waitFor();
   assert.equal(await page.locator(".slot-card").count(), 25);
   assert.equal(await page.locator(".slot-card.is-assigned").count(), 22);
   assert.equal(await page.locator(".slot-card.is-open").count(), 2);
   assert.equal(await page.locator(".slot-card.is-reserved").count(), 1);
-  assert.equal(await page.getByText("No clan squads have been submitted for this competition yet.").count(), 0);
+  assert.equal(await page.getByText("Player 1", { exact: true }).count(), 0);
   await mkdir("artifacts", { recursive: true });
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 950 });
@@ -72,21 +98,22 @@ try {
   assert.equal(await page.locator(".slot-card").count(), 1);
   await search.fill("");
   await page.getByRole("button", { name: "Change slot 1", exact: true }).click();
-  await page.getByLabel("Assignment for slot 1", { exact: true }).selectOption("s13");
-  await page.getByRole("button", { name: "Save swap", exact: true }).click();
-  await page.getByText("Permanent slots updated. Upcoming unscored weekends use this list automatically.", { exact: true }).waitFor();
-  assert.equal(book[0].squad_id, "s13"); assert.equal(book[12].squad_id, "s1");
-  await page.getByRole("button", { name: "Change slot 1", exact: true }).click();
-  await page.getByLabel("Assignment for slot 1", { exact: true }).selectOption("");
+  await page.getByLabel("Assignment for slot 1", { exact: true }).selectOption("new:c13");
+  await page.getByRole("button", { name: "Save assignment", exact: true }).click();
+  await page.getByText("Slot assignments updated.", { exact: true }).waitFor();
+  assert.equal(book[0].squad_id, squads.filter((squad) => squad.clan.id === "c13").at(-1)?.id);
+  await page.locator(".slot-card").first().getByText("Northern Elites", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Change slot 3", exact: true }).click();
+  await page.getByLabel("Assignment for slot 3", { exact: true }).selectOption("release");
   await page.getByRole("button", { name: "Save assignment", exact: true }).click();
   await page.locator("dialog").waitFor({ state: "hidden" });
-  assert.equal(book[0].squad_id, null);
+  assert.equal(book[2].squad_id, null);
   assert.equal(await page.locator(".slot-card.is-open").count(), 3);
   await page.getByRole("button", { name: "Assign slot 2", exact: true }).click();
-  await page.getByLabel("Assignment for slot 2", { exact: true }).selectOption("late1");
+  await page.getByLabel("Assignment for slot 2", { exact: true }).selectOption("new:cnew");
   await page.getByRole("button", { name: "Save assignment", exact: true }).click();
   await page.locator("dialog").waitFor({ state: "hidden" });
-  assert.equal(book[1].squad_id, "late1");
+  assert.equal(book[1].squad_id, squads.find((squad) => squad.clan.id === "cnew")?.id);
   await page.setViewportSize({ width: 390, height: 950 });
   await page.getByRole("button", { name: "Assign slot 25", exact: true }).click();
   await page.getByLabel("Assignment for slot 25", { exact: true }).selectOption("reserve:apex");
@@ -95,13 +122,14 @@ try {
   await page.getByRole("button", { name: "Save assignment", exact: true }).click();
   await page.locator("dialog").waitFor({ state: "hidden" });
   assert.equal(book[24].reserved_clan_id, "apex");
+  const beforeConflict = book[3].squad_id;
   conflict = true;
-  await page.getByRole("button", { name: "Change slot 3", exact: true }).click();
-  await page.getByLabel("Assignment for slot 3", { exact: true }).selectOption("late1");
-  await page.getByRole("button", { name: "Save swap", exact: true }).click();
+  await page.getByRole("button", { name: "Change slot 4", exact: true }).click();
+  await page.getByLabel("Assignment for slot 4", { exact: true }).selectOption("new:cnew");
+  await page.getByRole("button", { name: "Save assignment", exact: true }).click();
   await page.getByRole("button", { name: "Reload latest slots", exact: true }).waitFor();
-  assert.equal(book[2].squad_id, "s3");
+  assert.equal(book[3].squad_id, beforeConflict);
   assert.equal(await page.locator("dialog[open]").count(), 1);
   assert.deepEqual(errors, []);
-  console.log("25-slot list, roster display, mobile/desktop, move/swap, release, direct assignment, reservations and edit conflict protection passed.");
+  console.log("25-slot clan list, mobile/desktop, direct clan assignment, release, reservations and edit conflict protection passed.");
 } finally { if (browser) await browser.close(); preview.kill(); }

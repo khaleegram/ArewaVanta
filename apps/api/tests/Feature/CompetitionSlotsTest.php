@@ -130,6 +130,62 @@ final class CompetitionSlotsTest extends TestCase
         $this->assertSame(22, $next->squadEntries()->where('squad_id', $a->id)->first()->slot_number);
     }
 
+    public function test_organizer_can_give_a_clan_an_additional_slot_without_changing_past_results(): void
+    {
+        [$actor, $series, $weeks, $a, $b, $clan] = $this->fixture();
+        $match = $weeks[0]->days->first()->matches->first();
+        $player = Player::factory()->create(['clan_id' => $clan->id]);
+        $revision = app(SaveMatchResults::class)->handle($actor, $match, [['squad_id' => $a->id, 'status' => 'present', 'placement' => 2, 'players' => [['player_id' => $player->id, 'kills' => 7]]]], notify: false);
+        $before = $revision->fresh()->load('squadResults.playerResults')->toArray();
+        $this->getJson('/api/v1/events/'.$weeks[0]->slug.'/standings')->assertOk()->assertJsonFragment(['slot_number' => 1]);
+        $body = $this->payload($weeks[1]);
+        $body['slots'][1]['new_clan_id'] = $clan->id;
+        $response = $this->putJson('/api/v1/manage/events/'.$weeks[1]->id.'/slots', $body)->assertOk();
+        $newEntry = $response->json('data.slots.1.squad.id');
+        $this->assertNotEmpty($newEntry);
+        $this->assertNotEquals($a->id, $newEntry);
+        $this->assertNotEquals($b->id, $newEntry);
+        $this->assertDatabaseHas('event_squads', ['event_id' => $weeks[2]->id, 'squad_id' => $newEntry, 'slot_number' => 2, 'status' => 'active']);
+        $this->assertSame($before, $revision->fresh()->load('squadResults.playerResults')->toArray());
+        $this->putJson('/api/v1/manage/events/'.$weeks[1]->id.'/slots', $body)->assertConflict();
+        $this->assertSame(3, $clan->squads()->count());
+    }
+
+    public function test_a_new_match_player_is_added_to_the_clan_without_a_squad_membership(): void
+    {
+        [$actor, $series, $weeks, $a, $b, $clan] = $this->fixture();
+        $match = $weeks[1]->days->first()->matches->first();
+        $revision = app(SaveMatchResults::class)->handle($actor, $match, [['squad_id' => $a->id, 'status' => 'present', 'players' => [['ign' => 'New player', 'kills' => 5]]]], notify: false);
+        $player = Player::query()->where('clan_id', $clan->id)->where('current_ign', 'New player')->firstOrFail();
+        $this->assertDatabaseMissing('squad_memberships', ['player_id' => $player->id]);
+        $this->assertDatabaseHas('revision_player_results', ['revision_id' => $revision->id, 'player_id' => $player->id, 'kills' => 5]);
+    }
+
+    public function test_score_sheet_suggests_the_same_clan_players_for_each_slot(): void
+    {
+        [$actor, $series, $weeks, $a, $b, $clan] = $this->fixture();
+        $player = Player::factory()->create(['clan_id' => $clan->id, 'status' => 'active']);
+        SquadMembership::query()->create(['player_id' => $player->id, 'squad_id' => $a->id, 'joined_at' => now()]);
+        $match = $weeks[1]->days->first()->matches->first();
+        $sheet = $this->getJson('/api/v1/manage/matches/'.$match->id.'/result-sheet')->assertOk()->json('data');
+        foreach ($sheet['squads'] as $slot) {
+            $this->assertSame([], $slot['roster_players']);
+            $this->assertContains($player->id, array_column($slot['eligible_players'], 'id'));
+        }
+    }
+
+    public function test_partial_slot_score_updates_keep_other_results_and_player_stats(): void
+    {
+        [$actor, $series, $weeks, $a, $b, $clan] = $this->fixture();
+        $match = $weeks[1]->days->first()->matches->first();
+        $player = Player::factory()->create(['clan_id' => $clan->id]);
+        $first = app(SaveMatchResults::class)->handle($actor, $match, [['squad_id' => $a->id, 'status' => 'present', 'placement' => 2, 'players' => [['player_id' => $player->id, 'kills' => 7]]]], notify: false);
+        $updated = app(SaveMatchResults::class)->handle($actor, $match, [['squad_id' => $b->id, 'status' => 'present', 'placement' => null, 'players' => []]], checkVersion: true, expectedLockVersion: $first->lock_version, patchMode: true, notify: false);
+        $this->assertDatabaseHas('revision_player_results', ['revision_id' => $updated->id, 'player_id' => $player->id, 'kills' => 7]);
+        $this->assertSame(2, $updated->squadResults->firstWhere('squad_id', $a->id)->placement);
+        $this->assertNull($updated->squadResults->firstWhere('squad_id', $b->id)->placement);
+    }
+
     public function test_old_edit_versions_duplicate_assignments_and_captain_changes_are_rejected(): void
     {
         [$actor, $series, $weeks, $a, $b, $clan] = $this->fixture();

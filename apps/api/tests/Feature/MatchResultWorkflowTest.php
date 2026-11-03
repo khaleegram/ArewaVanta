@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Enums\Role;
 use App\Enums\RoleScope;
 use App\Models\Clan;
+use App\Models\EventSquad;
 use App\Models\MatchPlayerResult;
+use App\Models\MatchSquad;
 use App\Models\MatchResult;
 use App\Models\MatchSquadResult;
 use App\Models\Player;
@@ -363,6 +365,13 @@ final class MatchResultWorkflowTest extends TestCase
         $season = $this->actingAs($organizer, 'sanctum')->postJson('/api/v1/manage/seasons', ['name' => 'Season One'])->assertCreated()->json('data');
         $event = $this->actingAs($organizer, 'sanctum')->postJson('/api/v1/manage/events', ['title' => 'Weekend One', 'season_id' => $season['id']])
             ->assertCreated()->assertJsonPath('data.days.0.date', '2026-10-31')->assertJsonCount(3, 'data.days.0.matches')->json('data');
+        $matchIds = collect($event['days'][0]['matches'])->pluck('id');
+        foreach ($squads as $index => $squad) {
+            EventSquad::query()->create(['event_id' => $event['id'], 'squad_id' => $squad->id, 'status' => 'active', 'slot_number' => $index + 1]);
+            foreach ($matchIds as $matchId) {
+                MatchSquad::query()->create(['match_id' => $matchId, 'squad_id' => $squad->id, 'entry_status' => 'expected']);
+            }
+        }
 
         return [$organizer, $event, $squads, $players, $season['id']];
     }

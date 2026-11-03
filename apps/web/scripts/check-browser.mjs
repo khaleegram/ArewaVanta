@@ -309,46 +309,54 @@ try {
     .getByRole("link", { name: /Full rankings/ })
     .click();
   assert.match(page.url(), /event=arewa-weekend/);
-  await page.getByRole("heading", { name: /Squad standings/ }).waitFor();
+  await page
+    .getByRole("heading", { name: /Clan slot standings/ })
+    .waitFor();
   assert.equal(
     await page
-      .locator(".lb-result-row")
+      .locator(".arena-rank-row")
       .first()
-      .locator(".lb-score")
+      .locator(".arena-rank-score strong")
       .innerText(),
     "21.5",
   );
-  assert.equal(
-    await page.locator(".lb-result-row").nth(1).locator(".lb-rank").innerText(),
-    "1",
+  assert.match(
+    await page
+      .locator(".arena-rank-row")
+      .nth(1)
+      .locator(".arena-rank-number")
+      .innerText(),
+    /^0?1\b/,
   );
   await page
     .getByRole("combobox", { name: "Competition or season" })
     .selectOption("season:season-1");
   await page
-    .locator(".lb-results .lb-overline")
-    .filter({ hasText: "Arewa League" })
+    .getByRole("heading", { name: /Clan slot standings/ })
     .waitFor();
   assert.match(page.url(), /season=season-1/);
-  await page.getByRole("tab", { name: /Players/ }).click();
+  await page.getByRole("tab", { name: /Player rankings/ }).click();
   await page.getByRole("heading", { name: /Player rankings/ }).waitFor();
-  assert.match(
-    await page.locator(".lb-live-context").innerText(),
-    /all public competitions/,
-  );
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector(".lb-result-row td:nth-child(5)")
-        ?.textContent?.trim() === "5",
+  await page.locator(".arena-rank-row").first().waitFor();
+  assert.equal(
+    await page
+      .locator(".arena-rank-row")
+      .first()
+      .locator(".arena-stat-wins strong")
+      .innerText(),
+    "3.33",
   );
   assert.equal(
-    await page.locator(".lb-result-row td:nth-child(4)").innerText(),
-    "3.33",
+    await page
+      .locator(".arena-rank-row")
+      .first()
+      .locator(".arena-rank-score strong")
+      .innerText(),
+    "10",
   );
   await page.getByRole("button", { name: /REAPER/ }).click();
   await page
-    .locator(".lb-detail-stats")
+    .locator(".arena-detail-stats")
     .getByText("Best game", { exact: true })
     .waitFor();
   assert.deepEqual(errors, []);
@@ -422,16 +430,14 @@ try {
       await page.locator("#full-ranking-panel").innerText(),
       /No competitions yet/,
     );
-  await page.getByRole("tab", { name: /Players/ }).click();
+  await page.getByRole("tab", { name: /Player rankings/ }).click();
   if (realPlayers.meta.total === 0) {
     await page
-      .getByText(
-        "No player rankings yet. They will appear after results are saved.",
-      )
+      .getByText(/Player rankings appear as organizers record/)
       .waitFor();
     assert.match(
       await page.locator("#full-ranking-panel").innerText(),
-      /No player rankings yet/,
+      /Player rankings appear/,
     );
   }
   console.log(

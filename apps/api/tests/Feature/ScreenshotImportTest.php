@@ -25,7 +25,8 @@ final class ScreenshotImportTest extends TestCase
     public function test_organizer_can_turn_scoreboard_screenshots_into_a_mapped_draft(): void
     {
         [$organizer, $matchId, $squadA, $squadB, $playerA, $playerB] = $this->competition();
-        $guest = Player::factory()->create(['clan_id' => $squadA->clan_id, 'current_ign' => 'GUEST PLAYER']);
+        $guestClan = Clan::factory()->create(['name' => 'Guest Clan', 'tag' => 'GC']);
+        $guest = Player::factory()->create(['clan_id' => $guestClan->id, 'current_ign' => 'GUEST PLAYER']);
 
         config(['services.deepseek.key' => 'test-deepseek-key']);
         Http::fake([

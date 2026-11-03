@@ -19,6 +19,7 @@ final class SaveCompetitionSlotsRequest extends FormRequest
             'slots' => ['required', 'array', 'min:1', 'max:25'],
             'slots.*.slot' => ['required', 'integer', 'min:1', 'max:25', 'distinct:strict'],
             'slots.*.squad_id' => ['nullable', 'string', Rule::exists('squads', 'id')],
+            'slots.*.new_clan_id' => ['nullable', 'string', Rule::exists('clans', 'id')],
             'slots.*.reserved_clan_id' => ['nullable', 'string', Rule::exists('clans', 'id')],
         ];
     }

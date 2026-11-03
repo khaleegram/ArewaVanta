@@ -23,7 +23,7 @@ export default function CompetitionCheckIn({ eventId }: { eventId: string }) {
   const sheet = useRef<SVGSVGElement>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
-  usePageSeo({ title: `${report.status === "ready" ? report.data.event.title : "Competition"} · Slot check-in | ArewaVanta`, description: "Organizer slot and player verification sheet.", path: `/manage/competitions/${eventId}/check-in`, noIndex: true });
+  usePageSeo({ title: `${report.status === "ready" ? report.data.event.title : "Competition"} · Slot check-in | ArewaVanta`, description: "Organizer slot sheet.", path: `/manage/competitions/${eventId}/check-in`, noIndex: true });
   useEffect(() => {
     const token = getStoredToken();
     if (!token) { setChecking(false); return; }
@@ -68,15 +68,15 @@ export default function CompetitionCheckIn({ eventId }: { eventId: string }) {
   }
   return <Shell section="competitions" session={session} onLogout={logout}>
     {checking ? <div className="manage-notice">Checking your session…</div> : !session ? <><SignIn onSuccess={setSession} />{authError && <p role="alert">{authError}</p>}</> : <div className="check-in-page">
-      <div className="check-in-toolbar"><a href={`/manage/competitions/${encodeURIComponent(eventId)}`}>← Competition</a><div><button type="button" onClick={() => setRevision((value) => value + 1)} disabled={!data}>Refresh lineups</button><button type="button" onClick={saveImage} disabled={!data || exporting}>{exporting ? "Creating image…" : "Save image"}</button><button type="button" className="check-in-print" onClick={() => window.print()} disabled={!data}><Icon name="print" />Print / Save PDF</button></div></div>
-      <div className="check-in-intro"><p>MATCH-DAY VERIFICATION</p><h1>Slots & players<span>.</span></h1><p>One clean page. Save it as an image, share it, or print it.</p></div>
-      {report.status === "loading" && <p className="manage-notice" role="status">Loading current slots and players…</p>}
+      <div className="check-in-toolbar"><a href={`/manage/competitions/${encodeURIComponent(eventId)}`}>← Competition</a><div><button type="button" onClick={() => setRevision((value) => value + 1)} disabled={!data}>Refresh slots</button><button type="button" onClick={saveImage} disabled={!data || exporting}>{exporting ? "Creating image…" : "Save image"}</button><button type="button" className="check-in-print" onClick={() => window.print()} disabled={!data}><Icon name="print" />Print / Save PDF</button></div></div>
+      <div className="check-in-intro"><p>MATCH DAY</p><h1>Clan slots<span>.</span></h1><p>One clean page. Save it as an image, share it, or print it.</p></div>
+      {report.status === "loading" && <p className="manage-notice" role="status">Loading slots…</p>}
       {report.status === "error" && <div className="manage-error" role="alert">{report.message}<button type="button" onClick={() => setRevision((value) => value + 1)}>Try again</button></div>}
       {data && <>
         <div className="check-in-controls">
           {data.event.days.length > 0 && <div className="check-in-day"><label htmlFor="check-in-match-day">Sheet for match day</label><select id="check-in-match-day" value={selectedDay?.id ?? ""} onChange={(event) => setDayId(event.target.value)}>{data.event.days.map((day) => <option key={day.id} value={day.id}>{day.label || "Match day"} · {formatDateRange(day.date, null)}</option>)}</select></div>}
           <label className="check-in-empty-toggle"><input type="checkbox" checked={includeEmpty} onChange={(event) => setIncludeEmpty(event.target.checked)} />Show unassigned slots</label>
-          <span>All players stay visible. Refresh to include lineup changes.</span>
+          <span>Refresh after changing a slot assignment.</span>
         </div>
         {exportError && <p className="manage-error" role="alert">{exportError}</p>}
         <div className="check-in-preview"><SlotSheet ref={sheet} data={data} day={selectedDay} includeEmpty={includeEmpty} /></div>

@@ -48,9 +48,7 @@ export function ScorePlayers({
   const search = useRef<HTMLInputElement>(null);
   const poolElement = useRef<HTMLDivElement>(null);
   const actualIds = new Set(row.players.map((p) => p.id));
-  const suggestions = (squad.roster_players ?? squad.eligible_players).filter(
-    (p) => !actualIds.has(p.id) && !hidden.includes(p.id),
-  );
+  const suggestions: Candidate[] = [];
   const lineup = [
     ...row.players,
     ...suggestions
@@ -211,8 +209,8 @@ export function ScorePlayers({
                   {actual
                     ? "Playing"
                     : otherSquad(player.id)
-                      ? "Recorded in another squad · tap to move"
-                      : "Squad roster · tap to score"}
+                      ? "Recorded in another slot · tap to move"
+                      : "Tap to score"}
                 </small>
               </button>
               <label className="score-player-kills">
@@ -324,7 +322,7 @@ export function ScorePlayers({
               {replacing ? "Choose the replacement" : "More clan players"}{" "}
               <span>{available.length}</span>
             </h3>
-            <p>Includes players from all {squad.clan} squads.</p>
+            <p>Choose anyone from {squad.clan}.</p>
           </div>
           {replacing && (
             <button type="button" onClick={() => setReplacing(undefined)}>
@@ -362,9 +360,8 @@ export function ScorePlayers({
                 <strong>{player.ign}</strong>
                 <small>
                   {otherSquad(player.id)
-                    ? "Recorded in another squad · move to this team"
-                    : player.squads?.map((s) => s.name).join(" · ") ||
-                      "Available in clan"}
+                    ? "Recorded in another slot · move to this slot"
+                    : "Available in clan"}
                 </small>
               </span>
               <span aria-hidden="true">＋</span>
@@ -413,14 +410,13 @@ export function ScorePlayers({
             </button>
           </div>
           <small>
-            Saving creates their profile and adds them to this clan’s squad.
+            Saving creates their player profile in this clan.
           </small>
         </div>
         <details onToggle={(e) => setGuest(e.currentTarget.open)}>
           <summary>Guest from another clan</summary>
           <p className="score-muted">
-            Match substitution only. Their permanent clan and roster stay
-            unchanged.
+            Match substitution only. Their permanent clan stays unchanged.
           </p>
           <input
             className="score-search"

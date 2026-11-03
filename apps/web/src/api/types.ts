@@ -11,7 +11,7 @@ export type ApiPage<T> = {
 };
 export type ApiData<T> = { data: T };
 export type SeasonRef = { id: Id; name: string };
-export type ClanRef = { name: string; tag: string | null; squad_count?: number };
+export type ClanRef = { id?: Id; name: string; slug?: string; tag: string | null; squad_count?: number };
 export type PublicClan = {
   id: Id;
   name: string;
@@ -19,6 +19,7 @@ export type PublicClan = {
   tag: string | null;
   bio: string | null;
   squad_count?: number;
+  players?: PublicPlayer[];
   squads: { id: Id; name: string; squad_number?: number; slug: string; tag: string | null }[];
 };
 export type PublicSquad = {
@@ -52,7 +53,6 @@ export type EventCheckIn = {
     slot_number: number | null;
     squad: { id: Id; name: string; number: number };
     clan: { name: string; tag: string | null };
-    players: { id: Id; ign: string }[];
   }[];
 };
 export type ManageClan = {
@@ -139,6 +139,7 @@ export type PublicSquadResult = {
   squad_number?: number | null;
   squad_slug: string | null;
   clan_name: string | null;
+  clan_slug?: string | null;
   clan_tag?: string | null;
   clan_squad_count?: number | null;
   participation_status: "present" | "absent" | "unentered";
@@ -173,6 +174,7 @@ export type StandingMatch = {
 };
 export type SquadStanding = {
   rank: number;
+  slot_number?: number | null;
   squad: SquadRef;
   matches_played: number;
   total_kills: number;
@@ -205,6 +207,7 @@ export type PlayerRanking = {
 export type PlayerProfile = {
   id: Id;
   current_ign: string;
+  clan?: { id: Id; name: string; slug: string; tag: string | null } | null;
   current_squads?: {
     id: Id;
     name: string;
@@ -234,6 +237,7 @@ export type PlayerProfile = {
     squad_slug: string;
     squad_number: number;
     clan_name: string;
+    clan_slug?: string | null;
     clan_tag: string;
     clan_squad_count: number;
   }[];
@@ -472,6 +476,7 @@ export type SavedResult = {
     squad_number?: number | null;
     squad_slug: string | null;
     clan_name: string | null;
+    clan_slug?: string | null;
     clan_tag?: string | null;
     clan_squad_count?: number | null;
     participation_status: "present" | "absent" | "unentered";
@@ -646,7 +651,7 @@ export type SlotSquad = {
   clan: { id: Id; name: string; tag: string };
   players: { id: Id; ign: string }[];
 };
-export type SlotAssignment = { slot: number; squad_id: Id | null; reserved_clan_id: Id | null };
+export type SlotAssignment = { slot: number; squad_id: Id | null; reserved_clan_id: Id | null; new_clan_id?: Id | null };
 export type CompetitionSlots = {
   event: { id: Id; title: string; capacity: number; permanent: boolean; effective_from: string | null; can_edit: boolean };
   version: string;

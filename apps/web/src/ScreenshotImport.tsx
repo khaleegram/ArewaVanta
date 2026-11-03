@@ -6,7 +6,6 @@ import type {
   ScreenshotImportTeam,
   ScreenshotPlayer,
 } from "./api/types";
-import { squadIdentity } from "./presentation";
 import { playerSearchKey } from "./playerSearch";
 import {
   applicableTeam,
@@ -33,13 +32,9 @@ const labelSquad = (
   squad:
     ResultSheet["squads"][number] | NonNullable<ScreenshotImportTeam["squad"]>,
 ) =>
-  squadIdentity({
-    name: squad.name,
-    squadNumber: squad.squad_number,
-    clanTag: squad.clan_tag,
-    clanName: squad.clan,
-    clanSquadCount: squad.clan_squad_count,
-  });
+  [squad.clan_tag, squad.clan]
+    .filter((part): part is string => Boolean(part))
+    .join(" · ") || squad.name;
 function statusText(player: ScreenshotPlayer) {
   if (player.player_id?.startsWith("new:") && player.confirmed)
     return "New profile · created when you save scores";

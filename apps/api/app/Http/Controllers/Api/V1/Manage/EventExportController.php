@@ -16,10 +16,7 @@ final class EventExportController extends Controller
     {
         abort_unless($permissions->canManage($request->user(), $event), 403);
         $event->load('days');
-        $entries = $event->squadEntries()->where('status', 'active')->orderBy('slot_number')->with([
-            'squad.clan',
-            'squad.memberships' => fn ($query) => $query->whereNull('left_at')->orderBy('joined_at')->with('player'),
-        ])->get();
+        $entries = $event->squadEntries()->where('status', 'active')->orderBy('slot_number')->with('squad.clan')->get();
 
         return response()->json(['data' => [
             'generated_at' => now()->toIso8601String(),
@@ -34,11 +31,6 @@ final class EventExportController extends Controller
                 'slot_number' => $entry->slot_number,
                 'squad' => ['id' => $entry->squad->id, 'name' => $entry->squad->name, 'number' => $entry->squad->squad_number],
                 'clan' => ['name' => $entry->squad->clan->name, 'tag' => $entry->squad->clan->tag],
-                'players' => $entry->squad->memberships
-                    ->filter(fn ($membership): bool => $membership->player?->status === 'active'
-                        && $membership->player->clan_id === $entry->squad->clan_id)
-                    ->map(fn ($membership): array => ['id' => $membership->player_id, 'ign' => $membership->player->current_ign])
-                    ->unique('id')->values(),
             ])->values(),
         ]])->header('Cache-Control', 'private, no-store');
     }

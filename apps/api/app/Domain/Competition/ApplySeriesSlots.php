@@ -32,7 +32,7 @@ final class ApplySeriesSlots
 
             $slots = collect($series->default_slot_map ?? [])->filter(fn ($slot) => filled($slot['squad_id'] ?? null));
             if ($slots->pluck('slot')->duplicates()->isNotEmpty() || $slots->pluck('squad_id')->duplicates()->isNotEmpty()) {
-                throw ValidationException::withMessages(['slots' => 'Each permanent slot must belong to one squad.']);
+                throw ValidationException::withMessages(['slots' => 'Each permanent slot must belong to one clan.']);
             }
             $squads = Squad::query()->whereIn('id', $slots->pluck('squad_id'))->get()->keyBy('id');
             $entries = $week->squadEntries()->lockForUpdate()->get();

@@ -16,7 +16,6 @@ import {
   formatDateRange,
   placementLabel,
   scoringLabel,
-  squadIdentity,
 } from "./presentation";
 import "./public-competitions.css";
 
@@ -270,7 +269,7 @@ function StandingTable({ data }: { data: EventStandings }) {
           <thead>
             <tr>
               <th>Rank</th>
-              <th>Squad</th>
+              <th>Clan slot</th>
               <th className="public-col-games">Games</th>
               <th>Kills</th>
               <th className="public-col-wins">Wins</th>
@@ -285,15 +284,14 @@ function StandingTable({ data }: { data: EventStandings }) {
                   <strong>
                     <a
                       className="public-inline-link"
-                      href={`/squads/${encodeURIComponent(row.squad.slug)}`}
+                      href={
+                        row.squad.clan.slug
+                          ? `/clans/${encodeURIComponent(row.squad.clan.slug)}`
+                          : `/squads/${encodeURIComponent(row.squad.slug)}`
+                      }
                     >
-                      {squadIdentity({
-                        name: row.squad.name,
-                        squadNumber: row.squad.squad_number,
-                        clanTag: row.squad.clan.tag,
-                        clanName: row.squad.clan.name,
-                        clanSquadCount: row.squad.clan.squad_count,
-                      })}
+                      {row.squad.clan.name}
+                      {row.slot_number ? ` · Slot ${row.slot_number}` : ""}
                     </a>
                   </strong>
                   <small className="public-mobile-meta">
@@ -379,7 +377,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                 </div>
               </div>
               <div className="public-detail-facts">
-                <div><strong>{data.squads.length}{data.squad_capacity ? <span> / {data.squad_capacity}</span> : null}</strong><small>Squads entered</small></div>
+                <div><strong>{data.squads.length}{data.squad_capacity ? <span> / {data.squad_capacity}</span> : null}</strong><small>Clan slots</small></div>
                 <div><strong>{data.match_count}</strong><small>Games scheduled</small></div>
                 <div><strong className="public-detail-scoring">{scoringLabel(data.default_scoring.preset_name)}</strong><small>Scoring preset</small></div>
               </div>
@@ -392,7 +390,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
               [
                 ["schedule", "Games"],
                 ["standings", "Standings"],
-                ["squads", `Squads (${data.squads.length})`],
+                ["squads", `Clan slots (${data.squads.length})`],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -506,7 +504,7 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                 <div>
                   <p className="public-kicker">THE FIELD</p>
                   <h2>
-                    Participating squads<span>.</span>
+                    Clan slots<span>.</span>
                   </h2>
                 </div>
               </div>
@@ -521,21 +519,18 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                         {(squad.clan.tag || squad.name).slice(0, 2).toUpperCase()}
                       </span>
                       <span>
-                        <strong>{squadIdentity({
-                          name: squad.name,
-                          squadNumber: squad.squad_number,
-                          clanTag: squad.clan.tag,
-                          clanName: squad.clan.name,
-                          clanSquadCount: squad.clan.squad_count,
-                        })}</strong>
-                        <small>{squad.slot_number ? `Game slot ${squad.slot_number}` : "Registered squad"}</small>
+                        <strong>
+                          {squad.clan.name}
+                          {squad.slot_number ? ` · Slot ${squad.slot_number}` : ""}
+                        </strong>
+                        <small>{squad.clan.tag || "Clan entry"}</small>
                       </span>
                     </a>
                   ))}
                 </div>
               ) : (
                 <div className="public-notice">
-                  Squads appear here after the organizer assigns competition slots.
+                  Clans appear here after the organizer assigns competition slots.
                 </div>
               )}
             </section>
@@ -640,7 +635,7 @@ export function MatchPage({
               <div className="public-match-section-head">
                 <div>
                   <p className="public-kicker">{match.has_results ? "FINAL SCORES" : "MATCH"}</p>
-                  <h2>Squad results<span>.</span></h2>
+                  <h2>Clan slot results<span>.</span></h2>
                 </div>
                 <a href={eventUrl(slug)}>All games <Icon name="arrow" /></a>
               </div>
@@ -666,11 +661,11 @@ export function MatchPage({
                                   {row.participation_status === "unentered" ? "NOT ENTERED" : row.participation_status === "absent" ? "ABSENT" : placementLabel(row.placement)}
                                 </span>
                                 <h3>
-                                  {row.squad_slug ? (
-                                    <a href={`/squads/${encodeURIComponent(row.squad_slug)}`}>
-                                      {squadIdentity({ name: row.squad_name, squadNumber: row.squad_number, clanTag: row.clan_tag, clanName: row.clan_name, clanSquadCount: row.clan_squad_count })}
+                                  {row.clan_slug ? (
+                                    <a href={`/clans/${encodeURIComponent(row.clan_slug)}`}>
+                                      {row.clan_name ?? row.squad_name}
                                     </a>
-                                  ) : squadIdentity({ name: row.squad_name, squadNumber: row.squad_number, clanTag: row.clan_tag, clanName: row.clan_name, clanSquadCount: row.clan_squad_count })}
+                                  ) : (row.clan_name ?? row.squad_name)}
                                 </h3>
                               </div>
                               <div className="public-result-points">
@@ -681,7 +676,7 @@ export function MatchPage({
                             {row.participation_status === "present" && (
                               <>
                                 <div className="public-score-grid">
-                                  <div><span>Squad kills</span><strong>{row.team_kills}</strong></div>
+                                  <div><span>Team kills</span><strong>{row.team_kills}</strong></div>
                                   <div><span>Kill points</span><strong>{row.kill_points ?? "—"}</strong></div>
                                   <div>
                                     <span>{row.placement_multiplier !== null ? "Placement bonus" : "Placement points"}</span>
