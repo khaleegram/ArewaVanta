@@ -106,6 +106,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/clans', [OrganizationController::class, 'index'])->name('clans.index');
         Route::get('/clans/{clan}/players', [ClanPlayerController::class, 'index'])->name('clans.players.index');
         Route::post('/clans/{clan}/players', [ClanPlayerController::class, 'store'])->name('clans.players.store');
+        Route::patch('/clans/{clan}/players/{player}', [ClanPlayerController::class, 'update'])->name('clans.players.update');
+        Route::delete('/clans/{clan}/players/{player}', [ClanPlayerController::class, 'destroy'])->name('clans.players.destroy');
         Route::post('/clans/{clan}/captain-invitations', [CaptainInvitationController::class, 'send'])->middleware('throttle:10,1');
         Route::post('/clans', [OrganizationController::class, 'registerClan'])->name('clans.store');
         Route::patch('/clans/{clan}', [DirectoryController::class, 'updateClan'])->name('clans.update');

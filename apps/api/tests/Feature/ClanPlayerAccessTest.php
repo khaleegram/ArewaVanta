@@ -147,6 +147,47 @@ final class ClanPlayerAccessTest extends TestCase
         }
     }
 
+    public function test_captain_can_edit_and_remove_players_only_in_their_clan(): void
+    {
+        $clan = Clan::factory()->create();
+        $other = Clan::factory()->create();
+        $captain = $this->captainFor($clan);
+        $player = Player::factory()->create(['clan_id' => $clan->id, 'current_ign' => 'Old Name']);
+        $duplicateUid = Player::factory()->create(['clan_id' => $clan->id, 'normalized_uid' => 'DUPLICATE1']);
+        $foreign = Player::factory()->create(['clan_id' => $other->id, 'current_ign' => 'Foreign Player']);
+        $squad = Squad::factory()->for($clan)->create();
+        SquadMembership::query()->create(['squad_id' => $squad->id, 'player_id' => $player->id, 'joined_at' => now()]);
+        $this->actingAs($captain, 'sanctum');
+
+        $this->patchJson("/api/v1/manage/clans/{$clan->id}/players/{$player->id}", [
+            'current_ign' => ' New Name ', 'uid' => ' ab 12 ',
+        ])->assertOk()->assertJsonPath('data.current_ign', 'New Name');
+        $this->assertDatabaseHas('players', [
+            'id' => $player->id, 'clan_id' => $clan->id, 'current_ign' => 'New Name', 'normalized_uid' => 'AB12',
+        ]);
+        $this->patchJson("/api/v1/manage/clans/{$clan->id}/players/{$player->id}", ['current_ign' => 'New Name'])
+            ->assertOk();
+        $this->assertDatabaseHas('players', ['id' => $player->id, 'normalized_uid' => 'AB12']);
+        $this->patchJson("/api/v1/manage/clans/{$clan->id}/players/{$player->id}", [
+            'current_ign' => 'New Name', 'uid' => 'duplicate 1',
+        ])->assertUnprocessable()->assertJsonValidationErrors('uid');
+        $this->patchJson("/api/v1/manage/clans/{$clan->id}/players/{$foreign->id}", ['current_ign' => 'Hijacked'])
+            ->assertNotFound();
+        $this->patchJson("/api/v1/manage/clans/{$other->id}/players/{$foreign->id}", ['current_ign' => 'Hijacked'])
+            ->assertForbidden();
+
+        $this->deleteJson("/api/v1/manage/clans/{$clan->id}/players/{$player->id}")->assertNoContent();
+        $this->assertDatabaseHas('players', ['id' => $player->id, 'status' => 'inactive']);
+        $this->assertNull($player->fresh()->clan_id);
+        $this->assertDatabaseHas('squad_memberships', ['squad_id' => $squad->id, 'player_id' => $player->id]);
+        $this->assertDatabaseMissing('squad_memberships', ['squad_id' => $squad->id, 'player_id' => $player->id, 'left_at' => null]);
+        $this->getJson("/api/v1/manage/clans/{$clan->id}/players")->assertOk()
+            ->assertJsonMissing(['id' => $player->id])
+            ->assertJsonPath('data.0.id', $duplicateUid->id);
+        $this->deleteJson("/api/v1/manage/clans/{$clan->id}/players/{$foreign->id}")->assertNotFound();
+        $this->assertSame($other->id, $foreign->fresh()->clan_id);
+    }
+
     public function test_organizer_can_choose_a_clan_but_must_remove_squad_assignments_before_transferring_a_player(): void
     {
         $organizer = User::factory()->create();

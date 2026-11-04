@@ -622,6 +622,21 @@ export const api = {
       method: "POST",
       body: { current_ign: currentIgn, uid },
     }),
+  updateClanPlayer: (
+    token: string,
+    clanId: Id,
+    playerId: Id,
+    body: { current_ign: string; uid?: string | null },
+  ) =>
+    request<ApiData<ClanPlayer>>(
+      `/manage/clans/${key(clanId)}/players/${key(playerId)}`,
+      { token, method: "PATCH", body },
+    ),
+  deleteClanPlayer: (token: string, clanId: Id, playerId: Id) =>
+    request<void>(`/manage/clans/${key(clanId)}/players/${key(playerId)}`, {
+      token,
+      method: "DELETE",
+    }),
   clanPlayers: (token: string, clanId: Id, signal?: AbortSignal) =>
     request<ApiData<ClanPlayer[]>>(`/manage/clans/${key(clanId)}/players`, {
       token,

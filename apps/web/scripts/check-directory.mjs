@@ -71,6 +71,17 @@ for (const width of [360, 390, 430, 768, 1440]) {
       clanPlayers.push(player);
       return route.fulfill({ status: 201, json: { data: player } });
     }
+    if (path.startsWith("/api/v1/manage/clans/c1/players/") && method === "PATCH") {
+      const id = path.split("/").pop();
+      const player = clanPlayers.find((entry) => entry.id === id);
+      Object.assign(player, body);
+      return route.fulfill({ json: { data: player } });
+    }
+    if (path.startsWith("/api/v1/manage/clans/c1/players/") && method === "DELETE") {
+      const id = path.split("/").pop();
+      clanPlayers = clanPlayers.filter((entry) => entry.id !== id);
+      return route.fulfill({ status: 204 });
+    }
     if (path === "/api/v1/players")
       return route.fulfill({
         json: {
@@ -139,6 +150,16 @@ for (const width of [360, 390, 430, 768, 1440]) {
   assert.equal(clanPlayers.length, 2);
   await page.getByText("ACE", { exact: true }).waitFor();
   await page.getByText("BEN", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "Edit ACE" }).click();
+  await page.getByLabel("Player IGN").fill("ACE EDITED");
+  await page.getByRole("button", { name: "Save player" }).click();
+  await page.getByText("ACE EDITED updated.").waitFor();
+  assert.equal(clanPlayers[0].current_ign, "ACE EDITED");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Remove BEN" }).click();
+  await page.getByText(/BEN removed from Kano Clan/).waitFor();
+  assert.equal(clanPlayers.length, 1);
+  await page.getByText("ACE EDITED", { exact: true }).waitFor();
   assert.equal(await page.getByText("squad", { exact: false }).count(), 0);
   if (width === 390 || width === 1440)
     await page.screenshot({
