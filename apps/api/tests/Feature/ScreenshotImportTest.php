@@ -142,7 +142,6 @@ final class ScreenshotImportTest extends TestCase
                                 ],
                                 [
                                     'team_label' => 'TEAM13',
-                                    'team_number' => 13,
                                     'placement' => 2,
                                     'players' => [
                                         ['name' => 'NF | NEW NE PLAYER', 'kills' => 5],

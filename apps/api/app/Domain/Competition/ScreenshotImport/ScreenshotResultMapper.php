@@ -123,6 +123,9 @@ final class ScreenshotResultMapper
 
             $label = trim((string) ($team['team_label'] ?? 'Team'));
             $number = is_int($team['team_number'] ?? null) ? $team['team_number'] : null;
+            if ($number === null && preg_match('/^\s*TEAM\s*(\d{1,2})\b/i', $label, $slotLabel) === 1) {
+                $number = (int) $slotLabel[1];
+            }
             $placement = is_int($team['placement'] ?? null) ? $team['placement'] : null;
             $teamKills = is_int($team['team_kills'] ?? null) ? $team['team_kills'] : null;
             $extractedPlayers = array_values((array) ($team['players'] ?? []));
