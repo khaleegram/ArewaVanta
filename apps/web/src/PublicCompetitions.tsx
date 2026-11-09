@@ -483,14 +483,19 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                 <div>
                   <p className="public-kicker">COMPETITION RESULTS</p>
                   <h2>
-                    Overall standings<span>.</span>
+                    {data?.series_id ? "Week" : "Overall"} standings
+                    <span>.</span>
                   </h2>
                 </div>
                 <a
                   className="public-text-link"
-                  href={`/leaderboard?type=squads&event=${encodeURIComponent(slug)}`}
+                  href={
+                    data?.series_id
+                      ? `/leaderboard?type=squads&series=${encodeURIComponent(data.series_id)}`
+                      : `/leaderboard?type=squads&event=${encodeURIComponent(slug)}`
+                  }
                 >
-                  Full rankings →
+                  {data?.series_id ? "Main ranking" : "Full rankings"} →
                 </a>
               </div>
               <Notice state={standings} retry={retryStandings} />

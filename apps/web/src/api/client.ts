@@ -39,6 +39,7 @@ import type {
   ResultSheet,
   SavedResult,
   SeasonStandings,
+  SeriesStandings,
   SquadHistoryEntry,
   User,
 } from "./types";
@@ -438,6 +439,10 @@ export const api = {
     }),
   seasonStandings: (id: Id, signal?: AbortSignal) =>
     request<ApiData<SeasonStandings>>(`/seasons/${key(id)}/standings`, {
+      signal,
+    }),
+  seriesStandings: (id: Id, signal?: AbortSignal) =>
+    request<ApiData<SeriesStandings>>(`/series/${key(id)}/standings`, {
       signal,
     }),
   playerRankings: (page = 1, signal?: AbortSignal) =>

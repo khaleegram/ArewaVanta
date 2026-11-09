@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\V1\Public\PlayerController;
 use App\Http\Controllers\Api\V1\Public\PlayerRankingsController;
 use App\Http\Controllers\Api\V1\Public\ScoringPresetController;
 use App\Http\Controllers\Api\V1\Public\SeasonStandingsController;
+use App\Http\Controllers\Api\V1\Public\SeriesStandingsController;
 use App\Http\Controllers\Api\V1\Public\SquadHistoryController;
 use Illuminate\Support\Facades\Route;
 
@@ -83,6 +84,8 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.players.show');
         Route::get('/rankings/players', PlayerRankingsController::class)->name('api.v1.players.rankings');
         Route::get('/seasons/{season}/standings', SeasonStandingsController::class)->name('api.v1.seasons.standings');
+        Route::get('/series/{series}/standings', SeriesStandingsController::class)
+            ->name('api.v1.series.standings');
     });
     Route::get('/clans', [PublicOrganizationController::class, 'clans'])
         ->middleware('throttle:public-search')

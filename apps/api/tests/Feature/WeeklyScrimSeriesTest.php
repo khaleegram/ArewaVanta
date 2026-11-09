@@ -235,6 +235,19 @@ final class WeeklyScrimSeriesTest extends TestCase
     }
 
     /** @return array{User, CompetitionEvent} */
+    public function test_public_series_standings_are_available_across_all_weeks(): void
+    {
+        [$actor, $event] = $this->scrim();
+        $this->recurrence($event, 'start')->assertOk();
+        $series = $event->fresh()->series;
+
+        $this->getJson("/api/v1/series/{$series->id}/standings")
+            ->assertOk()
+            ->assertJsonPath('data.series.id', $series->id)
+            ->assertJsonPath('data.series.title', 'Weekly scrims')
+            ->assertJsonStructure(['data' => ['standings', 'uses_mixed_scoring_presets']]);
+    }
+
     private function scrim(): array
     {
         $this->travelTo(now()->setDate(2026, 10, 30)->setTime(10, 0));

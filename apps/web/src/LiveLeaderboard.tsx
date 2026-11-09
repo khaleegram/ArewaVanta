@@ -295,7 +295,11 @@ export default function LiveLeaderboard() {
   const [events, setEvents] = useState<Load<EventSummary[]>>({
     status: "loading",
   });
-  const [event, setEvent] = useState(initialParams.get("event") ?? "");
+  const [event, setEvent] = useState(
+    initialParams.get("series")
+      ? `series:${initialParams.get("series")}`
+      : (initialParams.get("event") ?? ""),
+  );
   const [seasonId, setSeasonId] = useState(initialParams.get("season") ?? "");
   const [standings, setStandings] = useState<Load<Standings>>({
     status: "loading",
@@ -322,16 +326,25 @@ export default function LiveLeaderboard() {
     allPublicEvents(controller.signal)
       .then((data) => {
         setEvents({ status: "ready", data });
-        setEvent((current) =>
-          data.some((e) => e.slug === current)
-            ? current
-            : (data.find(
-                (e) =>
-                  shortCode && e.slug.toLowerCase().endsWith(`-${shortCode}`),
-              )?.slug ??
-              (data.find((e) => e.scored_match_count > 0) ?? data[0])?.slug ??
-              ""),
-        );
+        setEvent((current) => {
+          const valid = current.startsWith("series:")
+            ? data.some((e) => e.series_id === current.slice(7))
+            : data.some((e) => e.slug === current);
+          if (valid) return current;
+          const fallback =
+            data.find(
+              (e) =>
+                shortCode && e.slug.toLowerCase().endsWith(`-${shortCode}`),
+            ) ??
+            data.find((e) => e.scored_match_count > 0) ??
+            data[0];
+          if (!fallback) return "";
+          return shortCode
+            ? fallback.slug
+            : fallback.series_id
+              ? `series:${fallback.series_id}`
+              : fallback.slug;
+        });
         setSeasonId((current) =>
           current && data.some((e) => e.season?.id === current) ? current : "",
         );
@@ -346,9 +359,12 @@ export default function LiveLeaderboard() {
     if (!event && !seasonId) return;
     const controller = new AbortController();
     setStandings({ status: "loading" });
+    const seriesId = event.startsWith("series:") ? event.slice(7) : "";
     (seasonId
       ? api.seasonStandings(seasonId, controller.signal)
-      : api.eventStandings(event, controller.signal)
+      : seriesId
+        ? api.seriesStandings(seriesId, controller.signal)
+        : api.eventStandings(event, controller.signal)
     )
       .then(({ data }) => setStandings({ status: "ready", data }))
       .catch((error) => {
@@ -421,6 +437,10 @@ export default function LiveLeaderboard() {
       if (playerPage > 1) p.set("page", String(playerPage));
     } else if (seasonId) {
       p.set("season", seasonId);
+    } else if (event.startsWith("series:")) {
+      p.set("type", "squads");
+      p.set("series", event.slice(7));
+      if (query.trim()) p.set("q", query.trim());
     } else if (event) {
       const target = new URL(
         leaderboardSharePath(event),
@@ -459,35 +479,6 @@ export default function LiveLeaderboard() {
         ]
       : [];
   const currentSeason = seasons.find((season) => season.id === seasonId);
-  const activeContext = seasonId
-    ? currentSeason && { title: currentSeason.name }
-    : currentEvent;
-  usePageSeo({
-    ...pageMetadata.leaderboard,
-    title:
-      kind === "players"
-        ? "Arewa CODM Player Rankings & Kills Leaderboard | ArewaVanta"
-        : "Arewa CODM Squad Standings & Leaderboard | ArewaVanta",
-    description: activeContext
-      ? `See ${kind === "players" ? "player rankings" : "squad standings"} for ${activeContext.title} in the Arewa CODM Battle Royale community. Follow kills, wins and points.`
-      : pageMetadata.leaderboard.description,
-  });
-  const rows =
-    standings.status === "ready"
-      ? standings.data.standings.filter((row) =>
-          `${row.squad.name} ${row.squad.clan.tag ?? ""} ${row.squad.clan.name}`
-            .toLowerCase()
-            .includes(query.trim().toLowerCase()),
-        )
-      : [];
-  if (sort === "kills")
-    rows.sort((a, b) => b.total_kills - a.total_kills || a.rank - b.rank);
-  function changeKind(value: Kind) {
-    setKind(value);
-    setExpanded(null);
-    setSort("rank");
-    setQuery("");
-  }
   const groups =
     events.status === "ready"
       ? [
@@ -516,9 +507,40 @@ export default function LiveLeaderboard() {
           ).values(),
         ]
       : [];
-  const currentGroup = groups.find((group) =>
-    group.weeks.some((week) => week.slug === event),
+  const currentGroup = groups.find(
+    (group) =>
+      group.key === event || group.weeks.some((week) => week.slug === event),
   );
+  const activeContext = seasonId
+    ? currentSeason && { title: currentSeason.name }
+    : currentEvent ??
+      (currentGroup ? { title: currentGroup.title } : undefined);
+  usePageSeo({
+    ...pageMetadata.leaderboard,
+    title:
+      kind === "players"
+        ? "Arewa CODM Player Rankings & Kills Leaderboard | ArewaVanta"
+        : "Arewa CODM Squad Standings & Leaderboard | ArewaVanta",
+    description: activeContext
+      ? `See ${kind === "players" ? "player rankings" : "squad standings"} for ${activeContext.title} in the Arewa CODM Battle Royale community. Follow kills, wins and points.`
+      : pageMetadata.leaderboard.description,
+  });
+  const rows =
+    standings.status === "ready"
+      ? standings.data.standings.filter((row) =>
+          `${row.squad.name} ${row.squad.clan.tag ?? ""} ${row.squad.clan.name}`
+            .toLowerCase()
+            .includes(query.trim().toLowerCase()),
+        )
+      : [];
+  if (sort === "kills")
+    rows.sort((a, b) => b.total_kills - a.total_kills || a.rank - b.rank);
+  function changeKind(value: Kind) {
+    setKind(value);
+    setExpanded(null);
+    setSort("rank");
+    setQuery("");
+  }
   const leaders: SpotlightEntry[] =
     kind === "squads"
       ? standings.status === "ready"
@@ -613,7 +635,7 @@ export default function LiveLeaderboard() {
             <p>
               <span className="arena-status-dot" />{" "}
               {kind === "squads"
-                ? `${countLabel(completedGames, "game")} played${currentEvent ? ` · ${currentEvent.title}` : ""}`
+                ? `${countLabel(completedGames, "game")} played${currentEvent ? ` · ${currentEvent.title}` : currentGroup ? ` · ${currentGroup.title}` : ""}`
                 : "Across public competitions"}
             </p>
           </div>
@@ -653,7 +675,7 @@ export default function LiveLeaderboard() {
                       const group = groups.find(
                         (item) => item.key === e.target.value,
                       );
-                      if (group) setEvent(group.representative.slug);
+                      if (group) setEvent(group.key);
                     }
                     setStandings({ status: "loading" });
                     setExpanded(null);
@@ -690,7 +712,11 @@ export default function LiveLeaderboard() {
                 <Icon name="calendar" />
                 <span>
                   <small>
-                    {currentGroup.weeks.length > 1 ? "WEEKEND" : "DATES"}
+                    {event.startsWith("series:")
+                      ? "RANKING"
+                      : currentGroup.weeks.length > 1
+                        ? "WEEKEND"
+                        : "DATES"}
                   </small>
                   <select
                     aria-label="Competition weekend"
@@ -702,6 +728,11 @@ export default function LiveLeaderboard() {
                       setQuery("");
                     }}
                   >
+                    {currentGroup.key.startsWith("series:") && (
+                      <option value={currentGroup.key}>
+                        Main ranking · all weekends
+                      </option>
+                    )}
                     {currentGroup.weeks.map((week) => (
                       <option key={week.id} value={week.slug}>
                         {formatDateRange(week.start_date, week.end_date)}

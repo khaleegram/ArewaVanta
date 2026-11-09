@@ -203,6 +203,9 @@ export type EventStandings = Standings & {
 export type SeasonStandings = Standings & {
   season: { id: Id; name: string; slug: string };
 };
+export type SeriesStandings = Standings & {
+  series: { id: Id; title: string | null };
+};
 export type PlayerRanking = {
   best_game_kills?: number;
   id: Id;
