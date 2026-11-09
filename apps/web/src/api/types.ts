@@ -625,6 +625,7 @@ export type ScreenshotPlayer = {
   match_score?: number | null;
   match_reason?: string | null;
   note?: string;
+  tag_conflict?: boolean;
   candidates: {
     player_id: Id;
     ign: string;

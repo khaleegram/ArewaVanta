@@ -298,7 +298,7 @@ const screenshotFile = {
 await page.getByRole("button", { name: "Import screenshot" }).click();
 await page.locator('input[type="file"]').setInputFiles(screenshotFile);
 await page.getByRole("button", { name: "Read screenshots" }).click();
-await page.getByText("TEAM12", { exact: true }).waitFor();
+await page.getByText(/TEAM12/).waitFor();
 assert.equal(
   await page
     .locator(".score-import-player-review")
@@ -306,22 +306,19 @@ assert.equal(
     .count(),
   1,
 );
-assert.equal(
-  await page.getByText("Choose this team’s squad", { exact: true }).count(),
-  1,
-);
-await page.getByRole("button", { name: "Use existing guest" }).click();
-await page.getByText("Player confirmed", { exact: true }).waitFor();
 await page
   .locator(".score-import-player-review")
   .filter({ hasText: "NEW PLAYER" })
   .getByRole("button", { name: "Create new profile" })
   .click();
-await page
-  .locator(".score-import-player-review")
-  .filter({ hasText: "NEW PLAYER" })
-  .getByText(/New profile · created when you save scores/)
-  .waitFor();
+await page.getByRole("tab", { name: /Confirmed/ }).click();
+await page.getByRole("button", { name: "Use existing guest" }).click();
+await page.getByText("Player confirmed", { exact: true }).waitFor();
+await page.getByRole("tab", { name: /Teams/ }).click();
+assert.equal(
+  await page.getByText("Choose this team’s squad", { exact: true }).count(),
+  1,
+);
 await page.getByRole("button", { name: "Add TEAM18 as late entry" }).click();
 assert.equal(await page.getByLabel("Game slot").inputValue(), "18");
 await page
@@ -386,7 +383,13 @@ await page.goto(
 await page.getByRole("button", { name: "Import screenshot" }).click();
 await page.locator('input[type="file"]').setInputFiles(screenshotFile);
 await page.getByRole("button", { name: "Read screenshots" }).click();
-await page.getByText("TEAM12", { exact: true }).waitFor();
+await page.getByText(/TEAM12/).waitFor();
+await page
+  .locator(".score-import-player-review")
+  .filter({ hasText: "NEW PLAYER" })
+  .getByRole("button", { name: "Create new profile" })
+  .click();
+await page.getByRole("tab", { name: /Teams/ }).click();
 await page
   .getByLabel("Map TEAM18 to an app slot")
   .selectOption({ label: "Slot 6 · SC · Sokoto Clan" });
@@ -425,7 +428,8 @@ await page.evaluate(() => (document.activeElement instanceof HTMLElement ? docum
 await page.getByRole("button", { name: "Import screenshot" }).click();
 await page.locator('input[type="file"]').setInputFiles(screenshotFile);
 await page.getByRole("button", { name: "Read screenshots" }).click();
-await page.getByText("TEAM12", { exact: true }).waitFor();
+await page.getByText(/TEAM12/).waitFor();
+await page.getByRole("tab", { name: /Teams/ }).click();
 await page
   .getByLabel("Map TEAM18 to an app slot")
   .selectOption({ label: "Slot 6 · SC · Sokoto Clan" });

@@ -664,11 +664,22 @@ export const api = {
     search: string,
     clanId?: Id,
     signal?: AbortSignal,
+    page = 1,
   ) =>
-    request<ApiData<MatchParticipant[]> & { meta: { has_more: boolean } }>(
-      `/manage/matches/${key(matchId)}/players`,
-      { token, signal, query: { search, clan_id: clanId } },
-    ),
+    request<
+      ApiData<MatchParticipant[]> & {
+        meta: {
+          has_more: boolean;
+          page?: number;
+          per_page?: number;
+          total?: number;
+        };
+      }
+    >(`/manage/matches/${key(matchId)}/players`, {
+      token,
+      signal,
+      query: { search, clan_id: clanId, page },
+    }),
   addLateEntry: (
     token: string,
     matchId: Id,

@@ -196,6 +196,9 @@ final class ScreenshotResultMapper
                 $key = PlayerNameSearch::key($lookupName);
                 $kills = is_int($player['kills'] ?? null) ? $player['kills'] : null;
                 $resolved = $this->resolvePlayer($key, $lookupName, $matchedSquad, $playerIndex, $allPlayers, $allCandidates, $tagOwner);
+                if (($resolved['tag_conflict'] ?? false) && $split['tag'] !== null) {
+                    $warnings[] = $rawName.' reads as '.$split['tag'].', but '.$label.' is mapped to '.$this->squadName($matchedSquad).'. The team slot keeps the new profile in '.$this->squadName($matchedSquad).'.';
+                }
                 if ($resolved['player_id'] !== null && isset($usedPlayers[$resolved['player_id']])) {
                     $resolved['status'] = 'duplicate';
                     $resolved['duplicate_of'] = $usedPlayers[$resolved['player_id']];
@@ -205,7 +208,7 @@ final class ScreenshotResultMapper
                 }
                 $players[] = [
                     'name' => $rawName,
-                    'tag' => $split['tag'],
+                    'tag' => $resolved['clan_tag'] ?? $split['tag'],
                     'kills' => $kills,
                     'kills_options' => $player['kills_options'] ?? [],
                     ...$resolved,
@@ -386,15 +389,52 @@ final class ScreenshotResultMapper
             ];
         }
 
+        // The mapped team slot is authoritative for a new player unless the
+        // name carries a clearly different, known clan tag (a real guest).
+        // OCR often reads NE as NF; a one-character tag misread must not
+        // create a profile in the wrong clan when the team is unambiguous.
+        $teamClanId = $squad['clan_id'] ?? null;
+        $tagConflictsWithTeam = $tagClanId !== null
+            && $teamClanId !== null
+            && $tagClanId !== $teamClanId;
+        $tagLooksMisread = $tagConflictsWithTeam
+            && $this->tagsLookMisread($tagOwner, $squad);
+        $useTeamClan = $teamClanId !== null
+            && ($tagClanId === null || $tagClanId === $teamClanId || $tagLooksMisread);
+        $clanId = $useTeamClan ? $teamClanId : $tagClanId;
+
         return [
             'status' => 'new',
             'player_id' => null,
             'ign' => $name,
-            'clan_id' => $tagClanId,
-            'clan' => $tagOwner['name'] ?? null,
-            'clan_tag' => $tagOwner['tag'] ?? null,
+            'clan_id' => $clanId,
+            'clan' => $useTeamClan ? $squad['clan'] : ($tagOwner['name'] ?? null),
+            'clan_tag' => $useTeamClan ? $squad['clan_tag'] : ($tagOwner['tag'] ?? null),
+            'tag_conflict' => $tagLooksMisread,
             'candidates' => [],
         ];
+    }
+
+    /**
+     * OCR commonly swaps one character in a short clan tag. Only treat a
+     * conflicting tag as a misread when the tags share their first letter,
+     * are the same length and are one edit apart; a genuinely different
+     * guest tag (GC on a KC team) is kept.
+     *
+     * @param  array<string, mixed>|null  $tagOwner
+     * @param  array<string, mixed>  $squad
+     */
+    private function tagsLookMisread(?array $tagOwner, array $squad): bool
+    {
+        $left = PlayerNameSearch::key((string) ($tagOwner['tag'] ?? ''));
+        $right = PlayerNameSearch::key((string) ($squad['clan_tag'] ?? ''));
+
+        return $left !== ''
+            && $right !== ''
+            && $left[0] === $right[0]
+            && strlen($left) === strlen($right)
+            && strlen($left) <= 5
+            && levenshtein($left, $right) === 1;
     }
 
     /**

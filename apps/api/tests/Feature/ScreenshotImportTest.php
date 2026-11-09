@@ -108,9 +108,19 @@ final class ScreenshotImportTest extends TestCase
 
     public function test_screenshot_import_uses_clan_tags_to_resolve_same_clan_and_guest_players(): void
     {
-        [$organizer, $matchId, , , $playerA] = $this->competition();
+        [$organizer, $matchId, $squadA, , $playerA] = $this->competition();
         $guestClan = Clan::factory()->create(['name' => 'Guest Clan', 'tag' => 'GC', 'tags' => ['GC']]);
         $guest = Player::factory()->create(['clan_id' => $guestClan->id, 'current_ign' => 'GUEST PLAYER']);
+        $nfClan = Clan::factory()->create(['name' => 'NF Clan', 'tag' => 'NF', 'tags' => ['NF']]);
+        $neClan = Clan::factory()->create(['name' => 'NE Clan', 'tag' => 'NE', 'tags' => ['NE']]);
+        $neSquad = Squad::factory()->create([
+            'clan_id' => $neClan->id,
+            'name' => 'NE First',
+            'squad_number' => 1,
+            'tag' => 'NE1',
+        ]);
+        EventSquad::query()->create(['event_id' => $squadA->eventEntries()->first()->event_id, 'squad_id' => $neSquad->id, 'status' => 'active', 'slot_number' => 13]);
+        MatchSquad::query()->create(['match_id' => $matchId, 'squad_id' => $neSquad->id, 'entry_status' => 'expected']);
 
         config(['services.deepseek.key' => 'test-deepseek-key']);
         Http::fake([
@@ -118,17 +128,27 @@ final class ScreenshotImportTest extends TestCase
                 'choices' => [[
                     'message' => [
                         'content' => json_encode([
-                            'teams' => [[
-                                'team_label' => 'TEAM12',
-                                'team_number' => 12,
-                                'placement' => 1,
-                                'players' => [
-                                    ['name' => 'KC | '.$playerA->current_ign, 'kills' => 13],
-                                    ['name' => 'GC | GUEST PLAYER', 'kills' => 2],
-                                    ['name' => 'GC | NEW GUEST', 'kills' => 4],
-                                    ['name' => 'UnknownTag | LONE WOLF', 'kills' => 1],
+                            'teams' => [
+                                [
+                                    'team_label' => 'TEAM12',
+                                    'team_number' => 12,
+                                    'placement' => 1,
+                                    'players' => [
+                                        ['name' => 'KC | '.$playerA->current_ign, 'kills' => 13],
+                                        ['name' => 'GC | GUEST PLAYER', 'kills' => 2],
+                                        ['name' => 'GC | NEW GUEST', 'kills' => 4],
+                                        ['name' => 'UnknownTag | LONE WOLF', 'kills' => 1],
+                                    ],
                                 ],
-                            ]],
+                                [
+                                    'team_label' => 'TEAM13',
+                                    'team_number' => 13,
+                                    'placement' => 2,
+                                    'players' => [
+                                        ['name' => 'NF | NEW NE PLAYER', 'kills' => 5],
+                                    ],
+                                ],
+                            ],
                             'warnings' => [],
                         ], JSON_THROW_ON_ERROR),
                     ],
@@ -161,7 +181,14 @@ final class ScreenshotImportTest extends TestCase
 
         $this->assertSame('UnknownTag | LONE WOLF', $players[3]['name']);
         $this->assertSame('new', $players[3]['status']);
-        $this->assertNull($players[3]['clan_id']);
+        $this->assertSame($squadA->clan_id, $players[3]['clan_id']);
+
+        $nePlayers = collect($teams)->firstWhere('team_label', 'TEAM13')['players'];
+        $this->assertSame('NE', $nePlayers[0]['tag']);
+        $this->assertSame('new', $nePlayers[0]['status']);
+        $this->assertSame($neClan->id, $nePlayers[0]['clan_id']);
+        $this->assertTrue($nePlayers[0]['tag_conflict']);
+        $this->assertNotSame($nfClan->id, $nePlayers[0]['clan_id']);
     }
 
     public function test_screenshot_import_reports_a_missing_api_key_without_calling_a_provider(): void

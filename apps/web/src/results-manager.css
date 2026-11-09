@@ -294,3 +294,25 @@
   .score-import-team .score-import-include { align-items:flex-start; }
   .score-import-team .score-import-include input { margin-top:3px; }
 }
+
+.score-import-tabs { display:flex; gap:6px; margin:14px 0 12px; overflow-x:auto; padding-bottom:2px; }
+.score-workspace .score-import-tabs button { flex:1 1 auto; min-width:max-content; min-height:42px; padding:8px 12px; border:1px solid var(--score-line); background:var(--score-paper); color:var(--score-muted); font-size:11px; font-weight:800; white-space:nowrap; }
+.score-workspace .score-import-tabs button span { display:inline-block; min-width:20px; margin-left:5px; padding:2px 5px; border-radius:999px; background:#e7ece2; color:#21573d; font-size:10px; }
+.score-workspace .score-import-tabs button[aria-selected="true"] { border-color:#f06549; background:#2d3d2c; color:#fff; }
+.score-workspace .score-import-tabs button[aria-selected="true"] span { background:#f06549; color:#fff; }
+.score-import-review-queue > p.score-import-queue-note { margin:0 0 8px; color:var(--score-muted); font-size:11px; line-height:1.5; }
+.score-import-player-review.is-compact { padding:12px 0; border-bottom:1px solid var(--score-line); }
+.score-import-player-review.is-compact .score-import-player-team { color:#21573d; font-weight:700; }
+.score-import-player-review.is-compact .score-import-player-top { align-items:flex-start; }
+.score-workspace .score-import-player-review.is-compact .score-import-kills input { width:58px; padding:6px; font-size:16px; }
+.score-workspace .score-import-player-buttons .score-import-accept { min-height:38px; }
+.score-import-team-players { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--score-line); color:var(--score-muted); font-size:10px; }
+.score-workspace .score-import-team-players button { min-height:32px; padding:5px 8px; font-size:10px; }
+.score-import-empty { margin:0; padding:14px; border:1px dashed var(--score-line); border-radius:8px; color:var(--score-muted); font-size:11px; }
+.score-import-insight > small.score-warning { margin-bottom:5px; }
+@media (max-width:640px) {
+  .score-import-apply { position:sticky; bottom:0; z-index:5; margin:12px -4px -4px; padding:10px 4px; background:var(--score-paper); box-shadow:0 -8px 20px rgba(20,30,20,.08); }
+  .score-workspace .score-import-tabs { position:sticky; top:0; z-index:4; background:var(--score-paper); padding-top:6px; }
+  .score-import-player-review.is-compact .score-import-player-buttons { gap:5px; }
+  .score-workspace .score-import-player-review.is-compact .score-import-player-buttons button { min-height:34px; }
+}

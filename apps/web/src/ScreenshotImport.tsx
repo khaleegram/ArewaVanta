@@ -105,6 +105,9 @@ export function ScreenshotImport({
   const [applied, setApplied] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [command, setCommand] = useState("");
+  const [panel, setPanel] = useState<"review" | "confirmed" | "teams">(
+    "review",
+  );
   const [storageProblem, setStorageProblem] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
@@ -312,6 +315,22 @@ export function ScreenshotImport({
     (sum, player) => sum + (player.kills ?? 0),
     0,
   );
+  const pendingEntries = activeTeams
+    .flatMap((team) =>
+      team.players
+        .filter((player) => !player.excluded && !selectedPlayer(player))
+        .map((player) => ({ team, player })),
+    )
+    .sort(
+      (left, right) =>
+        (left.team.squad?.slot_number ?? 999) -
+        (right.team.squad?.slot_number ?? 999),
+    );
+  const confirmedEntries = activeTeams.flatMap((team) =>
+    team.players
+      .filter((player) => !player.excluded && selectedPlayer(player))
+      .map((player) => ({ team, player })),
+  );
   const problems = review ? importProblems(review.teams) : [];
   const candidates = review ? reviewCandidates(sheet, review.teams) : [];
   return (
@@ -435,7 +454,101 @@ export function ScreenshotImport({
               {unresolvedKills ? ` · ${unresolvedKills} kills` : ""}
             </span>
           </div>
-          {!!unresolved && (
+          <div className="score-import-tabs" role="tablist" aria-label="Import review sections">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panel === "review"}
+              onClick={() => setPanel("review")}
+            >
+              Needs review <span>{pendingEntries.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panel === "confirmed"}
+              onClick={() => setPanel("confirmed")}
+            >
+              Confirmed <span>{confirmedEntries.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panel === "teams"}
+              onClick={() => setPanel("teams")}
+            >
+              Teams <span>{review.teams.length}</span>
+            </button>
+          </div>
+          {panel === "review" && (
+            <div className="score-import-review-queue">
+              {pendingEntries.length ? (
+                <>
+                  <p className="score-import-queue-note">
+                    Resolve these first. Confirmed matches are tucked under
+                    Confirmed. Tap Accept when the suggested player is right,
+                    or choose another player.
+                  </p>
+                  <ul className="score-import-players">
+                    {pendingEntries.map(({ team, player }) => (
+                      <ImportPlayer
+                        key={`${teamKey(team)}:${playerKey(player)}`}
+                        player={player}
+                        team={team}
+                        compact
+                        candidates={candidates}
+                        token={token}
+                        matchId={matchId}
+                        onChange={(change) =>
+                          changePlayer(
+                            teamKey(team),
+                            playerKey(player),
+                            change,
+                          )
+                        }
+                      />
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="score-import-empty">
+                  Every player is resolved. Check Confirmed or Teams, then apply
+                  the scores.
+                </p>
+              )}
+            </div>
+          )}
+          {panel === "confirmed" && (
+            <div className="score-import-confirmed">
+              {confirmedEntries.length ? (
+                <ul className="score-import-players">
+                  {confirmedEntries.map(({ team, player }) => (
+                    <ImportPlayer
+                      key={`${teamKey(team)}:${playerKey(player)}`}
+                      player={player}
+                      team={team}
+                      compact
+                      candidates={candidates}
+                      token={token}
+                      matchId={matchId}
+                      onChange={(change) =>
+                        changePlayer(
+                          teamKey(team),
+                          playerKey(player),
+                          change,
+                        )
+                      }
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <p className="score-import-empty">
+                  No confirmed players yet. Resolve the review queue first.
+                </p>
+              )}
+            </div>
+          )}
+          {panel === "review" && !!unresolved && (
             <div className="score-import-bulk">
               <p>
                 No player is created automatically. Accept a suggested existing
@@ -444,22 +557,24 @@ export function ScreenshotImport({
               </p>
             </div>
           )}
-          <form className="score-import-command" onSubmit={runCommand}>
-            <label htmlFor="score-import-command-input">
-              Quick map command
-            </label>
-            <div>
-              <input
-                id="score-import-command-input"
-                value={command}
-                placeholder="TEAM18 is Slot 6"
-                onChange={(event) => setCommand(event.target.value)}
-              />
-              <button type="submit" disabled={!command.trim()}>
-                Map team
-              </button>
-            </div>
-          </form>
+          {panel === "teams" && (
+            <form className="score-import-command" onSubmit={runCommand}>
+              <label htmlFor="score-import-command-input">
+                Quick map command
+              </label>
+              <div>
+                <input
+                  id="score-import-command-input"
+                  value={command}
+                  placeholder="TEAM18 is Slot 6"
+                  onChange={(event) => setCommand(event.target.value)}
+                />
+                <button type="submit" disabled={!command.trim()}>
+                  Map team
+                </button>
+              </div>
+            </form>
+          )}
           {!!review.warnings.length && (
             <details className="score-import-warnings">
               <summary>Extraction notes ({review.warnings.length})</summary>
@@ -477,12 +592,19 @@ export function ScreenshotImport({
               ))}
             </div>
           )}
+          {panel === "teams" && (
           <div className="score-import-teams">
             {review.teams.map((team) => {
               const id = teamKey(team);
               const total = team.players
                 .filter((p) => !p.excluded)
                 .reduce((sum, p) => sum + (p.kills ?? 0), 0);
+              const teamPending = team.players.filter(
+                (p) => !p.excluded && !selectedPlayer(p),
+              ).length;
+              const teamConfirmed = team.players.filter(
+                (p) => !p.excluded && selectedPlayer(p),
+              ).length;
               return (
                 <article
                   className={`score-import-team${team.excluded ? " is-skipped" : ""}`}
@@ -613,20 +735,19 @@ export function ScreenshotImport({
                       Skip OCR duplicates or choose the actual players.
                     </p>
                   )}
-                  <ul className="score-import-players">
-                    {team.players.map((player) => (
-                      <ImportPlayer
-                        key={playerKey(player)}
-                        player={player}
-                        candidates={candidates}
-                        token={token}
-                        matchId={matchId}
-                        onChange={(change) =>
-                          changePlayer(id, playerKey(player), change)
-                        }
-                      />
-                    ))}
-                  </ul>
+                  <div className="score-import-team-players">
+                    <span>
+                      {teamConfirmed}/{team.players.length} players confirmed
+                    </span>
+                    {teamPending > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPanel("review")}
+                      >
+                        {teamPending} to review
+                      </button>
+                    )}
+                  </div>
                   <label className="score-import-include">
                     <input
                       type="checkbox"
@@ -648,20 +769,19 @@ export function ScreenshotImport({
               );
             })}
           </div>
+          )}
           <div className="score-import-apply">
             <p>
               {activeTeams.length
                 ? `${activeTeams.length} team${activeTeams.length === 1 ? "" : "s"} can fill the draft.${
                     newNames
-                      ? ` ${newNames} new profile${newNames === 1 ? "" : "s"} will be created.`
+                      ? ` ${newNames} new name${newNames === 1 ? "" : "s"} still need${newNames === 1 ? "s" : ""} a decision.`
                       : ""
                   }${
                     unresolved
                       ? ` ${unresolved} name${unresolved === 1 ? "" : "s"}${
                           unresolvedKills ? ` with ${unresolvedKills} kills` : ""
-                        } ${unresolved === 1 ? "needs" : "need"} a choice and ${
-                          unresolved === 1 ? "stays" : "stay"
-                        } in this review.`
+                        } ${unresolved === 1 ? "is" : "are"} not in the draft until resolved.`
                       : ""
                   }`
                 : "Map a team or include it to apply its scores."}
@@ -712,23 +832,30 @@ export function ScreenshotImport({
 
 function ImportPlayer({
   player,
+  team,
+  compact = false,
   candidates,
   token,
   matchId,
   onChange,
 }: {
   player: ScreenshotPlayer;
+  team?: ScreenshotImportTeam;
+  compact?: boolean;
   candidates: ImportCandidate[];
   token: string;
   matchId: string;
   onChange: (change: (p: ScreenshotPlayer) => ScreenshotPlayer) => void;
 }) {
   const [choosing, setChoosing] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
   const [query, setQuery] = useState(player.name);
   const [results, setResults] = useState<ImportCandidate[]>([]);
   const [searching, setSearching] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-  const [more, setMore] = useState(false);
+  const [nextPage, setNextPage] = useState<number | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
   const [verifiedQuery, setVerifiedQuery] = useState<string | null>(null);
   const queryKey = playerSearchKey(query);
   const suggestions = uniqueCandidates([
@@ -746,11 +873,12 @@ function ImportPlayer({
     setError("");
     setResults([]);
     setVerifiedQuery(null);
-    setMore(false);
+    setNextPage(null);
+    setTotal(null);
     const timer = window.setTimeout(
       () =>
         api
-          .matchParticipants(token, matchId, query, undefined, c.signal)
+          .matchParticipants(token, matchId, query, undefined, c.signal, 1)
           .then(({ data, meta }) => {
             if (!c.signal.aborted) {
               setResults(
@@ -761,7 +889,8 @@ function ImportPlayer({
                   clan_tag: p.clan_tag,
                 })),
               );
-              setMore(meta.has_more);
+              setNextPage(meta.has_more ? 2 : null);
+              setTotal(meta.total ?? data.length);
               setVerifiedQuery(query);
             }
           })
@@ -778,6 +907,41 @@ function ImportPlayer({
       c.abort();
     };
   }, [token, matchId, query, choosing]);
+  async function loadMore() {
+    if (nextPage === null || loadingMore) return;
+    setLoadingMore(true);
+    setError("");
+    try {
+      const { data, meta } = await api.matchParticipants(
+        token,
+        matchId,
+        query,
+        undefined,
+        undefined,
+        nextPage,
+      );
+      setResults((old) => {
+        const seen = new Set(old.map((player) => player.player_id));
+        return [
+          ...old,
+          ...data
+            .map((p) => ({
+              player_id: p.id,
+              ign: p.ign,
+              clan: p.clan,
+              clan_tag: p.clan_tag,
+            }))
+            .filter((player) => !seen.has(player.player_id)),
+        ];
+      });
+      setTotal(meta.total ?? null);
+      setNextPage(meta.has_more ? nextPage + 1 : null);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   function choose(candidate: ImportCandidate) {
     onChange((p) => ({
       ...p,
@@ -821,12 +985,11 @@ function ImportPlayer({
   const creationBlocked =
     searching ||
     !!error ||
-    more ||
     verifiedQuery !== query ||
     queryKey !== playerSearchKey(player.name);
   return (
     <li
-      className={`score-import-player-review${player.excluded ? " is-skipped" : ""}`}
+      className={`score-import-player-review${player.excluded ? " is-skipped" : ""}${compact ? " is-compact" : ""}`}
     >
       <div className="score-import-player-top">
         <label className="score-import-include">
@@ -845,7 +1008,20 @@ function ImportPlayer({
                 player.tag ?? player.clan_tag,
               )}
             </strong>
+            {team && (
+              <small className="score-import-player-team">
+                {team.team_label}
+                {team.squad?.slot_number ? ` · Slot ${team.squad.slot_number}` : ""}
+                {team.squad ? ` · ${labelSquad(team.squad)}` : " · Unmapped"}
+              </small>
+            )}
             <small>{statusText(player)}</small>
+            {player.tag_conflict && (
+              <small className="score-warning">
+                Read tag disagrees with the team slot. The team clan wins for a
+                new profile.
+              </small>
+            )}
             {player.ign && player.ign !== player.name && (
               <small>Read as: {player.name}</small>
             )}
@@ -908,6 +1084,11 @@ function ImportPlayer({
             Create new profile
           </button>
         )}
+        {needsDecision && compact && !noteOpen && !player.note && (
+          <button type="button" onClick={() => setNoteOpen(true)}>
+            Add note
+          </button>
+        )}
         {needsDecision && (
           <button
             type="button"
@@ -927,7 +1108,7 @@ function ImportPlayer({
           </button>
         )}
       </div>
-      {needsDecision && (
+      {needsDecision && (!compact || noteOpen || !!player.note) && (
         <div className="score-import-insight">
           {player.match_reason || best?.match_reason ? (
             <small>
@@ -1005,10 +1186,23 @@ function ImportPlayer({
               </button>
             ))}
           </div>
-          {more && (
+          {nextPage !== null && (
+            <button
+              type="button"
+              disabled={loadingMore}
+              onClick={() => void loadMore()}
+            >
+              {loadingMore
+                ? "Loading players…"
+                : `Load more players (${results.length}${
+                    total === null ? "" : ` of ${total}`
+                  } shown)`}
+            </button>
+          )}
+          {nextPage === null && total !== null && total > 0 && (
             <small>
-              Showing the first 40 matches. Refine the search to find a specific
-              player.
+              Showing all {total} matching registered
+              {total === 1 ? " player" : " players"}.
             </small>
           )}
           {canCreate && (
