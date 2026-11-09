@@ -8,6 +8,7 @@ import type {
   PublicMatchResult,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
+import { playerHandle } from "./playerDisplay";
 import { pageMetadata, SITE_ORIGIN, usePageSeo } from "./seo";
 import {
   competitionLabel as displayCompetitionLabel,
@@ -689,7 +690,7 @@ export function MatchPage({
                                     <tbody>
                                       {row.players.map((player) => (
                                         <tr key={player.player_id}>
-                                          <th scope="row"><a className="public-inline-link" href={`/players/${encodeURIComponent(player.player_id)}`}>{player.ign}</a></th>
+                                          <th scope="row"><a className="public-inline-link" href={`/players/${encodeURIComponent(player.player_id)}`}>{playerHandle(player.ign, row.clan_tag)}</a></th>
                                           <td>{player.kills}</td>
                                         </tr>
                                       ))}

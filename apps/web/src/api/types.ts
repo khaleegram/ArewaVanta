@@ -42,7 +42,11 @@ export type SquadHistoryEntry = {
   uses_mixed_scoring_presets: boolean;
   scored_match_count: number;
 };
-export type PublicPlayer = { id: Id; current_ign: string };
+export type PublicPlayer = {
+  id: Id;
+  current_ign: string;
+  clan_tag?: string | null;
+};
 export type ClanPlayer = PublicPlayer & { squads: { id: Id; name: string }[] };
 export type EventCheckIn = {
   generated_at: string;
@@ -203,6 +207,7 @@ export type PlayerRanking = {
   best_game_kills?: number;
   id: Id;
   ign: string;
+  clan_tag?: string | null;
   appearances: number;
   total_kills: number;
   rank: number;
@@ -542,13 +547,20 @@ export type ResultSheet = {
     clan_tags?: string[];
     clan_squad_count?: number;
     slot_number: number | null;
-    roster_players?: { id: Id; ign: string }[];
-    eligible_players: { id: Id; ign: string }[];
+    roster_players?: { id: Id; ign: string; clan_tag?: string | null }[];
+    eligible_players: { id: Id; ign: string; clan_tag?: string | null }[];
   }[];
   result: SavedResult | null;
 };
 
-export type MatchParticipant = { id: Id; ign: string; clan: string | null; clan_id: Id | null };
+export type MatchParticipant = {
+  id: Id;
+  ign: string;
+  clan: string | null;
+  clan_id: Id | null;
+  clan_tag?: string | null;
+  clan_tags?: string[];
+};
 
 export type ScreenshotSquad = {
   id: Id;
@@ -649,7 +661,7 @@ export type MonthlyMatch = {
   players: { id: Id; ign: string; kills: number | null }[];
 };
 export type ClanMonthlyReport = {
-  clan: { id: Id; name: string; tag: string; slug: string };
+  clan: { id: Id; name: string; tag: string | null; slug: string };
   month: string; month_label: string; previous_month_label: string; timezone: string; generated_at: string;
   summary: MonthlySummary; previous: MonthlySummary;
   squads: { id: Id; name: string; number: number; slug: string; summary: MonthlySummary; previous: MonthlySummary; players: MonthlyPlayer[]; matches: MonthlyMatch[] }[];

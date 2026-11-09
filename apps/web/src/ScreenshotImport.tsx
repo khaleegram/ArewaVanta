@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
+import { playerHandle } from "./playerDisplay";
 import type {
   ResultSheet,
   ScreenshotImport as ImportResult,
@@ -767,6 +768,7 @@ function ImportPlayer({
                   player_id: p.id,
                   ign: p.ign,
                   clan: p.clan,
+                  clan_tag: p.clan_tag,
                 })),
               );
               setMore(meta.has_more);
@@ -825,17 +827,17 @@ function ImportPlayer({
           <input
             type="checkbox"
             checked={!player.excluded}
-            aria-label={`Include ${player.name}`}
+            aria-label={`Include ${playerHandle(player.ign ?? player.name, player.tag ?? player.clan_tag)}`}
             onChange={(event) =>
               onChange((p) => ({ ...p, excluded: !event.target.checked }))
             }
           />
           <span>
             <strong>
-              {player.tag && (
-                <span className="score-import-tag">{player.tag}</span>
+              {playerHandle(
+                player.ign ?? player.name,
+                player.tag ?? player.clan_tag,
               )}
-              {player.ign ?? player.name}
             </strong>
             <small>{statusText(player)}</small>
             {player.ign && player.ign !== player.name && (
@@ -848,7 +850,7 @@ function ImportPlayer({
           <input
             type="text"
             inputMode="numeric"
-            aria-label={`Imported kills for ${player.name}`}
+            aria-label={`Imported kills for ${playerHandle(player.ign ?? player.name, player.tag ?? player.clan_tag)}`}
             placeholder="—"
             value={player.kills ?? ""}
             onChange={(event) => {
@@ -930,7 +932,9 @@ function ImportPlayer({
                 key={candidate.player_id}
                 onClick={() => choose(candidate)}
               >
-                <strong>{candidate.ign}</strong>
+                <strong>
+                  {playerHandle(candidate.ign, candidate.clan_tag)}
+                </strong>
                 <small>
                   {candidate.clan ?? "Registered player"}
                   {candidate.squad_name ? ` · ${candidate.squad_name}` : ""}

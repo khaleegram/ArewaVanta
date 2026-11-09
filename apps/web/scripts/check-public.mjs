@@ -100,6 +100,7 @@ const result = {
         squad_name: squad.name,
         squad_slug: squad.slug,
         clan_name: "Kano Clan",
+        clan_tag: "KC",
         participation_status: "present",
         placement: 2,
         team_kills: 10,
@@ -150,6 +151,7 @@ const profile = {
       event_slug: event.slug,
       squad_id: "s1",
       squad_name_snapshot: squad.name,
+      clan_tag: "KC",
     },
   ],
   history_meta: { current_page: 1, last_page: 1, total: 1 },
@@ -224,7 +226,7 @@ for (const width of [360, 390, 430, 1440]) {
   await page.getByRole("link", { name: /Kano Clan/ }).waitFor();
   await open("/competitions/weekend/games/m1", "Clan slot results");
   await page.getByText("19.00").waitFor();
-  await page.getByRole("link", { name: "ACE", exact: true }).waitFor();
+  await page.getByRole("link", { name: "KC・ACE", exact: true }).waitFor();
   await page.getByText("9.00", { exact: true }).waitFor();
   if (width === 390)
     await page.screenshot({
@@ -235,7 +237,7 @@ for (const width of [360, 390, 430, 1440]) {
   await open("/clans", "Kano Clan");
   await page.getByRole("link", { name: /Kano Clan/ }).click();
   await page.getByRole("link", { name: /ACE/ }).click();
-  await page.getByText("Played as OLD ACE").waitFor();
+  await page.getByText("Played as KC・OLD ACE").waitFor();
   await page.getByRole("link", { name: "← Players", exact: true }).waitFor();
   await open("/players", "ACE");
   await page.getByRole("link", { name: /ACE/ }).click();

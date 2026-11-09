@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
+import { playerHandle } from "./playerDisplay";
 import type {
   ManageEvent,
   ResultSheet,
@@ -381,13 +382,17 @@ function ScoreWorkspace({
     replace?: string,
   ): boolean {
     const row = rows[squadId];
+    const squadTag =
+      sheet.status === "ready"
+        ? sheet.data.squads.find((s) => s.id === squadId)?.clan_tag
+        : null;
     const removed = row.players.find(
       (p) => p.id === replace && p.id !== player.id,
     );
     if (
       removed?.kills &&
       !window.confirm(
-        `Replace ${removed.ign}? Their ${removed.kills} recorded kills will be removed from this game.`,
+        `Replace ${playerHandle(removed.ign, removed.clan_tag ?? squadTag)}? Their ${removed.kills} recorded kills will be removed from this game.`,
       )
     )
       return false;
@@ -397,7 +402,7 @@ function ScoreWorkspace({
     if (
       source &&
       !window.confirm(
-        `${player.ign} is recorded for another team in this game. Move them and their kills here? Both team changes will be saved together.`,
+        `${playerHandle(player.ign, player.clan_tag ?? squadTag)} is recorded for another team in this game. Move them and their kills here? Both team changes will be saved together.`,
       )
     )
       return false;

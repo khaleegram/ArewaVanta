@@ -180,7 +180,7 @@ for (const width of [360, 390, 430, 768, 1440]) {
     .locator("#score-s1 .score-pool-list")
     .getByRole("button", { name: /ACE/ })
     .click();
-  await page.locator("#score-s1").getByLabel("Kills for ACE").fill("7");
+  await page.locator("#score-s1").getByLabel("Kills for KC・ACE").fill("7");
   await page
     .locator("#score-s1")
     .getByLabel("Placement for Kano Clan")
@@ -195,11 +195,11 @@ for (const width of [360, 390, 430, 768, 1440]) {
   await page.getByRole("button", { name: "Save all changes" }).click();
   await page.getByText(/Team saved. Standings updated/).waitFor();
   assert.equal(
-    await page.locator("#score-s1").getByLabel("Kills for ACE").inputValue(),
+    await page.locator("#score-s1").getByLabel("Kills for KC・ACE").inputValue(),
     "7",
   );
   assert.deepEqual(errors, []);
-  await page.locator("#score-s1").getByLabel("Kills for ACE").fill("9");
+  await page.locator("#score-s1").getByLabel("Kills for KC・ACE").fill("9");
   assert.match(
     await page.locator(".score-save-message").innerText(),
     /unsaved changes/,

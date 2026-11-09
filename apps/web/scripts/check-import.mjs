@@ -342,24 +342,24 @@ assert.equal(
   "1",
 );
 assert.equal(
-  await page.locator("#score-s1").getByLabel("Kills for GrBtness").inputValue(),
+  await page.locator("#score-s1").getByLabel("Kills for KC・GrBtness").inputValue(),
   "13",
 );
 assert.equal(
   await page
     .locator("#score-s1")
-    .getByLabel("Kills for NEW PLAYER")
+    .getByLabel("Kills for KC・NEW PLAYER")
     .inputValue(),
   "4",
 );
 assert.equal(
-  await page.locator("#score-s1").getByLabel("Kills for GUEST1").inputValue(),
+  await page.locator("#score-s1").getByLabel("Kills for KC・GUEST1").inputValue(),
   "2",
 );
 await page.locator("#score-s2 .score-team-name").click();
-await page.locator("#score-s2").getByLabel("Kills for SILKY").waitFor();
+await page.locator("#score-s2").getByLabel("Kills for SC・SILKY").waitFor();
 assert.equal(
-  await page.locator("#score-s2").getByLabel("Kills for SILKY").inputValue(),
+  await page.locator("#score-s2").getByLabel("Kills for SC・SILKY").inputValue(),
   "7",
 );
 assert.match(

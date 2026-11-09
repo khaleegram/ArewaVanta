@@ -17,6 +17,7 @@ import {
   type Session,
 } from "./CompetitionManager";
 import { Icon } from "./ui";
+import { playerHandle } from "./playerDisplay";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
 import { ClanPlayerPool, ClanRoster } from "./ClanPlayers";
@@ -565,7 +566,9 @@ export default function DirectoryManager() {
                         <span className="directory-mark">
                           {player.current_ign.slice(0, 2).toUpperCase()}
                         </span>
-                        <strong>{player.current_ign}</strong>
+                        <strong>
+                          {playerHandle(player.current_ign, player.clan_tag)}
+                        </strong>
                         <a href={`/players/${encodeURIComponent(player.id)}`}>
                           View
                         </a>

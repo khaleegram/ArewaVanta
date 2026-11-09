@@ -3,6 +3,7 @@ import { api } from "./api/client";
 import type { SquadHistoryEntry } from "./api/types";
 import { Shell, Notice, dateText, useLoad } from "./PublicCompetitions";
 import { countLabel, squadIdentity } from "./presentation";
+import { playerHandle } from "./playerDisplay";
 import { Icon } from "./ui";
 import { pageMetadata, SITE_ORIGIN, usePageSeo } from "./seo";
 
@@ -114,7 +115,7 @@ export function ClanPage({ slug }: { slug: string }) {
       description: clan.data.bio || clanDescription,
       sport: "Call of Duty: Mobile Battle Royale",
       url: `${SITE_ORIGIN}${clanUrl(clan.data.slug)}`,
-      member: clan.data.players?.map((player) => ({ "@type": "Person", name: player.current_ign, url: `${SITE_ORIGIN}${playerUrl(player.id)}` })),
+      member: clan.data.players?.map((player) => ({ "@type": "Person", name: playerHandle(player.current_ign, clan.data.tag), url: `${SITE_ORIGIN}${playerUrl(player.id)}` })),
     } : undefined,
   });
   return (
@@ -137,7 +138,7 @@ export function ClanPage({ slug }: { slug: string }) {
               {clan.data.players.map((player) => (
                 <a key={player.id} href={playerUrl(player.id)} className="public-clan-squad-row">
                   <span className="public-clan-squad-no">{player.current_ign.slice(0, 2).toUpperCase()}</span>
-                  <span><strong>{player.current_ign}</strong><small>{clan.data.tag ? `${clan.data.tag} · ` : ""}{clan.data.name}</small></span>
+                  <span><strong>{playerHandle(player.current_ign, clan.data.tag)}</strong><small>{clan.data.name}</small></span>
                   <Icon name="arrow" />
                 </a>
               ))}
@@ -234,7 +235,7 @@ export function SquadPage({ slug }: { slug: string }) {
       name: squadName,
       sport: "Call of Duty: Mobile Battle Royale",
       url: `${SITE_ORIGIN}${squadUrl(squad.data.slug)}`,
-      member: squad.data.roster.map((player) => ({ "@type": "Person", name: player.ign })),
+      member: squad.data.roster.map((player) => ({ "@type": "Person", name: playerHandle(player.ign, squad.data.clan.tag) })),
       parentOrganization: { "@type": "SportsOrganization", name: squad.data.clan.name, url: `${SITE_ORIGIN}${clanUrl(squad.data.clan.slug)}` },
     } : undefined,
   });
@@ -255,7 +256,7 @@ export function SquadPage({ slug }: { slug: string }) {
             {squad.data.roster.length ? (
               <ol className="public-squad-player-list">
                 {squad.data.roster.map((player, index) => (
-                  <li key={player.id}><span>{String(index + 1).padStart(2, "0")}</span><a href={playerUrl(player.id)}><strong>{player.ign}</strong><Icon name="arrow" /></a></li>
+                  <li key={player.id}><span>{String(index + 1).padStart(2, "0")}</span><a href={playerUrl(player.id)}><strong>{playerHandle(player.ign, squad.data.clan.tag)}</strong><Icon name="arrow" /></a></li>
                 ))}
               </ol>
             ) : (
@@ -287,7 +288,7 @@ export function PlayerListing() {
           {players.status === "ready" && players.data.data.map((player) => (
             <a key={player.id} href={playerUrl(player.id)} className="public-player-directory-row">
               <span className="public-player-directory-avatar">{player.current_ign.slice(0, 2).toUpperCase()}</span>
-              <strong>{player.current_ign}</strong>
+              <strong>{playerHandle(player.current_ign, player.clan_tag)}</strong>
               <Icon name="arrow" />
             </a>
           ))}
@@ -303,7 +304,10 @@ export function PlayerPage({ id }: { id: string }) {
     (signal) => api.player(id, page, signal).then((response) => response.data),
     `${id}:${page}`,
   );
-  const playerName = player.status === "ready" ? player.data.current_ign : "Arewa CODM Player";
+  const playerName =
+    player.status === "ready"
+      ? playerHandle(player.data.current_ign, player.data.clan?.tag)
+      : "Arewa CODM Player";
   const playerDescription = player.status === "ready"
     ? `${playerName} is a Call of Duty: Mobile Battle Royale player in the Arewa community. View clan affiliation, match appearances, kills and competition history.`
     : "View an Arewa CODM player’s clan affiliation, match appearances and competition statistics.";
@@ -314,7 +318,7 @@ export function PlayerPage({ id }: { id: string }) {
     schema: player.status === "ready" ? {
       "@context": "https://schema.org",
       "@type": "Person",
-      name: player.data.current_ign,
+      name: playerName,
       url: `${SITE_ORIGIN}${playerUrl(player.data.id)}`,
       description: playerDescription,
       memberOf: player.data.clan ? { "@type": "SportsOrganization", name: player.data.clan.name, url: `${SITE_ORIGIN}${clanUrl(player.data.clan.slug)}` } : undefined,
@@ -331,7 +335,7 @@ export function PlayerPage({ id }: { id: string }) {
               <span className="public-player-crest" aria-hidden="true">{player.data.current_ign.slice(0, 2).toUpperCase()}</span>
               <div className="public-player-identity">
                 <p className="public-kicker">PLAYER PROFILE · AREWA CODM</p>
-                <h1>{player.data.current_ign}<span>.</span></h1>
+                <h1>{playerHandle(player.data.current_ign, player.data.clan?.tag)}<span>.</span></h1>
                 {player.data.uid && <p className="public-player-uid">CODM UID <strong>{player.data.uid}</strong></p>}
               </div>
               {player.data.clan && (
@@ -361,7 +365,7 @@ export function PlayerPage({ id }: { id: string }) {
                       <span className="public-player-match-info">
                         <strong>{match.event_title}</strong>
                         <small>Game {match.match_index} · {match.map_label} · {match.clan_name ?? match.squad_name}</small>
-                        {match.ign_snapshot !== player.data.current_ign && <small>Played as {match.ign_snapshot}</small>}
+                        {match.ign_snapshot !== player.data.current_ign && <small>Played as {playerHandle(match.ign_snapshot, match.clan_tag ?? player.data.clan?.tag)}</small>}
                       </span>
                       <span className="public-player-match-kills"><strong>{match.kills}</strong><small>KILLS</small></span>
                       <Icon name="arrow" />

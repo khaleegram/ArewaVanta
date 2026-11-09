@@ -16,6 +16,7 @@ import {
   squadIdentity,
 } from "./presentation";
 import { Brand, Icon } from "./ui";
+import { playerHandle } from "./playerDisplay";
 import { leaderboardSharePath, pageMetadata, usePageSeo } from "./seo";
 import "./rankings-arena.css";
 
@@ -537,7 +538,7 @@ export default function LiveLeaderboard() {
         ? players.data.data.slice(0, 3).map((player) => ({
             id: player.id,
             rank: player.rank,
-            name: player.ign,
+            name: playerHandle(player.ign, player.clan_tag),
             tag: player.ign.slice(0, 2),
             score: player.total_kills,
             detail: `${averageKills(player.total_kills, player.appearances)} kills / game · ${countLabel(player.appearances, "game")}`,
@@ -995,7 +996,7 @@ export default function LiveLeaderboard() {
                             <span className="arena-rank-identity">
                               <RankBadge tag={player.ign.slice(0, 2)} player />
                               <span>
-                                <strong>{player.ign}</strong>
+                                <strong>{playerHandle(player.ign, player.clan_tag)}</strong>
                                 <small>
                                   {countLabel(player.appearances, "game")}{" "}
                                   played{" "}

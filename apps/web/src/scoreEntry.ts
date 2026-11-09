@@ -5,6 +5,7 @@ export type ScorePlayer = {
   ign: string;
   kills: string;
   clan_id?: string | null;
+  clan_tag?: string | null;
 };
 export type ScoreRow = {
   status: "unentered" | "present" | "absent";
@@ -19,6 +20,7 @@ export type Candidate = {
   ign: string;
   squads?: { id: string; name: string }[];
   clan_id?: string | null;
+  clan_tag?: string | null;
 };
 export const sameRow = (a: ScoreRow | undefined, b: ScoreRow | undefined) =>
   JSON.stringify(a) === JSON.stringify(b);
@@ -60,6 +62,7 @@ export function sheetRows(sheet: ResultSheet): ScoreRows {
             id: p.player_id,
             ign: p.ign,
             kills: p.kills?.toString() ?? "",
+            clan_tag: saved?.clan_tag ?? squad.clan_tag ?? null,
           })),
         } satisfies ScoreRow,
       ];
@@ -81,7 +84,11 @@ export function sheetWithResult(
             ...squad.eligible_players,
             ...(
               result.results.find((r) => r.squad_id === squad.id)?.players ?? []
-            ).map((p) => ({ id: p.player_id, ign: p.ign })),
+            ).map((p) => ({
+              id: p.player_id,
+              ign: p.ign,
+              clan_tag: squad.clan_tag ?? null,
+            })),
           ].map((p) => [p.id, p]),
         ).values(),
       ],

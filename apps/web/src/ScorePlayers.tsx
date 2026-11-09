@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { api, ApiError } from "./api/client";
+import { playerHandle } from "./playerDisplay";
 import { matchesPlayerSearch } from "./playerSearch";
 import {
   knownKills,
@@ -74,7 +75,12 @@ export function ScorePlayers({
       .clanPlayers(token, squad.clan_id, c.signal)
       .then(({ data }) =>
         setPool(
-          data.map((p) => ({ id: p.id, ign: p.current_ign, squads: p.squads })),
+          data.map((p) => ({
+            id: p.id,
+            ign: p.current_ign,
+            squads: p.squads,
+            clan_tag: squad.clan_tag,
+          })),
         ),
       )
       .catch((e) => {
@@ -87,7 +93,7 @@ export function ScorePlayers({
         if (!c.signal.aborted) setLoading(false);
       });
     return () => c.abort();
-  }, [token, squad.clan_id, retry]);
+  }, [token, squad.clan_id, squad.clan_tag, retry]);
   useEffect(() => {
     if (!guest || !guestQuery.trim()) {
       setGuests([]);
@@ -156,7 +162,7 @@ export function ScorePlayers({
     if (
       player?.kills &&
       !window.confirm(
-        `Remove ${player.ign} and their ${player.kills} recorded kills from this match lineup?`,
+        `Remove ${playerHandle(player.ign, player.clan_tag ?? squad.clan_tag)} and their ${player.kills} recorded kills from this match lineup?`,
       )
     )
       return;
@@ -204,7 +210,9 @@ export function ScorePlayers({
                 type="button"
                 onClick={() => select(player)}
               >
-                <strong>{player.ign}</strong>
+                <strong>
+                  {playerHandle(player.ign, player.clan_tag ?? squad.clan_tag)}
+                </strong>
                 <small>
                   {actual
                     ? "Playing"
@@ -216,7 +224,7 @@ export function ScorePlayers({
               <label className="score-player-kills">
                 <span>Kills</span>
                 <input
-                  aria-label={`Kills for ${player.ign}`}
+                  aria-label={`Kills for ${playerHandle(player.ign, player.clan_tag ?? squad.clan_tag)}`}
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -260,7 +268,7 @@ export function ScorePlayers({
               <div className="score-player-actions">
                 <button
                   type="button"
-                  aria-label={`Change ${player.ign}`}
+                  aria-label={`Change ${playerHandle(player.ign, player.clan_tag ?? squad.clan_tag)}`}
                   onClick={() => {
                     setReplacing(player.id);
                     poolElement.current?.scrollIntoView({
@@ -274,7 +282,7 @@ export function ScorePlayers({
                 </button>
                 <button
                   type="button"
-                  aria-label={`Remove ${player.ign}`}
+                  aria-label={`Remove ${playerHandle(player.ign, player.clan_tag ?? squad.clan_tag)}`}
                   onClick={() => remove(player.id)}
                 >
                   ×
@@ -296,7 +304,9 @@ export function ScorePlayers({
           role="group"
           aria-label="Choose player to replace"
         >
-          <strong>Who is {pending.ign} replacing?</strong>
+          <strong>
+            Who is {playerHandle(pending.ign, pending.clan_tag ?? squad.clan_tag)} replacing?
+          </strong>
           <p>Four players are already selected. Choose a player to swap out.</p>
           <div>
             {row.players.map((p) => (
@@ -305,7 +315,7 @@ export function ScorePlayers({
                 key={p.id}
                 onClick={() => select(pending, p.id)}
               >
-                {p.ign}
+                {playerHandle(p.ign, p.clan_tag ?? squad.clan_tag)}
                 {p.kills !== "" ? ` · ${p.kills} kills` : ""}
               </button>
             ))}
@@ -357,7 +367,9 @@ export function ScorePlayers({
               onClick={() => select(player)}
             >
               <span>
-                <strong>{player.ign}</strong>
+                <strong>
+                  {playerHandle(player.ign, player.clan_tag ?? squad.clan_tag)}
+                </strong>
                 <small>
                   {otherSquad(player.id)
                     ? "Recorded in another slot · move to this slot"
@@ -401,6 +413,7 @@ export function ScorePlayers({
                       id: `new:${crypto.randomUUID()}`,
                       ign: newName.trim(),
                       clan_id: squad.clan_id,
+                      clan_tag: squad.clan_tag,
                     });
                 }
               }}
@@ -413,6 +426,7 @@ export function ScorePlayers({
                   id: `new:${crypto.randomUUID()}`,
                   ign: newName.trim(),
                   clan_id: squad.clan_id,
+                  clan_tag: squad.clan_tag,
                 })
               }
             >
@@ -449,7 +463,7 @@ export function ScorePlayers({
               .filter((p) => !actualIds.has(p.id))
               .map((p) => (
                 <button type="button" key={p.id} onClick={() => select(p)}>
-                  {p.ign}
+                  {playerHandle(p.ign, p.clan_tag)}
                   <span>＋</span>
                 </button>
               ))}
