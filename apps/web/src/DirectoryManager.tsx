@@ -121,7 +121,7 @@ function ClanCard({ clan, token, initiallyOpen, canEditCaptains, canSubmit, busy
 }) {
   const [expanded, setExpanded] = useState(initiallyOpen);
   const bodyId = `clan-${clan.id}-body`;
-  return <article className="directory-compact-clan"><div className="directory-compact-head"><button type="button" className="directory-clan-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setExpanded(!expanded)}><span className="directory-clan-avatar" aria-hidden="true">{Array.from(clan.tag || clan.name).slice(0, 3).join("")}</span><span className="directory-clan-label"><strong>{clan.name}</strong><span>{clan.tag}</span></span><Icon name="chevron" className={expanded ? "is-expanded" : ""} /></button></div>
+  return <article className="directory-compact-clan"><div className="directory-compact-head"><button type="button" className="directory-clan-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setExpanded(!expanded)}><span className="directory-clan-avatar" aria-hidden="true">{Array.from(clan.tag || clan.name).slice(0, 3).join("")}</span><span className="directory-clan-label"><strong>{clan.name}</strong><span>{clan.tags?.length ? clan.tags.join(" · ") : (clan.tag || "No tag")}</span></span><Icon name="chevron" className={expanded ? "is-expanded" : ""} /></button></div>
     {expanded && <div id={bodyId} className="directory-clan-body"><div className="directory-clan-toolbar"><strong className="directory-section-label">Clan players</strong><div className="directory-clan-tools"><a className="directory-monthly-report" href={`/manage/clans/${encodeURIComponent(clan.id)}/reports`}>Monthly report <Icon name="arrow" /></a>{canEditCaptains && <button type="button" onClick={onCaptains}>Team captains</button>}<button type="button" disabled={busy} onClick={onEdit}>Edit clan</button></div></div>{canSubmit && <ClanSlots token={token} clan={clan} />}<ClanPlayerPool token={token} clan={clan} /></div>}
   </article>;
 }
@@ -399,7 +399,7 @@ export default function DirectoryManager() {
     setRefresh((x) => x + 1);
   }
   const visibleClans = clans.status === "ready" ? clans.data.filter((clan) =>
-    `${clan.name} ${clan.tag} ${clan.squads.map((squad) => `${squad.name} ${squad.tag ?? ""}`).join(" ")}`
+    `${clan.name} ${clan.tag ?? ""} ${(clan.tags ?? []).join(" ")} ${clan.squads.map((squad) => `${squad.name} ${squad.tag ?? ""}`).join(" ")}`
       .toLowerCase().includes(search.toLowerCase()),
   ) : [];
   return (
@@ -635,9 +635,9 @@ function Editor({
           ? (view.player?.current_ign ?? "")
           : "",
   );
-  const [tag, setTag] = useState(
+  const [tags, setTags] = useState(
     view.kind === "clan"
-      ? (view.clan?.tag ?? "")
+      ? (view.clan?.tags?.length ? view.clan.tags : view.clan?.tag ? [view.clan.tag] : []).join(", ")
       : "",
   );
   const [bio, setBio] = useState(
@@ -650,6 +650,10 @@ function Editor({
   const [uidPublic, setUidPublic] = useState(
     view.kind === "player" ? (view.player?.uid_public ?? false) : false,
   );
+  const playerClanTags =
+    view.kind === "player"
+      ? (clanChoices.find((clan) => clan.id === playerClanId)?.tags ?? [])
+      : [];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function save(e: React.FormEvent) {
@@ -660,7 +664,7 @@ function Editor({
       if (view.kind === "clan") {
         const body = {
           name: name.trim(),
-          tag: tag.trim(),
+          tags: [...new Set(tags.split(/[,;]+/).map((tag) => tag.trim().toUpperCase()).filter(Boolean))],
           bio: bio.trim() || null,
         };
         if (view.clan) await api.updateClan(token, view.clan.id, body);
@@ -736,6 +740,11 @@ function Editor({
             : view.kind === "player"
               ? "Player IGN"
               : "Clan name"}
+          {view.kind === "player" && !!playerClanTags.length && (
+            <span className="clan-player-tag-fixed" aria-label="Clan tag">
+              {playerClanTags.join(" · ")}
+            </span>
+          )}
           <input
             autoFocus={view.kind !== "squad"}
             required={view.kind !== "squad"}
@@ -748,7 +757,7 @@ function Editor({
             Numbered automatically and cannot be renamed. It will appear as {squadIdentity({
               name,
               squadNumber: Number(/^Squad\s+(\d+)$/i.exec(name)?.[1] ?? 0),
-              clanTag: view.clan.tag,
+              clanTag: view.clan.tag ?? "",
               clanName: view.clan.name,
               clanSquadCount: view.clan.squads.length + 1,
             })}.
@@ -756,13 +765,17 @@ function Editor({
         </label>
         {view.kind === "clan" && (
           <label className="manage-field">
-            Clan tag
+            Clan tags <span>Optional · separate multiple tags with commas</span>
             <input
-              required={view.kind === "clan"}
-              maxLength={16}
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
+              maxLength={200}
+              placeholder="e.g. NE, NElite"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
             />
+            <span>
+              These are matched against player names. The first tag is used as
+              the main clan tag.
+            </span>
           </label>
         )}
         {view.kind === "clan" && (

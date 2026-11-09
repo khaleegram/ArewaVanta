@@ -347,6 +347,44 @@ final class MatchResultWorkflowTest extends TestCase
         $this->assertDatabaseCount('match_result_revisions', 1);
     }
 
+    public function test_new_guest_players_use_their_tagged_clan_without_transferring_existing_players(): void
+    {
+        [$organizer, $event, $squads] = $this->competition();
+        $guestClan = Clan::factory()->create(['name' => 'Guest Clan', 'tag' => 'GC', 'tags' => ['GC']]);
+        $matches = $event['days'][0]['matches'];
+
+        $this->actingAs($organizer, 'sanctum')->putJson("/api/v1/manage/matches/{$matches[0]['id']}/results", [
+            'results' => [[
+                'squad_id' => $squads[0]->id,
+                'placement' => 1,
+                'players' => [['ign' => 'GC | New Guest', 'clan_id' => $guestClan->id, 'kills' => 4]],
+            ]],
+        ])->assertOk();
+        $this->assertDatabaseHas('players', ['current_ign' => 'New Guest', 'clan_id' => $guestClan->id]);
+
+        // A known tag in the printed name is enough when the client did not
+        // send a clan id.
+        $this->actingAs($organizer, 'sanctum')->putJson("/api/v1/manage/matches/{$matches[1]['id']}/results", [
+            'results' => [[
+                'squad_id' => $squads[0]->id,
+                'placement' => 2,
+                'players' => [['ign' => 'GC | Tag Only', 'kills' => 2]],
+            ]],
+        ])->assertOk();
+        $this->assertDatabaseHas('players', ['current_ign' => 'Tag Only', 'clan_id' => $guestClan->id]);
+        $this->assertSame($guestClan->id, Player::query()->where('current_ign', 'Tag Only')->value('clan_id'));
+
+        // An unknown tag falls back to the clan that owns the slot.
+        $this->actingAs($organizer, 'sanctum')->putJson("/api/v1/manage/matches/{$matches[2]['id']}/results", [
+            'results' => [[
+                'squad_id' => $squads[0]->id,
+                'placement' => 3,
+                'players' => [['ign' => 'ZZ | Lone Wolf', 'kills' => 1]],
+            ]],
+        ])->assertOk();
+        $this->assertDatabaseHas('players', ['current_ign' => 'ZZ | Lone Wolf', 'clan_id' => $squads[0]->clan_id]);
+    }
+
     /** @return array{User, array, array<Squad>, array<Player>, string} */
     private function competition(): array
     {

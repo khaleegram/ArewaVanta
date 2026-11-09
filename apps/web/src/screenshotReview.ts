@@ -47,6 +47,7 @@ export function squadSummary(
     clan: squad.clan,
     clan_id: squad.clan_id,
     clan_tag: squad.clan_tag,
+    clan_tags: squad.clan_tags,
     clan_squad_count: squad.clan_squad_count ?? null,
     slot_number: squad.slot_number,
   };
@@ -76,7 +77,9 @@ export function reviewCandidates(
         squad_id: squad.id,
         squad_name: squad.name,
         clan: squad.clan,
+        clan_id: squad.clan_id,
         clan_tag: squad.clan_tag,
+        clan_tags: squad.clan_tags,
         slot_number: squad.slot_number,
       });
   for (const team of teams)
@@ -89,7 +92,9 @@ export function reviewCandidates(
           squad_id: player.squad_id,
           squad_name: player.squad_name,
           clan: player.clan,
+          clan_id: player.clan_id,
           clan_tag: player.clan_tag,
+          clan_tags: player.clan_tags,
           slot_number: player.slot_number,
         });
     }
@@ -318,6 +323,7 @@ export function mergeImport(
           player.kills === null
             ? (existing?.kills ?? existingNew?.kills ?? "")
             : String(player.kills),
+        clan_id: player.clan_id ?? existingNew?.clan_id ?? null,
       };
       const index = players.findIndex((p) => p.id === id);
       if (index < 0) players.push(added);

@@ -106,6 +106,64 @@ final class ScreenshotImportTest extends TestCase
         });
     }
 
+    public function test_screenshot_import_uses_clan_tags_to_resolve_same_clan_and_guest_players(): void
+    {
+        [$organizer, $matchId, , , $playerA] = $this->competition();
+        $guestClan = Clan::factory()->create(['name' => 'Guest Clan', 'tag' => 'GC', 'tags' => ['GC']]);
+        $guest = Player::factory()->create(['clan_id' => $guestClan->id, 'current_ign' => 'GUEST PLAYER']);
+
+        config(['services.deepseek.key' => 'test-deepseek-key']);
+        Http::fake([
+            'https://api.deepseek.com/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode([
+                            'teams' => [[
+                                'team_label' => 'TEAM12',
+                                'team_number' => 12,
+                                'placement' => 1,
+                                'players' => [
+                                    ['name' => 'KC | '.$playerA->current_ign, 'kills' => 13],
+                                    ['name' => 'GC | GUEST PLAYER', 'kills' => 2],
+                                    ['name' => 'GC | NEW GUEST', 'kills' => 4],
+                                    ['name' => 'UnknownTag | LONE WOLF', 'kills' => 1],
+                                ],
+                            ]],
+                            'warnings' => [],
+                        ], JSON_THROW_ON_ERROR),
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        $teams = $this->actingAs($organizer, 'sanctum')
+            ->post("/api/v1/manage/matches/{$matchId}/screenshot-import", [
+                'images' => [UploadedFile::fake()->image('scores.jpg', 1194, 834)],
+            ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->json('data.teams');
+
+        $players = collect($teams)->firstWhere('team_label', 'TEAM12')['players'];
+        $this->assertSame('KC', $players[0]['tag']);
+        $this->assertSame('matched', $players[0]['status']);
+        $this->assertSame($playerA->id, $players[0]['player_id']);
+        $this->assertSame('GrBtness', $players[0]['ign']);
+
+        $this->assertSame('GC', $players[1]['tag']);
+        $this->assertSame('other_squad', $players[1]['status']);
+        $this->assertSame($guest->id, $players[1]['player_id']);
+        $this->assertSame($guestClan->id, $players[1]['clan_id']);
+
+        $this->assertSame('GC', $players[2]['tag']);
+        $this->assertSame('new', $players[2]['status']);
+        $this->assertSame('NEW GUEST', $players[2]['ign']);
+        $this->assertSame($guestClan->id, $players[2]['clan_id']);
+
+        $this->assertSame('UnknownTag | LONE WOLF', $players[3]['name']);
+        $this->assertSame('new', $players[3]['status']);
+        $this->assertNull($players[3]['clan_id']);
+    }
+
     public function test_screenshot_import_reports_a_missing_api_key_without_calling_a_provider(): void
     {
         [$organizer, $matchId] = $this->competition();

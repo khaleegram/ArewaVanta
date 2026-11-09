@@ -137,7 +137,7 @@ export function ClanPage({ slug }: { slug: string }) {
               {clan.data.players.map((player) => (
                 <a key={player.id} href={playerUrl(player.id)} className="public-clan-squad-row">
                   <span className="public-clan-squad-no">{player.current_ign.slice(0, 2).toUpperCase()}</span>
-                  <span><strong>{player.current_ign}</strong><small>{clan.data.tag} · {clan.data.name}</small></span>
+                  <span><strong>{player.current_ign}</strong><small>{clan.data.tag ? `${clan.data.tag} · ` : ""}{clan.data.name}</small></span>
                   <Icon name="arrow" />
                 </a>
               ))}

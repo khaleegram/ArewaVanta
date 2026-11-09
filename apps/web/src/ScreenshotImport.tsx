@@ -48,7 +48,7 @@ function statusText(player: ScreenshotPlayer) {
   if (player.status === "ambiguous")
     return "Choose the correct existing player";
   if (player.status === "duplicate") return "Choose the correct occurrence";
-  return "New name · profile created automatically when you save";
+  return `New name · profile created${player.clan ? ` under ${player.clan}` : ""} when you save`;
 }
 function numeric(value: string, min = 0, max = 999): number | null | undefined {
   if (value === "") return null;
@@ -831,7 +831,12 @@ function ImportPlayer({
             }
           />
           <span>
-            <strong>{player.ign ?? player.name}</strong>
+            <strong>
+              {player.tag && (
+                <span className="score-import-tag">{player.tag}</span>
+              )}
+              {player.ign ?? player.name}
+            </strong>
             <small>{statusText(player)}</small>
             {player.ign && player.ign !== player.name && (
               <small>Read as: {player.name}</small>

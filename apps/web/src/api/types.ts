@@ -17,6 +17,7 @@ export type PublicClan = {
   name: string;
   slug: string;
   tag: string | null;
+  tags?: string[];
   bio: string | null;
   squad_count?: number;
   players?: PublicPlayer[];
@@ -59,7 +60,8 @@ export type ManageClan = {
   id: Id;
   name: string;
   slug: string;
-  tag: string;
+  tag: string | null;
+  tags: string[];
   squad_count?: number;
   squads: { id: Id; name: string; squad_number?: number; slug: string; tag: string | null }[];
 };
@@ -67,7 +69,8 @@ export type ClanEditResponse = {
   id: Id;
   name: string;
   slug: string;
-  tag: string;
+  tag: string | null;
+  tags: string[];
   bio?: string | null;
 };
 export type ManageSquad = {
@@ -238,7 +241,7 @@ export type PlayerProfile = {
     squad_number: number;
     clan_name: string;
     clan_slug?: string | null;
-    clan_tag: string;
+    clan_tag: string | null;
     clan_squad_count: number;
   }[];
   history_meta: { current_page: number; last_page: number; total: number };
@@ -465,7 +468,12 @@ export type MatchResultInput = {
   squad_id: Id;
   status?: "present" | "absent" | "unentered";
   placement?: number | null;
-  players: { player_id?: Id; ign?: string; kills: number | null }[];
+  players: {
+    player_id?: Id;
+    clan_id?: Id | null;
+    ign?: string;
+    kills: number | null;
+  }[];
 };
 export type SavedResult = {
   saved_at: string | null;
@@ -530,7 +538,8 @@ export type ResultSheet = {
     tag: string | null;
     clan: string;
     clan_id: Id;
-    clan_tag: string;
+    clan_tag: string | null;
+    clan_tags?: string[];
     clan_squad_count?: number;
     slot_number: number | null;
     roster_players?: { id: Id; ign: string }[];
@@ -547,7 +556,8 @@ export type ScreenshotSquad = {
   squad_number?: number | null;
   clan: string;
   clan_id: Id;
-  clan_tag: string;
+  clan_tag: string | null;
+  clan_tags?: string[];
   clan_squad_count?: number | null;
   slot_number: number | null;
 };
@@ -557,6 +567,7 @@ export type ScreenshotPlayer = {
   excluded?: boolean;
   confirmed?: boolean;
   kills_options?: number[];
+  tag?: string | null;
   name: string;
   kills: number | null;
   status:
@@ -570,7 +581,9 @@ export type ScreenshotPlayer = {
   squad_id?: Id | null;
   squad_name?: string | null;
   clan?: string | null;
+  clan_id?: Id | null;
   clan_tag?: string | null;
+  clan_tags?: string[];
   slot_number?: number | null;
   duplicate_of?: string;
   candidates: {
@@ -579,7 +592,9 @@ export type ScreenshotPlayer = {
     squad_id?: Id | null;
     squad_name?: string | null;
     clan?: string | null;
+    clan_id?: Id | null;
     clan_tag?: string | null;
+    clan_tags?: string[];
     slot_number?: number | null;
   }[];
 };

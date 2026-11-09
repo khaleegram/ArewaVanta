@@ -91,6 +91,7 @@ const sheet = {
       clan: "Kano Clan",
       clan_id: "c1",
       clan_tag: "KC",
+      clan_tags: ["KC"],
       clan_squad_count: 1,
       slot_number: 12,
       roster_players: [{ id: "p1", ign: "GrBtness" }],
@@ -104,6 +105,7 @@ const sheet = {
       clan: "Sokoto Clan",
       clan_id: "c2",
       clan_tag: "SC",
+      clan_tags: ["SC"],
       clan_squad_count: 1,
       slot_number: 6,
       roster_players: [{ id: "p2", ign: "SILKY" }],
@@ -148,10 +150,15 @@ const imported = {
         },
         {
           name: "NEW PLAYER",
+          tag: "KC",
           kills: 4,
           status: "new",
           player_id: null,
           ign: "NEW PLAYER",
+          clan: "Kano Clan",
+          clan_id: "c1",
+          clan_tag: "KC",
+          clan_tags: ["KC"],
           candidates: [],
         },
         {
@@ -163,7 +170,9 @@ const imported = {
           squad_id: "s2",
           squad_name: "Sokoto Storm",
           clan: "Sokoto Clan",
+          clan_id: "c2",
           clan_tag: "SC",
+          clan_tags: ["SC"],
           slot_number: 6,
           candidates: [],
         },
@@ -290,7 +299,13 @@ await page.getByRole("button", { name: "Import screenshot" }).click();
 await page.locator('input[type="file"]').setInputFiles(screenshotFile);
 await page.getByRole("button", { name: "Read screenshots" }).click();
 await page.getByText("TEAM12", { exact: true }).waitFor();
-assert.equal(await page.getByText("NEW PLAYER", { exact: true }).count(), 1);
+assert.equal(
+  await page
+    .locator(".score-import-player-review")
+    .filter({ hasText: "NEW PLAYER" })
+    .count(),
+  1,
+);
 assert.equal(
   await page.getByText("Choose this team’s squad", { exact: true }).count(),
   1,
@@ -384,6 +399,7 @@ const createdPlayer = savedTeam.players.find(
 );
 assert.equal(createdPlayer.kills, 4);
 assert.equal(createdPlayer.player_id, undefined);
+assert.equal(createdPlayer.clan_id, "c1");
 const savedTeamTwo = savedResults.results.find((row) => row.squad_id === "s2");
 const silky = savedTeamTwo.players.find((row) => row.player_id === "p2");
 assert.ok(silky, "SILKY must be saved against the existing profile");

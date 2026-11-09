@@ -5,6 +5,7 @@ namespace App\Domain\Competition;
 use App\Domain\Notifications\AdminActivity;
 use App\Domain\Scoring\ScoringEngine;
 use App\Domain\Scoring\ScoringRules;
+use App\Models\Clan;
 use App\Models\CompetitionEvent;
 use App\Models\CompetitionMatch;
 use App\Models\MatchPlayerResult;
@@ -75,6 +76,13 @@ final class SaveMatchResults
             // Missing rows in a partial update keep their last saved values.
             $previousRows = ($legacyResult ?? $previous)?->squadResults->keyBy('squad_id') ?? collect();
             $seenPlayers = [];
+            $clans = Clan::query()->get(['id', 'tag', 'tags'])->keyBy('id');
+            $tagOwners = [];
+            foreach ($clans as $clan) {
+                foreach ($clan->tagList() as $tag) {
+                    $tagOwners[PlayerNameSearch::key($tag)] = $clan->id;
+                }
+            }
             foreach ($entries as $entry) {
                 $previousResult = $previousRows->get($entry->squad_id);
                 $row = $input->get($entry->squad_id);
@@ -104,18 +112,40 @@ final class SaveMatchResults
                         // Recording a guest never transfers their clan or permanent roster.
                         $player = Player::query()->findOrFail($playerInput['player_id']);
                     } else {
-                        $ign = trim($playerInput['ign'] ?? '');
-                        if ($ign === '') {
+                        $rawIgn = trim((string) ($playerInput['ign'] ?? ''));
+                        if ($rawIgn === '') {
                             continue;
                         }
+                        // The screenshot importer may already know the guest's clan
+                        // from their tag. Otherwise detect a known tag in the name.
+                        $targetClanId = filled($playerInput['clan_id'] ?? null)
+                            ? (string) $playerInput['clan_id']
+                            : null;
+                        if ($targetClanId !== null && ! $clans->has($targetClanId)) {
+                            throw ValidationException::withMessages(['results' => 'That guest clan no longer exists. Refresh the score sheet and try again.']);
+                        }
+                        if ($targetClanId === null) {
+                            $split = ClanTag::split($rawIgn, $clans->flatMap(static fn (Clan $clan): array => $clan->tagList())->all());
+                            if ($split['tag'] !== null) {
+                                $targetClanId = $tagOwners[PlayerNameSearch::key($split['tag'])] ?? null;
+                            }
+                        }
+                        $targetClanId ??= $entry->squad->clan_id;
+                        $targetClan = $clans->get($targetClanId);
+                        $ign = ClanTag::strip($rawIgn, $targetClan?->tagList() ?? []);
+                        if ($ign === '') {
+                            $ign = $rawIgn;
+                        }
                         // Reuse an exact clan name where unambiguous (including retried saves).
-                        $candidates = Player::query()->where('clan_id', $entry->squad->clan_id)
-                            ->where('current_ign', $ign)->get();
+                        // Compare the cleaned names so a legacy tagged name still matches.
+                        $candidates = Player::query()->where('clan_id', $targetClanId)
+                            ->where('status', 'active')->get()
+                            ->filter(static fn (Player $candidate): bool => PlayerNameSearch::key(ClanTag::strip($candidate->current_ign, $targetClan?->tagList() ?? [])) === PlayerNameSearch::key($ign));
                         if ($candidates->count() > 1) {
                             throw ValidationException::withMessages(['results' => 'More than one player is named '.$ign.'. Select the existing player from the clan list.']);
                         }
                         $player = $candidates->first() ?? Player::query()->create([
-                            'clan_id' => $entry->squad->clan_id, 'current_ign' => $ign, 'status' => 'active',
+                            'clan_id' => $targetClanId, 'current_ign' => $ign, 'status' => 'active',
                         ]);
                     }
                     if (isset($seenPlayers[$player->id])) {

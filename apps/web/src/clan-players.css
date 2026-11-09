@@ -30,6 +30,7 @@
 .clan-new-player { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; padding: 14px; border: 1px solid #d7e1d1; border-radius: 8px; background: #f0f5ec; }
 .clan-new-player label { display: grid; align-content: start; gap: 6px; font-size: 11px; font-weight: 750; }
 .clan-new-player label span { color: #67766c; font-size: 10px; font-weight: 450; }
+.clan-player-tag-fixed { display: inline-block; justify-self: start; margin-bottom: 6px; padding: 3px 8px; border: 1px solid #b9ccb4; border-radius: 999px; background: #e6efe1; color: #31583a; font-size: 10px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
 .clan-player-form-actions { display: flex; justify-content: flex-end; gap: 8px; grid-column: 1 / -1; }
 .clan-new-player > .clan-player-error { grid-column: 1 / -1; }
 .clan-players .clan-player-primary { padding-inline: 14px; background: #31583a; color: #fffefa; border-radius: 6px; }

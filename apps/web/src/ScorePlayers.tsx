@@ -377,6 +377,14 @@ export function ScorePlayers({
         )}
         <div className="score-new-player">
           <label htmlFor={`new-${squad.id}`}>Someone new played?</label>
+          {!!(squad.clan_tags?.length || squad.clan_tag) && (
+            <span className="score-new-player-tag" aria-label="Clan tag">
+              {(squad.clan_tags?.length
+                ? squad.clan_tags
+                : [squad.clan_tag!]
+              ).join(" · ")}
+            </span>
+          )}
           <div>
             <input
               id={`new-${squad.id}`}
@@ -392,6 +400,7 @@ export function ScorePlayers({
                     select({
                       id: `new:${crypto.randomUUID()}`,
                       ign: newName.trim(),
+                      clan_id: squad.clan_id,
                     });
                 }
               }}
@@ -403,6 +412,7 @@ export function ScorePlayers({
                 select({
                   id: `new:${crypto.randomUUID()}`,
                   ign: newName.trim(),
+                  clan_id: squad.clan_id,
                 })
               }
             >
@@ -410,7 +420,8 @@ export function ScorePlayers({
             </button>
           </div>
           <small>
-            Saving creates their player profile in this clan.
+            Saving creates their player profile in this clan. The clan tag is
+            stored separately, not in the name.
           </small>
         </div>
         <details onToggle={(e) => setGuest(e.currentTarget.open)}>

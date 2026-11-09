@@ -2,7 +2,9 @@
 
 namespace App\Domain\Competition\ScreenshotImport;
 
+use App\Domain\Competition\ClanTag;
 use App\Domain\Competition\PlayerNameSearch;
+use App\Models\Clan;
 use App\Models\Player;
 
 final class ScreenshotResultMapper
@@ -19,6 +21,18 @@ final class ScreenshotResultMapper
         $playerIndex = [];
         $allPlayers = [];
         $knownPlayerIds = [];
+        $allTags = [];
+        $tagOwners = [];
+        foreach (Clan::query()->get(['id', 'name', 'tag', 'tags']) as $clan) {
+            foreach ($clan->tagList() as $tag) {
+                $allTags[] = $tag;
+                $tagOwners[PlayerNameSearch::key($tag)] = [
+                    'id' => $clan->id,
+                    'name' => $clan->name,
+                    'tag' => $tag,
+                ];
+            }
+        }
 
         foreach ($squads as $squad) {
             if (! is_array($squad) || ! isset($squad['id'])) {
@@ -37,17 +51,21 @@ final class ScreenshotResultMapper
             }
 
             foreach ($eligible as $player) {
-                $key = PlayerNameSearch::key((string) ($player['ign'] ?? ''));
+                $clanTags = $squad['clan_tags'] ?? ($squad['clan_tag'] ? [$squad['clan_tag']] : []);
+                $cleanIgn = ClanTag::strip((string) ($player['ign'] ?? ''), $clanTags);
+                $key = PlayerNameSearch::key($cleanIgn);
                 if ($key === '') {
                     continue;
                 }
                 $candidate = [
                     'player_id' => $player['id'],
-                    'ign' => $player['ign'],
+                    'ign' => $cleanIgn,
                     'squad_id' => $squad['id'],
                     'squad_name' => $squad['name'],
                     'clan' => $squad['clan'],
+                    'clan_id' => $squad['clan_id'],
                     'clan_tag' => $squad['clan_tag'],
+                    'clan_tags' => $squad['clan_tags'] ?? ($squad['clan_tag'] ? [$squad['clan_tag']] : []),
                     'slot_number' => $squad['slot_number'],
                 ];
                 $playerIndex[$squad['id']][$key][] = $candidate;
@@ -58,21 +76,25 @@ final class ScreenshotResultMapper
 
         // A player can exist in the app but not in this event's result sheet.
         // Surface them as guest candidates instead of suggesting a duplicate profile.
-        foreach (Player::query()->where('status', 'active')->with('clan:id,name,tag')->get(['id', 'current_ign', 'clan_id']) as $player) {
+        foreach (Player::query()->where('status', 'active')->with('clan:id,name,tag,tags')->get(['id', 'current_ign', 'clan_id']) as $player) {
             if (isset($knownPlayerIds[$player->id])) {
                 continue;
             }
-            $key = PlayerNameSearch::key($player->current_ign);
+            $clanTags = $player->clan?->tagList() ?? [];
+            $cleanIgn = ClanTag::strip($player->current_ign, $clanTags);
+            $key = PlayerNameSearch::key($cleanIgn);
             if ($key === '') {
                 continue;
             }
             $allPlayers[$key][] = [
                 'player_id' => $player->id,
-                'ign' => $player->current_ign,
+                'ign' => $cleanIgn,
                 'squad_id' => null,
                 'squad_name' => null,
                 'clan' => $player->clan?->name,
+                'clan_id' => $player->clan_id,
                 'clan_tag' => $player->clan?->tag,
+                'clan_tags' => $clanTags,
                 'slot_number' => null,
             ];
         }
@@ -93,13 +115,13 @@ final class ScreenshotResultMapper
             $extractedPlayers = array_values((array) ($team['players'] ?? []));
 
             $slotSquad = $number !== null ? ($slotSquads[$number] ?? null) : null;
-            $best = $this->bestRosterMatch($extractedPlayers, $playerIndex, $squads);
+            $best = $this->bestRosterMatch($extractedPlayers, $playerIndex, $squads, $allTags);
             $matchedSquad = $slotSquad;
             $suggestedSquad = null;
             $status = 'unassigned';
 
             if ($matchedSquad !== null) {
-                $slotOverlap = $this->overlap($extractedPlayers, $playerIndex[$matchedSquad['id']] ?? []);
+                $slotOverlap = $this->overlap($extractedPlayers, $playerIndex[$matchedSquad['id']] ?? [], $allTags);
                 if ($best !== null && $best['squad']['id'] !== $matchedSquad['id'] && $best['score'] > $slotOverlap && $slotOverlap === 0) {
                     $suggestedSquad = $best['squad'];
                     $status = 'roster_mismatch';
@@ -122,25 +144,32 @@ final class ScreenshotResultMapper
                 if (! is_array($player)) {
                     continue;
                 }
-                $name = trim((string) ($player['name'] ?? ''));
-                if ($name === '') {
+                $rawName = trim((string) ($player['name'] ?? ''));
+                if ($rawName === '') {
                     continue;
                 }
-                $key = PlayerNameSearch::key($name);
+                $split = ClanTag::split($rawName, $allTags);
+                $lookupName = $split['name'];
+                $tagOwner = $split['tag'] === null
+                    ? null
+                    : ($tagOwners[PlayerNameSearch::key($split['tag'])] ?? null);
+                $key = PlayerNameSearch::key($lookupName);
                 $kills = is_int($player['kills'] ?? null) ? $player['kills'] : null;
-                $resolved = $this->resolvePlayer($key, $name, $matchedSquad, $playerIndex, $allPlayers);
+                $resolved = $this->resolvePlayer($key, $lookupName, $matchedSquad, $playerIndex, $allPlayers, $tagOwner);
                 if ($resolved['player_id'] !== null && isset($usedPlayers[$resolved['player_id']])) {
                     $resolved['status'] = 'duplicate';
                     $resolved['duplicate_of'] = $usedPlayers[$resolved['player_id']];
-                    $warnings[] = $name.' appears in more than one team. Resolve before applying.';
+                    $warnings[] = $rawName.' appears in more than one team. Resolve before applying.';
                 } elseif ($resolved['player_id'] !== null) {
                     $usedPlayers[$resolved['player_id']] = $label;
                 }
                 $players[] = [
-                    'name' => $name,
+                    'name' => $rawName,
+                    'tag' => $split['tag'],
                     'kills' => $kills,
                     'kills_options' => $player['kills_options'] ?? [],
                     ...$resolved,
+                    'clan_id' => $resolved['clan_id'] ?? $tagOwner['id'] ?? null,
                 ];
             }
 
@@ -195,9 +224,9 @@ final class ScreenshotResultMapper
      * @param  list<array<string, mixed>>  $squads
      * @return array{squad: array<string, mixed>, score: int}|null
      */
-    private function bestRosterMatch(array $players, array $playerIndex, array $squads): ?array
+    private function bestRosterMatch(array $players, array $playerIndex, array $squads, array $allTags): ?array
     {
-        $keys = $this->keys($players);
+        $keys = $this->keys($players, $allTags);
         if ($keys === []) {
             return null;
         }
@@ -205,7 +234,7 @@ final class ScreenshotResultMapper
         $best = null;
         $tied = false;
         foreach ($squads as $squad) {
-            $score = $this->overlap($players, $playerIndex[$squad['id']] ?? []);
+            $score = $this->overlap($players, $playerIndex[$squad['id']] ?? [], $allTags);
             if ($score >= $minimum && ($best === null || $score > $best['score'])) {
                 $best = ['squad' => $squad, 'score' => $score];
                 $tied = false;
@@ -222,26 +251,44 @@ final class ScreenshotResultMapper
      * @param  array<string, list<array<string, mixed>>>  $allPlayers
      * @return array<string, mixed>
      */
-    private function resolvePlayer(string $key, string $name, ?array $squad, array $squadPlayers, array $allPlayers): array
+    private function resolvePlayer(string $key, string $name, ?array $squad, array $squadPlayers, array $allPlayers, ?array $tagOwner): array
     {
+        $tagClanId = $tagOwner['id'] ?? null;
         $sameSquad = $squad === null ? [] : ($squadPlayers[$squad['id']][$key] ?? []);
+        if ($tagClanId !== null && ($squad['clan_id'] ?? null) !== $tagClanId) {
+            $sameSquad = [];
+        }
         $sameSquad = $this->uniqueCandidates($sameSquad);
         if (count($sameSquad) === 1) {
             return $this->matchedPlayer($sameSquad[0], 'matched');
         }
         if (count($sameSquad) > 1) {
-            return ['status' => 'ambiguous', 'player_id' => null, 'ign' => null, 'candidates' => $sameSquad];
+            return ['status' => 'ambiguous', 'player_id' => null, 'ign' => null, 'clan_id' => $tagClanId, 'candidates' => $sameSquad];
         }
 
         $global = $this->uniqueCandidates($allPlayers[$key] ?? []);
+        if ($tagClanId !== null) {
+            $global = array_values(array_filter(
+                $global,
+                static fn (array $candidate): bool => ($candidate['clan_id'] ?? null) === $tagClanId,
+            ));
+        }
         if (count($global) === 1) {
             return $this->matchedPlayer($global[0], 'other_squad');
         }
         if (count($global) > 1) {
-            return ['status' => 'ambiguous', 'player_id' => null, 'ign' => null, 'candidates' => $global];
+            return ['status' => 'ambiguous', 'player_id' => null, 'ign' => null, 'clan_id' => $tagClanId, 'candidates' => $global];
         }
 
-        return ['status' => 'new', 'player_id' => null, 'ign' => $name, 'candidates' => []];
+        return [
+            'status' => 'new',
+            'player_id' => null,
+            'ign' => $name,
+            'clan_id' => $tagClanId,
+            'clan' => $tagOwner['name'] ?? null,
+            'clan_tag' => $tagOwner['tag'] ?? null,
+            'candidates' => [],
+        ];
     }
 
     /** @param list<array<string, mixed>> $candidates @return list<array<string, mixed>> */
@@ -265,18 +312,21 @@ final class ScreenshotResultMapper
             'squad_id' => $candidate['squad_id'],
             'squad_name' => $candidate['squad_name'],
             'clan' => $candidate['clan'],
+            'clan_id' => $candidate['clan_id'] ?? null,
             'clan_tag' => $candidate['clan_tag'],
+            'clan_tags' => $candidate['clan_tags'] ?? [],
             'slot_number' => $candidate['slot_number'],
             'candidates' => [],
         ];
     }
 
     /** @param list<array<string, mixed>> $players @return list<string> */
-    private function keys(array $players): array
+    private function keys(array $players, array $allTags): array
     {
         $keys = [];
         foreach ($players as $player) {
-            $key = PlayerNameSearch::key((string) ($player['name'] ?? ''));
+            $name = ClanTag::split((string) ($player['name'] ?? ''), $allTags)['name'];
+            $key = PlayerNameSearch::key($name);
             if ($key !== '') {
                 $keys[$key] = true;
             }
@@ -286,9 +336,9 @@ final class ScreenshotResultMapper
     }
 
     /** @param list<array<string, mixed>> $players @param array<string, list<array<string, mixed>>> $index */
-    private function overlap(array $players, array $index): int
+    private function overlap(array $players, array $index, array $allTags): int
     {
-        return count(array_intersect($this->keys($players), array_keys($index)));
+        return count(array_intersect($this->keys($players, $allTags), array_keys($index)));
     }
 
     /** @param array<string, mixed> $squad @return array<string, mixed> */
@@ -301,6 +351,7 @@ final class ScreenshotResultMapper
             'clan' => $squad['clan'],
             'clan_id' => $squad['clan_id'],
             'clan_tag' => $squad['clan_tag'],
+            'clan_tags' => $squad['clan_tags'] ?? ($squad['clan_tag'] ? [$squad['clan_tag']] : []),
             'clan_squad_count' => $squad['clan_squad_count'] ?? null,
             'slot_number' => $squad['slot_number'],
         ];

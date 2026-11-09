@@ -1,6 +1,11 @@
 import type { MatchResultInput, ResultSheet, SavedResult } from "./api/types";
 
-export type ScorePlayer = { id: string; ign: string; kills: string };
+export type ScorePlayer = {
+  id: string;
+  ign: string;
+  kills: string;
+  clan_id?: string | null;
+};
 export type ScoreRow = {
   status: "unentered" | "present" | "absent";
   placement: string;
@@ -13,6 +18,7 @@ export type Candidate = {
   id: string;
   ign: string;
   squads?: { id: string; name: string }[];
+  clan_id?: string | null;
 };
 export const sameRow = (a: ScoreRow | undefined, b: ScoreRow | undefined) =>
   JSON.stringify(a) === JSON.stringify(b);
@@ -94,7 +100,9 @@ export function scoreInput(id: string, row: ScoreRow): MatchResultInput {
       row.status !== "present"
         ? []
         : row.players.map((p) => ({
-            ...(p.id.startsWith("new:") ? { ign: p.ign } : { player_id: p.id }),
+            ...(p.id.startsWith("new:")
+              ? { ign: p.ign, clan_id: p.clan_id ?? null }
+              : { player_id: p.id }),
             kills: p.kills === "" ? null : Number(p.kills),
           })),
   };

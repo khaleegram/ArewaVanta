@@ -702,7 +702,7 @@ function ScoreWorkspace({
   const visible = data.squads.filter(
     (s) =>
       matchesPlayerSearch(
-        `${s.slot_number ?? ""} ${s.clan} ${s.clan_tag} ${s.name}`,
+        `${s.slot_number ?? ""} ${s.clan} ${s.clan_tag ?? ""} ${s.name}`,
         query,
       ) &&
       (filter === "all" ||

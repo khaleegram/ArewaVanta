@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1\Manage;
 
+use App\Domain\Competition\ClanTag;
+use App\Domain\Competition\ClanTagRegistry;
 use App\Domain\Competition\OrganizationPermissions;
 use App\Domain\Notifications\AdminActivity;
 use App\Http\Controllers\Controller;
@@ -17,14 +19,17 @@ use Illuminate\Validation\ValidationException;
 
 final class DirectoryController extends Controller
 {
-    public function updateClan(Request $request, Clan $clan, OrganizationPermissions $permissions): JsonResponse
+    public function updateClan(Request $request, Clan $clan, OrganizationPermissions $permissions, ClanTagRegistry $tagRegistry): JsonResponse
     {
         abort_unless($permissions->canManageClan($request->user(), $clan), 403);
         if (is_string($request->input('name'))) {
             $request->merge(['name' => trim($request->input('name'))]);
         }
-        if (is_string($request->input('tag'))) {
-            $request->merge(['tag' => Str::upper(trim($request->input('tag')))]);
+        if ($request->exists('tags') || $request->exists('tag')) {
+            $tags = ClanTag::normalizeList(
+                $request->exists('tags') ? $request->input('tags') : $request->input('tag'),
+            );
+            $request->merge(['tags' => $tags]);
         }
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120', function (string $attribute, mixed $value, \Closure $fail) use ($clan): void {
@@ -32,13 +37,19 @@ final class DirectoryController extends Controller
                     $fail('A clan with this name already exists.');
                 }
             }],
-            'tag' => ['required', 'string', 'max:16', Rule::unique('clans', 'tag')->ignore($clan->id)],
+            'tags' => ['sometimes', 'array', 'max:8'],
+            'tags.*' => ['string', 'max:16', 'distinct:strict'],
             'bio' => ['nullable', 'string', 'max:2000'],
         ]);
+        if (array_key_exists('tags', $data)) {
+            $tagRegistry->assertAvailable($data['tags'], $clan->id);
+            $tagRegistry->assign($clan, $data['tags']);
+        }
+        unset($data['tags']);
         $clan->fill($data)->save();
         app(AdminActivity::class)->record($request->user(), $request->user()->name.' updated '.$clan->name.'.');
 
-        return response()->json(['data' => ['id' => $clan->id, 'name' => $clan->name, 'slug' => $clan->slug, 'tag' => $clan->tag, 'bio' => $clan->bio]]);
+        return response()->json(['data' => ['id' => $clan->id, 'name' => $clan->name, 'slug' => $clan->slug, 'tag' => $clan->tag, 'tags' => $clan->tagList(), 'bio' => $clan->bio]]);
     }
 
     public function updateSquad(Request $request, Squad $squad, OrganizationPermissions $permissions): JsonResponse
@@ -112,9 +123,12 @@ final class DirectoryController extends Controller
             'uid' => ['nullable', 'bail', 'string', 'max:64', Rule::unique('players', 'normalized_uid')->ignore($player?->id)],
             'uid_public' => ['sometimes', 'boolean'],
         ]);
+        $clanId = $request->exists('clan_id') ? ($data['clan_id'] ?? null) : $player?->clan_id;
+        $clan = $clanId === null ? null : Clan::query()->find($clanId);
 
-        return ['clan_id' => $request->exists('clan_id') ? ($data['clan_id'] ?? null) : $player?->clan_id,
-            'current_ign' => $data['current_ign'], 'normalized_uid' => $data['uid'] ?? null, 'uid_public' => $data['uid_public'] ?? ($player?->uid_public ?? false)];
+        return ['clan_id' => $clanId,
+            'current_ign' => ClanTag::strip($data['current_ign'], $clan?->tagList() ?? []),
+            'normalized_uid' => $data['uid'] ?? null, 'uid_public' => $data['uid_public'] ?? ($player?->uid_public ?? false)];
     }
 
     private function playerData(Player $player): array

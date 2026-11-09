@@ -319,7 +319,7 @@ export const api = {
     }),
   createClan: (
     token: string,
-    body: { name: string; tag: string; bio: string | null },
+    body: { name: string; tags: string[]; bio: string | null },
   ) =>
     request<ApiData<ClanEditResponse>>("/manage/clans", {
       method: "POST",
@@ -329,7 +329,7 @@ export const api = {
   updateClan: (
     token: string,
     id: string,
-    body: { name: string; tag: string; bio: string | null },
+    body: { name: string; tags: string[]; bio: string | null },
   ) =>
     request<ApiData<ClanEditResponse>>(`/manage/clans/${key(id)}`, {
       method: "PATCH",

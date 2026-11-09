@@ -37,9 +37,11 @@ function useClanPlayers(token: string, clanId: string, revision: number) {
 }
 
 function NewPlayerForm({
+  tags = [],
   onCreate,
   onCancel,
 }: {
+  tags?: string[];
   onCreate: (ign: string, uid: string | null) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -64,10 +66,16 @@ function NewPlayerForm({
     <form className="clan-new-player" onSubmit={submit}>
       <label>
         Player IGN
+        {!!tags.length && (
+          <span className="clan-player-tag-fixed" aria-label="Clan tag">
+            {tags.join(" · ")}
+          </span>
+        )}
         <input
           autoFocus
           required
           maxLength={100}
+          placeholder={tags.length ? "Player name only" : "Player name"}
           value={ign}
           onChange={(event) => setIgn(event.target.value)}
           disabled={busy}
@@ -100,10 +108,12 @@ function NewPlayerForm({
 }
 
 function EditPlayerForm({
+  tags = [],
   player,
   onSave,
   onCancel,
 }: {
+  tags?: string[];
   player: ClanPlayer;
   onSave: (body: { current_ign: string; uid?: string | null }) => Promise<void>;
   onCancel: () => void;
@@ -133,10 +143,16 @@ function EditPlayerForm({
     <form className="clan-new-player clan-edit-player" onSubmit={submit}>
       <label>
         Player IGN
+        {!!tags.length && (
+          <span className="clan-player-tag-fixed" aria-label="Clan tag">
+            {tags.join(" · ")}
+          </span>
+        )}
         <input
           autoFocus
           required
           maxLength={100}
+          placeholder={tags.length ? "Player name only" : "Player name"}
           value={ign}
           onChange={(event) => setIgn(event.target.value)}
           disabled={busy}
@@ -212,8 +228,8 @@ export function ClanPlayerPool({ token, clan }: { token: string; clan: ManageCla
   }
   return <section className="clan-players clan-player-pool" aria-label={`${clan.name} players`}>
     <div className="clan-players-heading"><div><h3>Clan players {players.status === "ready" && <span>{players.data.length}</span>}</h3><p>Players can play in any of this clan’s slots.</p></div><button type="button" className="clan-player-add" onClick={() => { setCreating(true); setEditing(null); setError(""); }} disabled={creating || !!editing}><Icon name="plus" />Add new player</button></div>
-    {creating && <NewPlayerForm onCancel={() => setCreating(false)} onCreate={async (ign, uid) => { await api.createClanPlayer(token, clan.id, ign, uid); setCreating(false); setNotice(`${ign} added to this clan.`); setRevision((value) => value + 1); }} />}
-    {editing && <EditPlayerForm key={editing.id} player={editing} onCancel={() => setEditing(null)} onSave={async (body) => { await api.updateClanPlayer(token, clan.id, editing.id, body); setEditing(null); setNotice(`${body.current_ign} updated.`); setRevision((value) => value + 1); }} />}
+    {creating && <NewPlayerForm tags={clan.tags ?? (clan.tag ? [clan.tag] : [])} onCancel={() => setCreating(false)} onCreate={async (ign, uid) => { await api.createClanPlayer(token, clan.id, ign, uid); setCreating(false); setNotice(`${ign} added to this clan.`); setRevision((value) => value + 1); }} />}
+    {editing && <EditPlayerForm key={editing.id} tags={clan.tags ?? (clan.tag ? [clan.tag] : [])} player={editing} onCancel={() => setEditing(null)} onSave={async (body) => { await api.updateClanPlayer(token, clan.id, editing.id, body); setEditing(null); setNotice(`${body.current_ign} updated.`); setRevision((value) => value + 1); }} />}
     {notice && <p className="clan-player-notice" role="status">{notice}</p>}
     {error && <p className="clan-player-error" role="alert">{error}</p>}
     <label className="clan-player-search"><span className="sr-only">Search clan players</span><input type="search" placeholder="Search player names" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
@@ -398,6 +414,7 @@ export function ClanRoster({
           </div>
           {creating && (
             <NewPlayerForm
+              tags={clan.tags ?? (clan.tag ? [clan.tag] : [])}
               onCancel={() => setCreating(false)}
               onCreate={async (ign, uid) => {
                 await api.addNewRosterPlayer(token, squad.id, ign, uid);

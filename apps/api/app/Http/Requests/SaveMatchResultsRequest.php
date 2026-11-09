@@ -25,6 +25,7 @@ final class SaveMatchResultsRequest extends FormRequest
             'results.*.team_kills' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999'],
             'results.*.players' => ['sometimes', 'array', 'list', 'max:100'],
             'results.*.players.*.player_id' => ['sometimes', 'nullable', 'ulid', Rule::exists('players', 'id')],
+            'results.*.players.*.clan_id' => ['sometimes', 'nullable', 'ulid', Rule::exists('clans', 'id')],
             'results.*.players.*.ign' => ['required_without:results.*.players.*.player_id', 'string', 'max:100'],
             'results.*.players.*.kills' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999'],
         ];

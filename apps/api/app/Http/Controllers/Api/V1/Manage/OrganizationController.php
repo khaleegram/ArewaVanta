@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1\Manage;
 
 use App\Domain\Competition\AssignPlayerSquad;
+use App\Domain\Competition\ClanTag;
+use App\Domain\Competition\ClanTagRegistry;
 use App\Domain\Competition\OrganizationPermissions;
 use App\Domain\Notifications\AdminActivity;
 use App\Enums\Role;
@@ -40,6 +42,7 @@ final class OrganizationController extends Controller
                 'name' => $clan->name,
                 'slug' => $clan->slug,
                 'tag' => $clan->tag,
+                'tags' => $clan->tagList(),
                 'squad_count' => $clan->squads->count(),
                 'squads' => $clan->squads->map(static fn (Squad $squad): array => [
                     'id' => $squad->id, 'name' => $squad->name, 'squad_number' => $squad->squad_number,
@@ -50,35 +53,38 @@ final class OrganizationController extends Controller
         ]);
     }
 
-    public function registerClan(Request $request): JsonResponse
+    public function registerClan(Request $request, ClanTagRegistry $tagRegistry): JsonResponse
     {
         if (is_string($request->input('name'))) {
             $request->merge(['name' => trim($request->input('name'))]);
         }
-        if (is_string($request->input('tag'))) {
-            $request->merge(['tag' => Str::upper(trim($request->input('tag')))]);
-        }
+        $tags = ClanTag::normalizeList(
+            $request->exists('tags') ? $request->input('tags') : $request->input('tag'),
+        );
+        $request->merge(['tags' => $tags]);
         $data = $request->validate([
             'name' => ['bail', 'required', 'string', 'max:120', function (string $attribute, mixed $value, \Closure $fail): void {
                 if (Clan::query()->whereRaw('LOWER(name) = ?', [Str::lower($value)])->exists()) {
                     $fail('A clan with this name already exists.');
                 }
             }],
-            'tag' => ['required', 'string', 'max:16', Rule::unique('clans', 'tag')],
+            'tags' => ['present', 'array', 'max:8'],
+            'tags.*' => ['string', 'max:16', 'distinct:strict'],
             'bio' => ['sometimes', 'nullable', 'string', 'max:2000'],
         ]);
+        $tagRegistry->assertAvailable($data['tags']);
 
-        $clan = DB::transaction(function () use ($request, $data): Clan {
+        $clan = DB::transaction(function () use ($request, $data, $tagRegistry): Clan {
             $id = (string) Str::ulid();
             $clan = new Clan([
                 'name' => $data['name'],
-                'tag' => $data['tag'],
                 'bio' => $data['bio'] ?? null,
                 'slug' => $this->slug($data['name'], $id),
                 'status' => 'active',
                 'created_by' => $request->user()->id,
             ]);
             $clan->id = $id;
+            $tagRegistry->assign($clan, $data['tags']);
             $clan->save();
             RoleAssignment::query()->create([
                 'user_id' => $request->user()->id,
@@ -87,12 +93,12 @@ final class OrganizationController extends Controller
                 'scope_id' => $clan->id,
                 'assigned_by' => $request->user()->id,
             ]);
-            $this->audit($request->user()->id, 'clan_registered', 'clan', $clan->id, null, ['name' => $clan->name, 'tag' => $clan->tag, 'status' => 'active']);
+            $this->audit($request->user()->id, 'clan_registered', 'clan', $clan->id, null, ['name' => $clan->name, 'tag' => $clan->tag, 'tags' => $clan->tagList(), 'status' => 'active']);
 
             return $clan;
         });
 
-        return response()->json(['data' => ['id' => $clan->id, 'name' => $clan->name, 'slug' => $clan->slug, 'tag' => $clan->tag]], 201);
+        return response()->json(['data' => ['id' => $clan->id, 'name' => $clan->name, 'slug' => $clan->slug, 'tag' => $clan->tag, 'tags' => $clan->tagList()]], 201);
     }
 
     public function createSquad(Request $request, Clan $clan, OrganizationPermissions $permissions): JsonResponse
@@ -161,6 +167,9 @@ final class OrganizationController extends Controller
             'joined_at' => ['sometimes', 'required', 'date', 'before_or_equal:now'],
             'move_from_squad_id' => ['sometimes', 'nullable', 'ulid', Rule::exists('squads', 'id')],
         ]);
+        if (isset($data['current_ign'])) {
+            $data['current_ign'] = ClanTag::strip($data['current_ign'], $squad->clan->tagList());
+        }
 
         $membership = DB::transaction(function () use ($request, $squad, $data, $permissions, $assignSquad): SquadMembership {
             $squad = Squad::query()->lockForUpdate()->findOrFail($squad->id);
@@ -181,7 +190,7 @@ final class OrganizationController extends Controller
                 if ($uid !== null && Player::query()->where('normalized_uid', $uid)->exists()) {
                     throw ValidationException::withMessages(['uid' => 'This UID is already registered. Ask an organizer to check the player’s clan.']);
                 }
-                $player = Player::query()->create(['clan_id' => $squad->clan_id, 'current_ign' => trim($data['current_ign']), 'normalized_uid' => $uid, 'status' => 'active']);
+                $player = Player::query()->create(['clan_id' => $squad->clan_id, 'current_ign' => trim((string) $data['current_ign']), 'normalized_uid' => $uid, 'status' => 'active']);
             }
 
             $membership = $assignSquad->handle(

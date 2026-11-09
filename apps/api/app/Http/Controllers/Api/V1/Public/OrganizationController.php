@@ -42,7 +42,7 @@ final class OrganizationController extends Controller
             'slug' => $model->slug, 'tag' => $model->tag,
             'clan' => [
                 'id' => $model->clan->id, 'name' => $model->clan->name, 'slug' => $model->clan->slug,
-                'tag' => $model->clan->tag, 'squad_count' => $model->clan->squads->count(),
+                'tag' => $model->clan->tag, 'tags' => $model->clan->tagList(), 'squad_count' => $model->clan->squads->count(),
             ],
             'roster' => $model->memberships->whereNull('left_at')->filter(fn ($membership) => $membership->player->status === 'active')
                 ->map(static fn ($membership): array => ['id' => $membership->player->id, 'ign' => $membership->player->current_ign])->values(),
@@ -52,7 +52,7 @@ final class OrganizationController extends Controller
     private function clanData(Clan $clan): array
     {
         return [
-            'id' => $clan->id, 'name' => $clan->name, 'slug' => $clan->slug, 'tag' => $clan->tag, 'bio' => $clan->bio,
+            'id' => $clan->id, 'name' => $clan->name, 'slug' => $clan->slug, 'tag' => $clan->tag, 'tags' => $clan->tagList(), 'bio' => $clan->bio,
             'squad_count' => $clan->squads->count(),
             'players' => $clan->players->map(static fn ($player): array => [
                 'id' => $player->id, 'current_ign' => $player->current_ign,
