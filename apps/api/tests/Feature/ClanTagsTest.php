@@ -133,6 +133,26 @@ final class ClanTagsTest extends TestCase
         $this->assertSame('Striker', $player->fresh()->current_ign);
     }
 
+    public function test_any_tag_option_cleans_a_tag_from_another_clan(): void
+    {
+        $own = Clan::factory()->create(['name' => 'Dark Empire', 'slug' => 'dark', 'tag' => 'DRK']);
+        Clan::factory()->create(['name' => 'Northern Elites', 'slug' => 'ne', 'tag' => 'NE']);
+        $player = Player::factory()->create([
+            'clan_id' => $own->id,
+            'current_ign' => 'NE・ƁṢM.drk¹',
+        ]);
+
+        $this->artisan('players:normalize-tags')->assertExitCode(0);
+        $this->assertSame('NE・ƁṢM.drk¹', $player->fresh()->current_ign);
+
+        $this->artisan('players:normalize-tags', ['--any-tag' => true, '--dry-run' => true])
+            ->assertExitCode(0);
+        $this->assertSame('NE・ƁṢM.drk¹', $player->fresh()->current_ign);
+
+        $this->artisan('players:normalize-tags', ['--any-tag' => true])->assertExitCode(0);
+        $this->assertSame('ƁṢM.drk¹', $player->fresh()->current_ign);
+    }
+
     public function test_normalize_command_strips_existing_tagged_names(): void
     {
         $clan = Clan::factory()->create(['tag' => 'NE', 'tags' => ['NE', 'NElite']]);

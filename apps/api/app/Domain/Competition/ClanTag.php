@@ -41,37 +41,11 @@ final class ClanTag
         $clean = $original;
 
         foreach (self::sorted($tags) as $tag) {
-            $quoted = preg_quote($tag, '/');
-            $patterns = [
-                '/^\[\s*'.$quoted.'\s*\]\s*/iu',
-                '/^\(\s*'.$quoted.'\s*\)\s*/iu',
-                '/^\{\s*'.$quoted.'\s*\}\s*/iu',
-                '/^【\s*'.$quoted.'\s*】\s*/iu',
-                '/^「\s*'.$quoted.'\s*」\s*/iu',
-                '/^'.$quoted.'\s*['.self::REGEX_SEPARATORS.']\s*/iu',
-                '/\s*['.self::REGEX_SEPARATORS.']\s*'.$quoted.'\s*$/iu',
-                '/\s*\[\s*'.$quoted.'\s*\]\s*$/iu',
-                '/\s*\(\s*'.$quoted.'\s*\)\s*$/iu',
-                '/\s*【\s*'.$quoted.'\s*】\s*$/iu',
-                '/\s*「\s*'.$quoted.'\s*」\s*$/iu',
-                '/^'.$quoted.'\s+/iu',
-            ];
-            foreach ($patterns as $pattern) {
-                $candidate = preg_replace($pattern, '', $clean);
-                if ($candidate === null) {
-                    continue;
-                }
-                // trim() is byte-based, so a multibyte separator list can
-                // split a Japanese/CJK character. Trim with the regex instead.
-                $candidate = preg_replace(
-                    '/^['.self::REGEX_SEPARATORS.'\s]+|['.self::REGEX_SEPARATORS.'\s]+$/u',
-                    '',
-                    $candidate,
-                ) ?? $candidate;
-                if ($candidate !== '') {
-                    $clean = $candidate;
-                }
-            }
+            $clean = self::stripExact($clean, $tag);
+        }
+        $token = self::tokenSplit($clean, $tags);
+        if ($token !== null) {
+            $clean = $token['name'];
         }
 
         return $clean !== '' ? $clean : $original;
@@ -85,39 +59,118 @@ final class ClanTag
     {
         $original = trim($name);
         foreach (self::sorted($tags) as $tag) {
-            $clean = self::strip($original, [$tag]);
+            $clean = self::stripExact($original, $tag);
             if ($clean !== $original) {
                 return ['tag' => $tag, 'name' => $clean];
             }
         }
 
-        // OCR often stylises a tag or changes its spacing/punctuation. Compare
-        // the separated token using the same normalisation as player names.
+        $token = self::tokenSplit($original, $tags);
+
+        return $token ?? ['tag' => null, 'name' => $original];
+    }
+
+    private static function stripExact(string $name, string $tag): string
+    {
+        $quoted = preg_quote($tag, '/');
+        $prefixBoundary = self::endsWithSeparator($tag)
+            ? '\s*'
+            : '\s*(?:['.self::REGEX_SEPARATORS.']\s*|\s+)';
+        $suffixBoundary = self::startsWithSeparator($tag)
+            ? '\s*'
+            : '\s*(?:['.self::REGEX_SEPARATORS.']\s*|\s+)';
+        $patterns = [
+            '/^\[\s*'.$quoted.'\s*\]\s*/iu',
+            '/^\(\s*'.$quoted.'\s*\)\s*/iu',
+            '/^\{\s*'.$quoted.'\s*\}\s*/iu',
+            '/^【\s*'.$quoted.'\s*】\s*/iu',
+            '/^「\s*'.$quoted.'\s*」\s*/iu',
+            '/^'.$quoted.$prefixBoundary.'/iu',
+            '/'.$suffixBoundary.$quoted.'\s*$/iu',
+            '/\s*\[\s*'.$quoted.'\s*\]\s*$/iu',
+            '/\s*\(\s*'.$quoted.'\s*\)\s*$/iu',
+            '/\s*【\s*'.$quoted.'\s*】\s*$/iu',
+            '/\s*「\s*'.$quoted.'\s*」\s*$/iu',
+        ];
+        $clean = $name;
+        foreach ($patterns as $pattern) {
+            $candidate = preg_replace($pattern, '', $clean);
+            if ($candidate === null) {
+                continue;
+            }
+            // trim() is byte-based, so a multibyte separator list can split a
+            // Japanese/CJK character. Trim with the regex instead.
+            $candidate = self::trimSeparators($candidate);
+            if ($candidate !== '') {
+                $clean = $candidate;
+            }
+        }
+
+        return $clean;
+    }
+
+    /**
+     * Match a tag token even when names use a shortened or stylised version,
+     * for example `¹P` for the clan tag `¹P丨`.
+     *
+     * @param  list<string>  $tags
+     * @return array{tag: string, name: string}|null
+     */
+    private static function tokenSplit(string $name, array $tags): ?array
+    {
         $tagKeys = [];
         foreach ($tags as $tag) {
             $tagKeys[PlayerNameSearch::key($tag)] = $tag;
         }
+        if ($tagKeys === []) {
+            return null;
+        }
+
         $candidates = [];
-        if (preg_match('/^\s*(?:[\[\(\{【「])\s*([^\]\)\}】」]{1,32})\s*(?:[\]\)\}】」])\s*(.+)$/u', $original, $match)) {
+        if (preg_match('/^\s*(?:[\[\(\{【「])\s*([^\]\)\}】」]{1,32})\s*(?:[\]\)\}】」])\s*(.+)$/u', $name, $match)) {
             $candidates[] = [$match[1], $match[2]];
         }
-        if (preg_match('/^\s*([^\s|·・･•∙⋅:;\/\\\\–—_~]{1,32})\s*['.self::TOKEN_REGEX_SEPARATORS.']\s*(.+)$/u', $original, $match)) {
+        if (preg_match('/^\s*([^\s|·・･•∙⋅:;\/\\\\–—_~]{1,32})\s*['.self::TOKEN_REGEX_SEPARATORS.']\s*(.+)$/u', $name, $match)) {
             $candidates[] = [$match[1], $match[2]];
         }
-        if (preg_match('/^(.+?)\s*['.self::TOKEN_REGEX_SEPARATORS.']\s*([^\s|·・･•∙⋅:;\/\\\\–—_~]{1,32})\s*$/u', $original, $match)) {
+        if (preg_match('/^(.+?)\s*['.self::TOKEN_REGEX_SEPARATORS.']\s*([^\s|·・･•∙⋅:;\/\\\\–—_~]{1,32})\s*$/u', $name, $match)) {
             $candidates[] = [$match[2], $match[1]];
         }
-        if (preg_match('/^\s*([^\s]{1,32})\s+(.+)$/u', $original, $match)) {
+        if (preg_match('/^\s*([^\s]{1,32})\s+(.+)$/u', $name, $match)) {
             $candidates[] = [$match[1], $match[2]];
         }
+
         foreach ($candidates as [$tagToken, $playerName]) {
             $key = PlayerNameSearch::key($tagToken);
-            if ($key !== '' && isset($tagKeys[$key]) && trim($playerName) !== '') {
-                return ['tag' => $tagKeys[$key], 'name' => trim($playerName)];
+            if ($key === '' || ! isset($tagKeys[$key])) {
+                continue;
+            }
+            $clean = self::trimSeparators(trim($playerName));
+            if ($clean !== '') {
+                return ['tag' => $tagKeys[$key], 'name' => $clean];
             }
         }
 
-        return ['tag' => null, 'name' => $original];
+        return null;
+    }
+
+    private static function endsWithSeparator(string $tag): bool
+    {
+        return preg_match('/['.self::REGEX_SEPARATORS.']$/u', $tag) === 1;
+    }
+
+    private static function startsWithSeparator(string $tag): bool
+    {
+        return preg_match('/^['.self::REGEX_SEPARATORS.']/u', $tag) === 1;
+    }
+
+    private static function trimSeparators(string $value): string
+    {
+        return preg_replace(
+            '/^['.self::REGEX_SEPARATORS.'\s]+|['.self::REGEX_SEPARATORS.'\s]+$/u',
+            '',
+            $value,
+        ) ?? $value;
     }
 
     /** @param list<string> $tags @return list<string> */
