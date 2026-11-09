@@ -311,6 +311,7 @@ await page
   .filter({ hasText: "NEW PLAYER" })
   .getByRole("button", { name: "Create new profile" })
   .click();
+await page.getByRole("button", { name: "Create new profile on save" }).click();
 await page.getByRole("tab", { name: /Confirmed/ }).click();
 await page.getByRole("button", { name: "Use existing guest" }).click();
 await page.getByText("Player confirmed", { exact: true }).waitFor();
@@ -334,6 +335,7 @@ await page.screenshot({
   path: "artifacts/import-panel-1280.png",
   fullPage: true,
 });
+await page.locator(".score-import-more summary").click();
 await page.getByRole("button", { name: "Apply to draft" }).click();
 await page.getByText(/merged into the score draft/).waitFor();
 await page.getByRole("button", { name: "Review draft & save" }).click();
@@ -389,6 +391,7 @@ await page
   .filter({ hasText: "NEW PLAYER" })
   .getByRole("button", { name: "Create new profile" })
   .click();
+await page.getByRole("button", { name: "Create new profile on save" }).click();
 await page.getByRole("tab", { name: /Teams/ }).click();
 await page
   .getByLabel("Map TEAM18 to an app slot")
@@ -444,6 +447,66 @@ await page.screenshot({
   path: "artifacts/import-panel-390.png",
   fullPage: true,
 });
+const footerHeight = await page.locator(".score-import-apply").evaluate((node) => node.getBoundingClientRect().height);
+assert.ok(footerHeight < 140, `Mobile footer is too tall: ${footerHeight}px`);
+await page.setViewportSize({ width: 390, height: 480 });
+assert.ok(await page.getByRole("button", { name: "Apply & save to scores" }).isVisible());
+assert.ok(await page.locator(".score-import-apply").evaluate((node) => node.getBoundingClientRect().height) < 140);
+const regressions = await page.evaluate(async ({ imported, sheet }) => {
+  const { prepareReview, mergeImport, applicableTeam, remapTeam } = await import("/src/screenshotReview.ts");
+  const { sheetRows } = await import("/src/scoreEntry.ts");
+  const { scoreboardBounds } = await import("/src/scoreboardImages.ts");
+  const partial = prepareReview(imported, sheet);
+  const merged = mergeImport(partial.teams, sheetRows(sheet));
+  const current = sheetRows(sheet);
+  current.s1.teamKills = "25";
+  const preserved = mergeImport(partial.teams, current);
+  const sequential = prepareReview({ ...imported, teams: Array.from({ length: 8 }, (_, i) => ({
+    ...imported.teams[0], team_label: `TEAM${i + 1}`, team_number: i + 1, placement: i + 1,
+  })) }, sheet);
+  const remapped = remapTeam(sequential.teams[0], sheet.squads[0], sheet, sequential.teams);
+  const reopened = prepareReview({ ...imported, teams: [remapped, ...sequential.teams.slice(1)] }, sheet);
+  const cropCases = [540, 1080].map((width) => {
+    const height = width * 2;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    const fill = (from, to, fraction) => {
+      for (let y = from; y < to; y++)
+        for (let x = 0; x < width * fraction; x++) {
+          const p = (y * width + x) * 4;
+          pixels[p] = pixels[p + 1] = pixels[p + 2] = 100;
+          pixels[p + 3] = 255;
+        }
+    };
+    const top = Math.round(width * 0.6);
+    const bottom = Math.round(width * 1.1);
+    fill(top, Math.round(width * 0.9), 0.8);
+    // A dark gap between card rows, then a final row with only one team.
+    fill(Math.round(width * 0.92), bottom, 0.2);
+    fill(Math.round(width * 1.65), Math.round(width * 1.75), 1);
+    const bounds = scoreboardBounds(pixels, width, height);
+    return bounds.top <= top && bounds.top >= top - 15 &&
+      bounds.bottom >= bottom && bounds.bottom < width * 1.5;
+  });
+  return {
+    total: merged.rows.s1.teamKills,
+    ids: merged.rows.s1.players.map((p) => p.id),
+    errors: merged.errors,
+    preserved: preserved.rows.s1.teamKills,
+    blocked: sequential.teams.every((t) => !applicableTeam(t)),
+    manualKept: applicableTeam(reopened.teams[0]),
+    unresolvedRemain: reopened.teams.slice(1).every((t) => !applicableTeam(t)),
+    cropCases,
+  };
+}, { imported, sheet });
+assert.equal(regressions.total, "19", "Keep known kills before a new identity is chosen");
+assert.deepEqual(regressions.ids, ["p1", "p3"]);
+assert.deepEqual(regressions.errors, []);
+assert.equal(regressions.preserved, "25", "Preserve a larger known team total");
+assert.equal(regressions.blocked, true, "Cached finishing-order TEAM labels need review");
+assert.equal(regressions.manualKept, true, "Keep an organizer's explicit mapping when reopening");
+assert.equal(regressions.unresolvedRemain, true);
+assert.deepEqual(regressions.cropCases, [true, true], "Cropping must keep final short card rows at both resolutions");
+console.log(`Mobile import footer: ${footerHeight}px`);
 assert.deepEqual(errors, []);
 console.log("PASS screenshot import, review and draft apply");
 await browser.close();

@@ -8,6 +8,7 @@ import type {
   ScreenshotPlayer,
 } from "./api/types";
 import { playerSearchKey } from "./playerSearch";
+import { prepareScoreboard, type PreparedScoreboard } from "./scoreboardImages";
 import {
   applicableTeam,
   importProblems,
@@ -47,7 +48,7 @@ function statusText(player: ScreenshotPlayer) {
   if (player.status === "suggested") {
     const best = player.candidates[0];
     return best
-      ? `Likely ${best.ign}${best.clan_tag ? ` (${best.clan_tag})` : ""} · ${best.match_score ?? player.match_score ?? "?"}% match · confirm or choose another`
+      ? `Possible existing player: ${playerHandle(best.ign, best.clan_tag)} · check the name`
       : "Likely existing player · confirm or choose another";
   }
   if (player.status === "ambiguous")
@@ -99,6 +100,7 @@ export function ScreenshotImport({
     readCached(storageKey, sheet),
   );
   const [files, setFiles] = useState<File[]>([]);
+  const [prepared, setPrepared] = useState<PreparedScoreboard[]>([]);
   const [reading, setReading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -112,6 +114,7 @@ export function ScreenshotImport({
   const input = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => () => prepared.forEach((image) => URL.revokeObjectURL(image.preview)), [prepared]);
   useEffect(() => {
     try {
       if (review) localStorage.setItem(storageKey, JSON.stringify(review));
@@ -176,6 +179,7 @@ export function ScreenshotImport({
       return;
     }
     setFiles(next);
+    setPrepared([]);
     setError("");
     if (input.current) input.current.value = "";
   }
@@ -194,10 +198,20 @@ export function ScreenshotImport({
     setError("");
     setMessage("");
     try {
+      const images = await Promise.all(files.map(async (file) => {
+        try { return await prepareScoreboard(file); }
+        catch { return { file, preview: URL.createObjectURL(file), cropped: false,
+          originalWidth: 0, width: 0, height: 0 }; }
+      }));
+      if (controller.signal.aborted) {
+        images.forEach((image) => URL.revokeObjectURL(image.preview));
+        return;
+      }
+      setPrepared(images);
       const { data } = await api.importScreenshot(
         token,
         matchId,
-        files,
+        images.map((image) => image.file),
         controller.signal,
       );
       if (controller.signal.aborted) return;
@@ -308,6 +322,8 @@ export function ScreenshotImport({
     }
   }
   const activeTeams = review?.teams.filter(applicableTeam) ?? [];
+  const teamIssues = review?.teams.filter((t) => !t.excluded && !applicableTeam(t)) ?? [];
+  const waitingPlayers = teamIssues.reduce((sum, t) => sum + t.players.filter((p) => !p.excluded).length, 0);
   const pending = review ? unresolvedPlayers(review.teams) : [];
   const newNames = pending.filter((player) => player.status === "new").length;
   const unresolved = pending.length;
@@ -318,7 +334,7 @@ export function ScreenshotImport({
   const pendingEntries = activeTeams
     .flatMap((team) =>
       team.players
-        .filter((player) => !player.excluded && !selectedPlayer(player))
+        .filter((player) => !player.excluded && (!selectedPlayer(player) || (player.kills === null && (player.kills_options?.length ?? 0) > 1)))
         .map((player) => ({ team, player })),
     )
     .sort(
@@ -328,7 +344,7 @@ export function ScreenshotImport({
     );
   const confirmedEntries = activeTeams.flatMap((team) =>
     team.players
-      .filter((player) => !player.excluded && selectedPlayer(player))
+      .filter((player) => !player.excluded && selectedPlayer(player) && !(player.kills === null && (player.kills_options?.length ?? 0) > 1))
       .map((player) => ({ team, player })),
   );
   const problems = review ? importProblems(review.teams) : [];
@@ -434,6 +450,20 @@ export function ScreenshotImport({
           recorded the details you need.
         </p>
       )}
+      {!!prepared.length && (
+        <details className="score-import-sources">
+          <summary>View scoreboards ({prepared.length})</summary>
+          {prepared.some((image) => image.originalWidth > 0 && image.originalWidth < 720) && (
+            <p className="score-warning">These are small images. Original screenshots make names and numbers easier to read.</p>
+          )}
+          <div>{prepared.map((image, index) => (
+            <a key={image.preview} href={image.preview} target="_blank" rel="noreferrer">
+              <span>Screenshot {index + 1}</span>
+              <img src={image.preview} alt={`Scoreboard ${index + 1} sent for reading`} />
+            </a>
+          ))}</div>
+        </details>
+      )}
       {review && (
         <fieldset
           className="score-import-controls"
@@ -461,7 +491,7 @@ export function ScreenshotImport({
               aria-selected={panel === "review"}
               onClick={() => setPanel("review")}
             >
-              Needs review <span>{pendingEntries.length}</span>
+              Needs review <span>{pendingEntries.length + teamIssues.length}</span>
             </button>
             <button
               type="button"
@@ -482,12 +512,34 @@ export function ScreenshotImport({
           </div>
           {panel === "review" && (
             <div className="score-import-review-queue">
+              {!!teamIssues.length && (
+                <section className="score-import-team-issues" aria-label="Teams needing a slot check">
+                  <h3>Check teams first · {teamIssues.length}</h3>
+                  <p>{waitingPlayers} player rows are kept here until their team is mapped. Check the printed TEAM header, not its finishing place.</p>
+                  {teamIssues.map((team) => (
+                    <article key={teamKey(team)}>
+                      <strong>{team.team_label} · {team.placement === null ? "Place unknown" : `Place ${team.placement}`}</strong>
+                      <p>{team.review_reasons?.[0] ?? (team.squad ? "Check this team’s slot." : "Choose a slot for this team.")}</p>
+                      <div>
+                        <select aria-label={`Review slot for ${team.team_label}`} value={team.squad?.id ?? ""}
+                          onChange={(event) => mapTeam(teamKey(team), event.target.value)}>
+                          <option value="">Choose a slot</option>
+                          {[...sheet.squads].filter((s) => s.slot_number !== null)
+                            .sort((a,b) => (a.slot_number ?? 99) - (b.slot_number ?? 99))
+                            .map((s) => <option key={s.id} value={s.id}>Slot {s.slot_number} · {labelSquad(s)}</option>)}
+                        </select>
+                        {team.squad && <button type="button" onClick={() => mapTeam(teamKey(team), team.squad!.id)}>Keep slot {team.squad.slot_number}</button>}
+                        {!team.squad && <button type="button" onClick={() => onLateEntry(team.team_number, team.team_label)}>Add clan / slot</button>}
+                        <button type="button" onClick={() => changeTeam(teamKey(team), (t) => ({ ...t, excluded: true }))}>Skip team</button>
+                      </div>
+                    </article>
+                  ))}
+                </section>
+              )}
               {pendingEntries.length ? (
                 <>
                   <p className="score-import-queue-note">
-                    Resolve these first. Confirmed matches are tucked under
-                    Confirmed. Tap Accept when the suggested player is right,
-                    or choose another player.
+                    Check these names and any conflicting numbers. Clear existing-player matches are already under Confirmed.
                   </p>
                   <ul className="score-import-players">
                     {pendingEntries.map(({ team, player }) => (
@@ -512,8 +564,7 @@ export function ScreenshotImport({
                 </>
               ) : (
                 <p className="score-import-empty">
-                  Every player is resolved. Check Confirmed or Teams, then apply
-                  the scores.
+                  {teamIssues.length ? "Player choices will appear after you check their team slots." : "Every player is resolved. Check Confirmed or Teams, then apply the scores."}
                 </p>
               )}
             </div>
@@ -772,19 +823,10 @@ export function ScreenshotImport({
           )}
           <div className="score-import-apply">
             <p>
-              {activeTeams.length
-                ? `${activeTeams.length} team${activeTeams.length === 1 ? "" : "s"} can fill the draft.${
-                    newNames
-                      ? ` ${newNames} new name${newNames === 1 ? "" : "s"} still need${newNames === 1 ? "s" : ""} a decision.`
-                      : ""
-                  }${
-                    unresolved
-                      ? ` ${unresolved} name${unresolved === 1 ? "" : "s"}${
-                          unresolvedKills ? ` with ${unresolvedKills} kills` : ""
-                        } ${unresolved === 1 ? "is" : "are"} not in the draft until resolved.`
-                      : ""
-                  }`
-                : "Map a team or include it to apply its scores."}
+              {activeTeams.length} teams ready
+              {teamIssues.length ? ` · ${teamIssues.length} team checks` : ""}
+              {unresolved ? ` · ${unresolved} names pending` : ""}
+              {unresolvedKills ? ` · ${unresolvedKills} kills in review` : ""}
             </p>
             <button
               type="button"
@@ -796,6 +838,9 @@ export function ScreenshotImport({
                 ? "Applying & saving…"
                 : "Apply & save to scores"}
             </button>
+            <details className="score-import-more">
+              <summary>More</summary>
+              <div>
             <button
               type="button"
               disabled={!activeTeams.length || applied || savingDraft}
@@ -823,6 +868,8 @@ export function ScreenshotImport({
             >
               Clear review
             </button>
+              </div>
+            </details>
           </div>
         </fieldset>
       )}
@@ -946,6 +993,8 @@ function ImportPlayer({
     onChange((p) => ({
       ...p,
       ...candidate,
+      tag: candidate.clan_tag ?? null,
+      tag_conflict: false,
       status: "matched",
       confirmed: true,
       candidates: [],
@@ -965,7 +1014,7 @@ function ImportPlayer({
     }));
   }
   function createProfile() {
-    const name = player.name.trim();
+    const name = (player.ign ?? player.name).trim();
     if (!name || exact.length) return;
     onChange((p) => ({
       ...p,
@@ -1068,8 +1117,7 @@ function ImportPlayer({
             className="score-import-accept"
             onClick={() => choose(best)}
           >
-            Accept {best.ign}
-            {best.match_score ? ` · ${best.match_score}%` : ""}
+            Use {playerHandle(best.ign, best.clan_tag)}
           </button>
         )}
         <button type="button" onClick={() => setChoosing(!choosing)}>
@@ -1080,7 +1128,7 @@ function ImportPlayer({
               : "Change / find player"}
         </button>
         {needsDecision && canCreate && (
-          <button type="button" onClick={createProfile}>
+          <button type="button" onClick={() => setChoosing(true)}>
             Create new profile
           </button>
         )}
@@ -1112,12 +1160,12 @@ function ImportPlayer({
         <div className="score-import-insight">
           {player.match_reason || best?.match_reason ? (
             <small>
-              AI: {best?.match_reason ?? player.match_reason}
-              {best?.match_score ? ` · ${best.match_score}% name match` : ""}
+              Name lookup: {best?.match_reason ?? player.match_reason}
+
             </small>
           ) : (
             <small>
-              AI: no reliable registered player match. Check the full list
+              No reliable registered player match. Check the full list
               before creating a profile.
             </small>
           )}
@@ -1177,10 +1225,7 @@ function ImportPlayer({
                 </small>
                 {candidate.match_score ? (
                   <small>
-                    {candidate.match_score}% match
-                    {candidate.match_reason
-                      ? ` · ${candidate.match_reason}`
-                      : ""}
+                    {candidate.match_reason ?? "Similar registered name"}
                   </small>
                 ) : null}
               </button>

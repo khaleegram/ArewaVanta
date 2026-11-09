@@ -643,6 +643,9 @@ export type ScreenshotPlayer = {
 
 export type ScreenshotImportTeam = {
   review_id?: string;
+  manual_mapping?: boolean;
+  source_images?: number[];
+  review_reasons?: string[];
   excluded?: boolean;
   replace_lineup?: boolean;
   placement_options?: number[];

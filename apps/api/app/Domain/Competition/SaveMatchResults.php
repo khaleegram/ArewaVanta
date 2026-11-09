@@ -77,6 +77,7 @@ final class SaveMatchResults
             $previousRows = ($legacyResult ?? $previous)?->squadResults->keyBy('squad_id') ?? collect();
             $seenPlayers = [];
             $clans = Clan::query()->get(['id', 'tag', 'tags'])->keyBy('id');
+            $allClanTags = $clans->flatMap(static fn (Clan $clan): array => $clan->tagList())->all();
             $tagOwners = [];
             foreach ($clans as $clan) {
                 foreach ($clan->tagList() as $tag) {
@@ -131,8 +132,7 @@ final class SaveMatchResults
                             }
                         }
                         $targetClanId ??= $entry->squad->clan_id;
-                        $targetClan = $clans->get($targetClanId);
-                        $ign = ClanTag::strip($rawIgn, $targetClan?->tagList() ?? []);
+                        $ign = ClanTag::strip($rawIgn, $allClanTags);
                         if ($ign === '') {
                             $ign = $rawIgn;
                         }
@@ -140,7 +140,7 @@ final class SaveMatchResults
                         // Compare the cleaned names so a legacy tagged name still matches.
                         $candidates = Player::query()->where('clan_id', $targetClanId)
                             ->where('status', 'active')->get()
-                            ->filter(static fn (Player $candidate): bool => PlayerNameSearch::key(ClanTag::strip($candidate->current_ign, $targetClan?->tagList() ?? [])) === PlayerNameSearch::key($ign));
+                            ->filter(static fn (Player $candidate): bool => PlayerNameSearch::key(ClanTag::strip($candidate->current_ign, $allClanTags)) === PlayerNameSearch::key($ign));
                         if ($candidates->count() > 1) {
                             throw ValidationException::withMessages(['results' => 'More than one player is named '.$ign.'. Select the existing player from the clan list.']);
                         }

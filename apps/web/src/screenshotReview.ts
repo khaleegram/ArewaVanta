@@ -31,7 +31,7 @@ export const selectedPlayer = (player: ScreenshotPlayer) =>
   !!player.player_id;
 export const unresolvedPlayers = (teams: ScreenshotImportTeam[]) =>
   teams
-    .filter(applicableTeam)
+    .filter((team) => !team.excluded)
     .flatMap((team) =>
       team.players.filter(
         (player) => !player.excluded && !selectedPlayer(player),
@@ -157,7 +157,7 @@ export function remapTeam(
       ...player,
       status: "new",
       player_id: null,
-      ign: player.name,
+      ign: player.ign ?? player.name,
       candidates: [],
       confirmed: false,
     };
@@ -165,6 +165,8 @@ export function remapTeam(
   return {
     ...team,
     status: "matched",
+    manual_mapping: true,
+    review_reasons: [],
     squad: squadSummary(target),
     suggested_squad: null,
     players,
@@ -174,8 +176,16 @@ export function prepareReview(
   data: ScreenshotImport,
   sheet: ResultSheet,
 ): ScreenshotImport {
+  const numbered = data.teams.filter((t) => t.team_number !== null && t.placement !== null);
+  const looksLikePlacement = numbered.length >= 8 &&
+    numbered.filter((t) => t.team_number === t.placement).length / numbered.length >= 0.9;
   const teams = data.teams.map((team) => ({
     ...team,
+    ...(!team.manual_mapping && looksLikePlacement ? {
+      status: "roster_mismatch" as const,
+      review_reasons: [...new Set([...(team.review_reasons ?? []),
+        "The read TEAM numbers follow finishing order. Check the printed TEAM header before using this slot."])],
+    } : {}),
     review_id: team.review_id ?? crypto.randomUUID(),
     players: team.players.map((player) => ({
       ...player,
@@ -189,7 +199,7 @@ export function prepareReview(
       const target = sheet.squads.find((squad) => squad.id === team.squad!.id);
       if (!target) return team;
       const mapped = remapTeam(team, target, sheet, teams);
-      return { ...mapped, status: team.status };
+      return { ...mapped, status: team.status, manual_mapping: team.manual_mapping };
     }),
   };
 }
@@ -309,9 +319,16 @@ export function mergeImport(
       conflicts.push(
         `${team.team_label}: placement ${current.placement} → ${placement}.`,
       );
-    // A sum read from player rows is never promoted to an authoritative team override.
-    const teamKills =
-      team.team_kills === null ? current.teamKills : String(team.team_kills);
+    // Known screenshot kills remain unattributed while identities are resolved.
+    // Extra/overlapping player observations must be resolved before summing them.
+    const observations = team.players.filter((p) => !p.excluded);
+    const pendingIdentities = observations.some((p) => !selectedPlayer(p));
+    const observedKills = observations.reduce((sum, p) => sum + (p.kills ?? 0), 0);
+    const keepObservedKills = pendingIdentities && observations.length <= 4 &&
+      observations.some((p) => p.kills !== null);
+    const teamKills = team.team_kills !== null ? String(team.team_kills)
+      : keepObservedKills ? String(Math.max(Number(current.teamKills || 0), observedKills))
+      : current.teamKills;
     if (current.teamKills && teamKills !== current.teamKills)
       conflicts.push(
         `${team.team_label}: known team total ${current.teamKills} → ${teamKills}.`,

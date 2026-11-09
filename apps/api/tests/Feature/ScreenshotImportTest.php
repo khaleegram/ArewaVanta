@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Competition\ScreenshotImport\DeepSeekScreenshotReader;
+use App\Domain\Competition\ScreenshotImport\ScreenshotResultMapper;
 use App\Enums\Role;
 use App\Enums\RoleScope;
 use App\Models\Clan;
@@ -206,7 +208,7 @@ final class ScreenshotImportTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_generic_squad_labels_and_fuzzy_names_require_confirmation_instead_of_creating_duplicates(): void
+    public function test_unique_similar_names_in_the_known_clan_resolve_without_creating_duplicates(): void
     {
         [$organizer, $matchId, $squadA, , $playerA] = $this->competition();
 
@@ -241,9 +243,183 @@ final class ScreenshotImportTest extends TestCase
         $team = $teams[0];
         $this->assertSame($squadA->id, $team['squad']['id']);
         $this->assertSame('matched', $team['status']);
-        $this->assertSame('suggested', $team['players'][0]['status']);
-        $this->assertSame($playerA->id, $team['players'][0]['candidates'][0]['player_id']);
-        $this->assertGreaterThanOrEqual(80, $team['players'][0]['candidates'][0]['match_score']);
+        $this->assertSame('matched', $team['players'][0]['status']);
+        $this->assertSame($playerA->id, $team['players'][0]['player_id']);
+        $this->assertSame('Unique similar name in this clan', $team['players'][0]['match_reason']);
+    }
+
+    public function test_review_explicit_team_number_keeps_its_assigned_slot(): void
+    {
+        [$organizer, $matchId, $squadA, $squadB, $playerA] = $this->competition();
+        EventSquad::query()->where('squad_id', $squadB->id)->update(['slot_number' => 1]);
+        $sheet = $this->actingAs($organizer, 'sanctum')->getJson('/api/v1/manage/matches/'.$matchId.'/result-sheet')->assertOk()->json('data');
+        $result = app(ScreenshotResultMapper::class)->map([
+            'teams' => [['team_label' => 'TEAM1', 'team_number' => 1, 'placement' => 1, 'players' => [['name' => 'KC | '.$playerA->current_ign, 'kills' => 7]]]],
+            'warnings' => [], 'model' => 'review-probe',
+        ], $sheet);
+        $this->assertSame($squadB->id, $result['teams'][0]['squad']['id'], 'An explicit TEAM1 must map to assigned slot 1, not the clan entry numbered 1 at slot 12.');
+    }
+
+    public function test_slot_clan_lookup_does_not_select_the_wrong_tag_duplicate(): void
+    {
+        [$organizer, $matchId, $squadA] = $this->competition();
+        $ne = Clan::factory()->create(['name' => 'Northern Elites', 'tag' => 'NE', 'tags' => ['NE']]);
+        $nf = Clan::factory()->create(['name' => 'Night Fall', 'tag' => 'NF', 'tags' => ['NF']]);
+        $entry = Squad::factory()->create(['clan_id' => $ne->id, 'squad_number' => 1, 'name' => 'Squad 1']);
+        $eventId = $squadA->eventEntries()->first()->event_id;
+        EventSquad::query()->create(['event_id' => $eventId, 'squad_id' => $entry->id, 'slot_number' => 13, 'status' => 'active']);
+        MatchSquad::query()->create(['match_id' => $matchId, 'squad_id' => $entry->id, 'entry_status' => 'expected']);
+        $canonical = Player::factory()->create(['clan_id' => $ne->id, 'current_ign' => 'SAYYID', 'status' => 'active']);
+        $duplicate = Player::factory()->create(['clan_id' => $nf->id, 'current_ign' => 'SAYYID', 'status' => 'active']);
+        $sheet = $this->actingAs($organizer, 'sanctum')->getJson('/api/v1/manage/matches/'.$matchId.'/result-sheet')->assertOk()->json('data');
+        $result = app(ScreenshotResultMapper::class)->map([
+            'teams' => [['team_label' => 'TEAM13', 'team_number' => 13, 'placement' => 1, 'players' => [['name' => 'NF | SAYYID', 'kills' => 21]]]],
+            'warnings' => [], 'model' => 'review-probe',
+        ], $sheet);
+        $player = $result['teams'][0]['players'][0];
+        $this->assertNull($player['player_id']);
+        $this->assertSame('suggested', $player['status']);
+        $this->assertTrue($player['tag_conflict']);
+        $this->assertSame($canonical->id, $player['candidates'][0]['player_id']);
+        $this->assertContains($duplicate->id, array_column($player['candidates'], 'player_id'));
+    }
+
+    public function test_review_new_profile_keeps_the_clean_name_after_tag_correction(): void
+    {
+        [$organizer, $matchId, $squadA] = $this->competition();
+        $squadA->clan->update(['tag' => 'NE', 'tags' => ['NE']]);
+        Clan::factory()->create(['name' => 'Night Fall', 'tag' => 'NF', 'tags' => ['NF']]);
+        $this->actingAs($organizer, 'sanctum')->putJson('/api/v1/manage/matches/'.$matchId.'/results', [
+            'results' => [['squad_id' => $squadA->id, 'status' => 'present', 'players' => [['ign' => 'NF | Fresh NE Person', 'clan_id' => $squadA->clan_id, 'kills' => 5]]]],
+        ])->assertOk();
+        $player = Player::query()->where('clan_id', $squadA->clan_id)->where('current_ign', 'like', '%Fresh NE Person%')->firstOrFail();
+        $this->assertSame('Fresh NE Person', $player->current_ign, 'A corrected NE profile must not store the misread NF tag inside its name.');
+    }
+
+    public function test_literal_headers_unknown_kills_and_repeated_rows_are_preserved(): void
+    {
+        config(['services.deepseek.key' => 'test-key']);
+        Http::preventStrayRequests();
+        Http::fake(['https://api.deepseek.com/chat/completions' => Http::response([
+            'choices' => [['message' => ['content' => json_encode(['teams' => [[
+                'team_label' => 'TEAM12', 'team_number' => 1, 'placement' => 1, 'source_image' => 1,
+                'players' => [
+                    ['name' => 'HOLY', 'kills' => 0, 'kills_text' => null],
+                    ['name' => 'HOLY', 'kills' => 4, 'kills_text' => '4'],
+                ],
+            ], [
+                'team_label' => 'Unreadable team', 'placement' => 2,
+                'players' => [['name' => 'ONE', 'kills' => 1]],
+            ], [
+                'team_label' => 'Unreadable team', 'placement' => 3,
+                'players' => [['name' => 'TWO', 'kills' => 2]],
+            ]]], JSON_THROW_ON_ERROR)]]],
+        ])]);
+        $data = app(DeepSeekScreenshotReader::class)->extract([
+            UploadedFile::fake()->image('scores.jpg', 800, 600),
+        ]);
+        $this->assertCount(3, $data['teams']);
+        $team = $data['teams'][0];
+        $this->assertSame(12, $team['team_number']);
+        $this->assertSame([1], $team['source_images']);
+        $this->assertCount(2, $team['players']);
+        $this->assertNull($team['players'][0]['kills']);
+        $this->assertSame(4, $team['players'][1]['kills']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_finishing_order_used_as_team_numbers_requires_team_review(): void
+    {
+        [$organizer, $matchId] = $this->competition();
+        $sheet = $this->actingAs($organizer, 'sanctum')->getJson('/api/v1/manage/matches/'.$matchId.'/result-sheet')->assertOk()->json('data');
+        $teams = array_map(static fn (int $number): array => [
+            'team_label' => 'TEAM'.$number, 'team_number' => $number, 'placement' => $number,
+            'players' => [['name' => 'SC | SILKY', 'kills' => 7]],
+        ], range(1, 8));
+        $data = app(ScreenshotResultMapper::class)->map([
+            'teams' => $teams, 'warnings' => [], 'model' => 'test-model',
+        ], $sheet);
+        $teamSix = collect($data['teams'])->firstWhere('team_number', 6);
+        $this->assertSame('roster_mismatch', $teamSix['status']);
+        $this->assertNotEmpty($teamSix['review_reasons']);
+        $this->assertSame(7, $teamSix['players'][0]['kills']);
+    }
+
+    public function test_an_explicit_unassigned_team_does_not_take_a_different_clan_slot(): void
+    {
+        [$organizer, $matchId] = $this->competition();
+        $sheet = $this->actingAs($organizer, 'sanctum')->getJson('/api/v1/manage/matches/'.$matchId.'/result-sheet')->assertOk()->json('data');
+        $data = app(ScreenshotResultMapper::class)->map([
+            'teams' => [['team_label' => 'TEAM18', 'team_number' => 18, 'placement' => 4,
+                'players' => [['name' => 'KC | GrBtness', 'kills' => 9]],
+            ]], 'warnings' => [], 'model' => 'test-model',
+        ], $sheet);
+        $this->assertSame('unassigned', $data['teams'][0]['status']);
+        $this->assertNull($data['teams'][0]['squad']);
+        $this->assertSame(18, $data['teams'][0]['team_number']);
+        $this->assertSame(9, $data['teams'][0]['players'][0]['kills']);
+    }
+
+    public function test_partial_imports_keep_known_totals_and_repeated_saves_reuse_profiles(): void
+    {
+        [$organizer, $matchId, $squadA, , $playerA, $guest] = $this->competition();
+        $this->actingAs($organizer, 'sanctum')->putJson('/api/v1/manage/matches/'.$matchId.'/results', [
+            'results' => [['squad_id' => $squadA->id, 'status' => 'present', 'placement' => null,
+                'team_kills' => 19, 'players' => [['player_id' => $playerA->id, 'kills' => 13]],
+            ]],
+        ])->assertOk()->assertJsonPath('data.results.0.team_kills', 19);
+
+        $rows = [['squad_id' => $squadA->id, 'status' => 'present', 'placement' => null,
+            'team_kills' => 19, 'players' => [
+                ['player_id' => $playerA->id, 'kills' => 13],
+                ['player_id' => $guest->id, 'kills' => 2],
+                ['ign' => 'KC | Fresh Player', 'clan_id' => $squadA->clan_id, 'kills' => 4],
+            ],
+        ]];
+        foreach ([1, 2] as $save) {
+            $this->actingAs($organizer, 'sanctum')->putJson('/api/v1/manage/matches/'.$matchId.'/results', [
+                'results' => $rows,
+            ])->assertOk()->assertJsonPath('data.results.0.team_kills', 19);
+        }
+        $this->assertSame(1, Player::query()->where('clan_id', $squadA->clan_id)->where('current_ign', 'Fresh Player')->count());
+        $this->assertNotSame($squadA->clan_id, $guest->fresh()->clan_id);
+        $this->assertSame($guest->clan_id, $guest->fresh()->clan_id);
+    }
+
+    public function test_other_clan_majority_is_reviewed_even_when_clan_pools_tie(): void
+    {
+        [$organizer, $matchId, $squadA, $squadB, $playerA] = $this->competition();
+        $extra = Squad::factory()->create(['clan_id' => $squadA->clan_id, 'squad_number' => 2]);
+        EventSquad::query()->create(['event_id' => $squadA->eventEntries()->first()->event_id, 'squad_id' => $extra->id, 'status' => 'active', 'slot_number' => 18]);
+        MatchSquad::query()->create(['match_id' => $matchId, 'squad_id' => $extra->id, 'entry_status' => 'expected']);
+        $second = Player::factory()->create(['clan_id' => $squadA->clan_id, 'current_ign' => 'MOTION']);
+        $sheet = $this->actingAs($organizer, 'sanctum')->getJson('/api/v1/manage/matches/'.$matchId.'/result-sheet')->assertOk()->json('data');
+        $data = app(ScreenshotResultMapper::class)->map([
+            'teams' => [['team_label' => 'TEAM6', 'team_number' => 6, 'placement' => 4, 'players' => [
+                ['name' => 'KC | GrBtness', 'kills' => 7], ['name' => 'KC | MOTION', 'kills' => 3],
+            ]]], 'warnings' => [], 'model' => 'test-model',
+        ], $sheet);
+        $team = $data['teams'][0];
+        $this->assertSame('roster_mismatch', $team['status']);
+        $this->assertSame($squadB->id, $team['squad']['id']);
+        $this->assertStringContainsString('Keep this slot for guests', $team['review_reasons'][0]);
+        $this->assertSame([$playerA->id, $second->id], array_column($team['players'], 'player_id'));
+    }
+
+    public function test_similar_names_with_a_close_runner_up_still_need_a_choice(): void
+    {
+        [$organizer, $matchId, $squadA] = $this->competition();
+        Player::factory()->create(['clan_id' => $squadA->clan_id, 'current_ign' => 'GrBtnesZ']);
+        $sheet = $this->actingAs($organizer, 'sanctum')->getJson('/api/v1/manage/matches/'.$matchId.'/result-sheet')->assertOk()->json('data');
+        $data = app(ScreenshotResultMapper::class)->map([
+            'teams' => [['team_label' => 'TEAM12', 'team_number' => 12, 'placement' => 1,
+                'players' => [['name' => 'KC | GrBtnes', 'kills' => 7]],
+            ]], 'warnings' => [], 'model' => 'test-model',
+        ], $sheet);
+        $player = $data['teams'][0]['players'][0];
+        $this->assertContains($player['status'], ['suggested', 'ambiguous']);
+        $this->assertNull($player['player_id']);
+        $this->assertCount(2, $player['candidates']);
     }
 
     /** @return array{User, string, Squad, Squad, Player, Player} */
