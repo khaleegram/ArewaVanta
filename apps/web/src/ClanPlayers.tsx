@@ -204,6 +204,8 @@ export function ClanPlayerPool({ token, clan }: { token: string; clan: ManageCla
       setRevision((value) => value + 1);
     } catch (reason) {
       setError(errorText(reason));
+      if (reason instanceof ApiError && reason.status === 404)
+        setRevision((value) => value + 1);
     } finally {
       setBusy("");
     }

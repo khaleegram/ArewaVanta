@@ -9,6 +9,8 @@ import type {
 import { playerSearchKey } from "./playerSearch";
 import {
   applicableTeam,
+  autoCreateNewPlayerKeys,
+  autoCreateNewPlayers,
   importProblems,
   playerKey,
   prepareReview,
@@ -17,6 +19,7 @@ import {
   selectedPlayer,
   teamKey,
   uniqueCandidates,
+  unresolvedPlayers,
   validReview,
   type ApplyImportResult,
   type ImportCandidate,
@@ -41,11 +44,11 @@ function statusText(player: ScreenshotPlayer) {
   if (player.status === "matched")
     return player.confirmed ? "Player confirmed" : "Matched player";
   if (player.status === "other_squad")
-    return `Existing player · ${player.clan ?? "another squad"}`;
+    return `Existing player · ${player.clan ?? "another squad"} · added as guest`;
   if (player.status === "ambiguous")
     return "Choose the correct existing player";
   if (player.status === "duplicate") return "Choose the correct occurrence";
-  return "Unresolved name · choose a player or mark as new";
+  return "New name · profile created automatically when you save";
 }
 function numeric(value: string, min = 0, max = 999): number | null | undefined {
   if (value === "") return null;
@@ -73,6 +76,7 @@ export function ScreenshotImport({
   storageKey,
   busy = false,
   onApply,
+  onSave,
   onLateEntry,
   onClose,
 }: {
@@ -82,6 +86,7 @@ export function ScreenshotImport({
   storageKey: string;
   busy?: boolean;
   onApply: (teams: ScreenshotImportTeam[]) => ApplyImportResult;
+  onSave: (teams: ScreenshotImportTeam[]) => Promise<ApplyImportResult>;
   onLateEntry: (number: number | null, label: string) => void;
   onClose: () => void;
 }) {
@@ -93,6 +98,7 @@ export function ScreenshotImport({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [applied, setApplied] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [command, setCommand] = useState("");
   const [storageProblem, setStorageProblem] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -260,41 +266,59 @@ export function ScreenshotImport({
     mapTeam(teamKey(team), target.id);
     setCommand("");
   }
-  function apply() {
-    if (!review || reading || busy) return;
-    const normalized = prepareReview(review, sheet);
+  async function apply(saveAfter: boolean) {
+    if (!review || reading || busy || savingDraft) return;
+    // New names are created automatically on apply. Ambiguous and duplicate
+    // names stay in this review rather than blocking the whole result board.
+    const prepared = prepareReview(review, sheet);
+    const normalized = {
+      ...prepared,
+      teams: autoCreateNewPlayers(prepared.teams),
+    };
     const problems = importProblems(normalized.teams);
     if (problems.length) {
       setError(problems.join(" "));
       return;
     }
-    if (
-      normalized.teams.some(
-        (t) => applicableTeam(t) && t.status === "roster_matched",
-      ) &&
-      !window.confirm(
-        "Some teams were matched by player roster instead of team number. Apply these game-specific mappings? Official slot assignments will stay unchanged.",
-      )
-    )
-      return;
-    const result = onApply(normalized.teams);
-    // A parent cancellation leaves the review editable and Apply available.
-    if (!result.applied) {
-      setError(result.message);
-      return;
+    setSavingDraft(saveAfter);
+    try {
+      const result = saveAfter
+        ? await onSave(normalized.teams)
+        : onApply(normalized.teams);
+      // A parent cancellation leaves the review editable and Apply available.
+      if (!result.applied) {
+        setError(result.message);
+        return;
+      }
+      setReview(normalized);
+      setApplied(true);
+      if (result.failed) {
+        setMessage("");
+        setError(result.message);
+      } else {
+        setError("");
+        setMessage(result.message);
+      }
+    } finally {
+      setSavingDraft(false);
     }
-    setReview(normalized);
-    setApplied(true);
-    setMessage(result.message);
-    setError("");
   }
   const activeTeams = review?.teams.filter(applicableTeam) ?? [];
-  const unresolved = activeTeams.reduce(
-    (sum, team) =>
-      sum +
-      team.players.filter(
-        (player) => !player.excluded && !selectedPlayer(player),
-      ).length,
+  const pending = review ? unresolvedPlayers(review.teams) : [];
+  const autoNewKeys = review
+    ? autoCreateNewPlayerKeys(review.teams)
+    : new Set<string>();
+  const newPending = pending.filter(
+    (player) =>
+      player.status === "new" && autoNewKeys.has(playerSearchKey(player.name)),
+  );
+  const blockedPending = pending.filter(
+    (player) => !newPending.includes(player),
+  );
+  const newNames = newPending.length;
+  const unresolved = blockedPending.length;
+  const unresolvedKills = blockedPending.reduce(
+    (sum, player) => sum + (player.kills ?? 0),
     0,
   );
   const problems = review ? importProblems(review.teams) : [];
@@ -308,8 +332,9 @@ export function ScreenshotImport({
             Review the result board<span>.</span>
           </h2>
           <p>
-            Choose players, correct numbers, then apply to your draft.
-            Unresolved rows stay in this review until you resolve or clear them.
+            Choose players, correct numbers, then apply the scores to your
+            draft and save. Unresolved rows stay in this review until you
+            resolve or clear them.
           </p>
         </div>
         <button
@@ -320,7 +345,10 @@ export function ScreenshotImport({
           ×
         </button>
       </header>
-      <fieldset className="score-import-controls" disabled={busy || reading}>
+      <fieldset
+        className="score-import-controls"
+        disabled={busy || reading || savingDraft}
+      >
         <div className="score-import-upload">
           <input
             ref={input}
@@ -397,7 +425,10 @@ export function ScreenshotImport({
         </p>
       )}
       {review && (
-        <fieldset className="score-import-controls" disabled={busy || reading}>
+        <fieldset
+          className="score-import-controls"
+          disabled={busy || reading || savingDraft}
+        >
           <div className="score-import-summary">
             <span>
               <strong>{review.teams.length}</strong> teams read
@@ -406,9 +437,22 @@ export function ScreenshotImport({
               <strong>{activeTeams.length}</strong> selected & mapped
             </span>
             <span>
-              <strong>{unresolved}</strong> player names to resolve
+              <strong>{newNames}</strong> new profiles to create
+            </span>
+            <span>
+              <strong>{unresolved}</strong> names need a choice
+              {unresolvedKills ? ` · ${unresolvedKills} kills` : ""}
             </span>
           </div>
+          {!!newNames && (
+            <div className="score-import-bulk">
+              <p>
+                {newNames} new player profile{newNames === 1 ? "" : "s"} will
+                be created automatically when you save the scores. Their kills
+                are included.
+              </p>
+            </div>
+          )}
           <form className="score-import-command" onSubmit={runCommand}>
             <label htmlFor="score-import-command-input">
               Quick map command
@@ -616,19 +660,40 @@ export function ScreenshotImport({
           <div className="score-import-apply">
             <p>
               {activeTeams.length
-                ? `${activeTeams.length} teams can fill the draft. ${unresolved} unresolved player rows will remain here for later.`
+                ? `${activeTeams.length} team${activeTeams.length === 1 ? "" : "s"} can fill the draft.${
+                    newNames
+                      ? ` ${newNames} new profile${newNames === 1 ? "" : "s"} will be created.`
+                      : ""
+                  }${
+                    unresolved
+                      ? ` ${unresolved} name${unresolved === 1 ? "" : "s"}${
+                          unresolvedKills ? ` with ${unresolvedKills} kills` : ""
+                        } ${unresolved === 1 ? "needs" : "need"} a choice and ${
+                          unresolved === 1 ? "stays" : "stay"
+                        } in this review.`
+                      : ""
+                  }`
                 : "Map a team or include it to apply its scores."}
             </p>
             <button
               type="button"
               className="score-primary"
-              disabled={!activeTeams.length || applied}
-              onClick={apply}
+              disabled={!activeTeams.length || applied || savingDraft}
+              onClick={() => void apply(true)}
+            >
+              {savingDraft
+                ? "Applying & saving…"
+                : "Apply & save to scores"}
+            </button>
+            <button
+              type="button"
+              disabled={!activeTeams.length || applied || savingDraft}
+              onClick={() => void apply(false)}
             >
               {applied ? "Applied to draft" : "Apply to draft"}
             </button>
             <button type="button" onClick={onClose}>
-              Review score draft
+              Review draft & save
             </button>
             <button
               type="button"

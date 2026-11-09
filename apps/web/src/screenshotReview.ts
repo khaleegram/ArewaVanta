@@ -9,7 +9,11 @@ import { playerSearchKey } from "./playerSearch";
 import type { ScoreRows } from "./scoreEntry";
 
 export type ImportCandidate = ScreenshotPlayer["candidates"][number];
-export type ApplyImportResult = { applied: boolean; message: string };
+export type ApplyImportResult = {
+  applied: boolean;
+  message: string;
+  failed?: boolean;
+};
 export const teamKey = (team: ScreenshotImportTeam) =>
   team.review_id ?? String(team.team_number ?? team.team_label);
 export const playerKey = (player: ScreenshotPlayer) =>
@@ -18,8 +22,21 @@ export const applicableTeam = (team: ScreenshotImportTeam) =>
   !team.excluded &&
   !!team.squad &&
   ["matched", "roster_matched"].includes(team.status);
+// A uniquely matched player from another squad is still the actual person in
+// this game. Include them as a guest match participant; their permanent clan is
+// never changed. New or ambiguous names still need an explicit review choice.
 export const selectedPlayer = (player: ScreenshotPlayer) =>
-  !player.excluded && player.status === "matched" && !!player.player_id;
+  !player.excluded &&
+  (player.status === "matched" || player.status === "other_squad") &&
+  !!player.player_id;
+export const unresolvedPlayers = (teams: ScreenshotImportTeam[]) =>
+  teams
+    .filter(applicableTeam)
+    .flatMap((team) =>
+      team.players.filter(
+        (player) => !player.excluded && !selectedPlayer(player),
+      ),
+    );
 export function squadSummary(
   squad: ResultSheet["squads"][number],
 ): ScreenshotSquad {
@@ -91,6 +108,9 @@ export function remapTeam(
     ),
   );
   const players = team.players.map((player): ScreenshotPlayer => {
+    // Duplicate occurrences need an explicit choice; importing them twice would
+    // credit the same player in two teams.
+    if (player.status === "duplicate") return player;
     // A confirmed identity remains the same person when a team mapping changes.
     if (player.player_id && !player.player_id.startsWith("new:"))
       return {
@@ -150,10 +170,6 @@ export function prepareReview(
     players: team.players.map((player) => ({
       ...player,
       review_id: player.review_id ?? crypto.randomUUID(),
-      status:
-        player.status === "duplicate" && player.player_id
-          ? ("other_squad" as const)
-          : player.status,
     })),
   }));
   return {
@@ -166,6 +182,45 @@ export function prepareReview(
       return { ...mapped, status: team.status };
     }),
   };
+}
+// A genuinely new, unambiguous name should not need a second click. Create the
+// profile on apply. Names that appear more than once are left for review so an
+// OCR duplicate never creates two profiles with the same IGN.
+export function autoCreateNewPlayerKeys(
+  teams: ScreenshotImportTeam[],
+): Set<string> {
+  const counts = new Map<string, number>();
+  for (const team of teams.filter(applicableTeam))
+    for (const player of team.players) {
+      if (player.excluded || player.status !== "new") continue;
+      const key = playerSearchKey(player.name);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  return new Set(
+    [...counts].filter(([, count]) => count === 1).map(([key]) => key),
+  );
+}
+export function autoCreateNewPlayers(
+  teams: ScreenshotImportTeam[],
+): ScreenshotImportTeam[] {
+  const keys = autoCreateNewPlayerKeys(teams);
+  return teams.map((team) => {
+    if (!applicableTeam(team)) return team;
+    return {
+      ...team,
+      players: team.players.map((player) => {
+        if (player.excluded || player.status !== "new") return player;
+        if (!keys.has(playerSearchKey(player.name))) return player;
+        return {
+          ...player,
+          status: "matched" as const,
+          confirmed: true,
+          player_id: `new:${player.review_id ?? crypto.randomUUID()}`,
+          ign: player.name.trim(),
+        };
+      }),
+    };
+  });
 }
 export function importProblems(teams: ScreenshotImportTeam[]): string[] {
   const problems: string[] = [];
@@ -200,11 +255,20 @@ export function importProblems(teams: ScreenshotImportTeam[]): string[] {
 export function mergeImport(
   teams: ScreenshotImportTeam[],
   rows: ScoreRows,
-): { rows: ScoreRows; conflicts: string[]; errors: string[]; count: number } {
+): {
+  rows: ScoreRows;
+  conflicts: string[];
+  errors: string[];
+  count: number;
+  players: number;
+  kills: number;
+} {
   const applicable = teams.filter(applicableTeam);
   const errors = importProblems(teams);
   const conflicts: string[] = [];
   const next = { ...rows };
+  let playerCount = 0;
+  let killCount = 0;
   for (const team of applicable) {
     const id = team.squad!.id;
     const current = rows[id];
@@ -224,7 +288,20 @@ export function mergeImport(
     )
       conflicts.push(`${team.team_label}: replace its existing match lineup.`);
     for (const player of imported) {
-      const existing = current.players.find((p) => p.id === player.player_id);
+      const importedId = player.player_id!;
+      const existing = current.players.find((p) => p.id === importedId);
+      // Re-applying an import must not create a second "new:" row for the same
+      // written name. Keep the identity already in the draft so saving is
+      // idempotent across repeated applies.
+      const existingNew = importedId.startsWith("new:")
+        ? players.find(
+            (p) =>
+              p.id.startsWith("new:") &&
+              playerSearchKey(p.ign) ===
+                playerSearchKey(player.ign ?? player.name),
+          )
+        : undefined;
+      const id = existingNew?.id ?? importedId;
       if (
         existing &&
         existing.kills !== "" &&
@@ -235,16 +312,18 @@ export function mergeImport(
           `${team.team_label} · ${player.ign ?? player.name}: ${existing.kills} → ${player.kills} kills.`,
         );
       const added = {
-        id: player.player_id!,
+        id,
         ign: player.ign ?? player.name,
         kills:
           player.kills === null
-            ? (existing?.kills ?? "")
+            ? (existing?.kills ?? existingNew?.kills ?? "")
             : String(player.kills),
       };
-      const index = players.findIndex((p) => p.id === added.id);
+      const index = players.findIndex((p) => p.id === id);
       if (index < 0) players.push(added);
       else players[index] = added;
+      playerCount += 1;
+      killCount += player.kills ?? 0;
     }
     if (players.length > Math.max(4, current.players.length))
       errors.push(
@@ -286,6 +365,8 @@ export function mergeImport(
     conflicts,
     errors: [...new Set(errors)],
     count: applicable.length,
+    players: playerCount,
+    kills: killCount,
   };
 }
 export function validReview(value: unknown): value is ScreenshotImport {

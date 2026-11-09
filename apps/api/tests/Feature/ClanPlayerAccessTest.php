@@ -172,7 +172,8 @@ final class ClanPlayerAccessTest extends TestCase
             'current_ign' => 'New Name', 'uid' => 'duplicate 1',
         ])->assertUnprocessable()->assertJsonValidationErrors('uid');
         $this->patchJson("/api/v1/manage/clans/{$clan->id}/players/{$foreign->id}", ['current_ign' => 'Hijacked'])
-            ->assertNotFound();
+            ->assertNotFound()
+            ->assertJsonPath('message', 'That player is no longer in this clan. Refresh the player list and try again.');
         $this->patchJson("/api/v1/manage/clans/{$other->id}/players/{$foreign->id}", ['current_ign' => 'Hijacked'])
             ->assertForbidden();
 
@@ -184,7 +185,9 @@ final class ClanPlayerAccessTest extends TestCase
         $this->getJson("/api/v1/manage/clans/{$clan->id}/players")->assertOk()
             ->assertJsonMissing(['id' => $player->id])
             ->assertJsonPath('data.0.id', $duplicateUid->id);
-        $this->deleteJson("/api/v1/manage/clans/{$clan->id}/players/{$foreign->id}")->assertNotFound();
+        $this->deleteJson("/api/v1/manage/clans/{$clan->id}/players/{$foreign->id}")
+            ->assertNotFound()
+            ->assertJsonPath('message', 'That player is no longer in this clan. Refresh the player list and try again.');
         $this->assertSame($other->id, $foreign->fresh()->clan_id);
     }
 

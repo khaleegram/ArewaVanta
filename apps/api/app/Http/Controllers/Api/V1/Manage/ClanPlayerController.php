@@ -64,7 +64,11 @@ final class ClanPlayerController extends Controller
     public function update(Request $request, Clan $clan, Player $player, OrganizationPermissions $permissions): JsonResponse
     {
         abort_unless($permissions->canManageClan($request->user(), $clan), 403);
-        abort_unless($player->clan_id === $clan->id, 404);
+        abort_unless(
+            $player->clan_id === $clan->id,
+            404,
+            'That player is no longer in this clan. Refresh the player list and try again.',
+        );
         if (is_string($request->input('current_ign'))) {
             $request->merge(['current_ign' => trim($request->input('current_ign'))]);
         }
@@ -94,7 +98,11 @@ final class ClanPlayerController extends Controller
     public function destroy(Request $request, Clan $clan, Player $player, OrganizationPermissions $permissions): Response
     {
         abort_unless($permissions->canManageClan($request->user(), $clan), 403);
-        abort_unless($player->clan_id === $clan->id, 404);
+        abort_unless(
+            $player->clan_id === $clan->id,
+            404,
+            'That player is no longer in this clan. Refresh the player list and try again.',
+        );
         DB::transaction(function () use ($player): void {
             $player = Player::query()->lockForUpdate()->findOrFail($player->id);
             $player->squadMemberships()->whereNull('left_at')->update(['left_at' => now()]);

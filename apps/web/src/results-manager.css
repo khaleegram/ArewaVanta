@@ -39,6 +39,8 @@
 .score-import-summary { display:flex; flex-wrap:wrap; gap:10px 20px; margin:16px 0; padding:12px 14px; border:1px solid var(--score-line); border-radius:10px; background:var(--score-paper); }
 .score-import-summary span { color:var(--score-muted); font-size:10px; line-height:1.4; }
 .score-import-summary strong { display:block; color:#21573d; font-size:20px; line-height:1.2; font-variant-numeric:tabular-nums; }
+.score-import-bulk { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin:-6px 0 16px; padding:10px 13px; border:1px solid #ddb48e; border-radius:9px; background:#fff8ee; }
+.score-import-bulk p { margin:0; max-width:60ch; color:#7b4b2d; font-size:11px; line-height:1.6; }
 .score-import-command { display:grid; gap:6px; margin:14px 0 16px; padding:11px 13px; border:1px solid var(--score-line); border-radius:9px; background:var(--score-paper); }
 .score-import-command > label { color:var(--score-muted); font-size:10px; font-weight:650; }
 .score-import-command > div { display:flex; gap:8px; }
