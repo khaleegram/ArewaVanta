@@ -365,7 +365,23 @@ export function PlayerPage({ id }: { id: string }) {
                       <span className="public-player-match-info">
                         <strong>{match.event_title}</strong>
                         <small>Game {match.match_index} · {match.map_label} · {match.clan_name ?? match.squad_name}</small>
-                        {match.ign_snapshot !== player.data.current_ign && <small>Played as {playerHandle(match.ign_snapshot, match.clan_tag ?? player.data.clan?.tag)}</small>}
+                        {match.ign_snapshot !== player.data.current_ign &&
+                          playerHandle(
+                            match.ign_snapshot,
+                            match.clan_tag ?? player.data.clan?.tag,
+                          ) !==
+                            playerHandle(
+                              player.data.current_ign,
+                              player.data.clan?.tag,
+                            ) && (
+                            <small>
+                              Played as{" "}
+                              {playerHandle(
+                                match.ign_snapshot,
+                                match.clan_tag ?? player.data.clan?.tag,
+                              )}
+                            </small>
+                          )}
                       </span>
                       <span className="public-player-match-kills"><strong>{match.kills}</strong><small>KILLS</small></span>
                       <Icon name="arrow" />
