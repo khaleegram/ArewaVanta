@@ -28,6 +28,7 @@ import type {
   MatchResultInput,
   PlayerProfile,
   PlayerRanking,
+  PlayerDuplicate,
   PublicEvent,
   PublicClan,
   PublicSquad,
@@ -401,6 +402,16 @@ export const api = {
       token,
       body,
     }),
+  playerDuplicates: (token: string, signal?: AbortSignal) =>
+    request<ApiData<PlayerDuplicate[]>>("/manage/players/duplicates", {
+      token,
+      signal,
+    }),
+  mergePlayer: (token: string, sourceId: Id, targetId: Id) =>
+    request<ApiData<{ player: ManagePlayer; merge: Record<string, number> }>>(
+      `/manage/players/${key(String(sourceId))}/merge`,
+      { method: "POST", token, body: { target_id: targetId } },
+    ),
   updatePlayer: (token: string, id: string, body: Omit<ManagePlayer, "id">) =>
     request<ApiData<ManagePlayer>>(`/manage/players/${key(id)}`, {
       method: "PATCH",

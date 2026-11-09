@@ -92,6 +92,26 @@ export type ManagePlayer = {
   uid: string | null;
   uid_public: boolean;
 };
+export type PlayerDuplicateCandidate = {
+  id: Id;
+  current_ign: string;
+  clan: string | null;
+  clan_tag: string | null;
+  games: number;
+  match_score: number;
+  match_reason: string;
+};
+export type PlayerDuplicate = {
+  source: {
+    id: Id;
+    current_ign: string;
+    clan: string | null;
+    clan_tag: string | null;
+    games: number;
+    created_at: string | null;
+  };
+  candidates: PlayerDuplicateCandidate[];
+};
 export type RosterMember = {
   membership_id: Id;
   player_id: Id;
@@ -589,6 +609,7 @@ export type ScreenshotPlayer = {
     | "matched"
     | "other_squad"
     | "new"
+    | "suggested"
     | "ambiguous"
     | "duplicate";
   player_id: Id | null;
@@ -601,6 +622,9 @@ export type ScreenshotPlayer = {
   clan_tags?: string[];
   slot_number?: number | null;
   duplicate_of?: string;
+  match_score?: number | null;
+  match_reason?: string | null;
+  note?: string;
   candidates: {
     player_id: Id;
     ign: string;
@@ -611,6 +635,8 @@ export type ScreenshotPlayer = {
     clan_tag?: string | null;
     clan_tags?: string[];
     slot_number?: number | null;
+    match_score?: number | null;
+    match_reason?: string | null;
   }[];
 };
 

@@ -312,6 +312,16 @@ assert.equal(
 );
 await page.getByRole("button", { name: "Use existing guest" }).click();
 await page.getByText("Player confirmed", { exact: true }).waitFor();
+await page
+  .locator(".score-import-player-review")
+  .filter({ hasText: "NEW PLAYER" })
+  .getByRole("button", { name: "Create new profile" })
+  .click();
+await page
+  .locator(".score-import-player-review")
+  .filter({ hasText: "NEW PLAYER" })
+  .getByText(/New profile · created when you save scores/)
+  .waitFor();
 await page.getByRole("button", { name: "Add TEAM18 as late entry" }).click();
 assert.equal(await page.getByLabel("Game slot").inputValue(), "18");
 await page

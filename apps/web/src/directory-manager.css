@@ -383,3 +383,73 @@
 .directory-clan-head h2 {
   overflow-wrap: anywhere;
 }
+
+.directory-duplicates {
+  margin: 0 0 18px;
+  border: 1px solid #5d4a2f;
+  background: #211d14;
+  padding: 14px 16px;
+}
+.directory-duplicates summary {
+  cursor: pointer;
+  color: #f0d8b8;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.directory-duplicates summary span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  margin-left: 6px;
+  background: #4a3420;
+  color: #ffd9b8;
+  font-size: 11px;
+}
+.directory-duplicates > p {
+  margin: 10px 0 14px;
+  color: #c8b89e;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.directory-duplicate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #3b3021;
+}
+.directory-duplicate strong,
+.directory-duplicate small {
+  display: block;
+}
+.directory-duplicate strong {
+  color: #f5e7d2;
+  font-size: 12px;
+}
+.directory-duplicate small {
+  color: #ad9d87;
+  font-size: 10px;
+  margin-top: 3px;
+}
+.directory-duplicate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.directory-duplicate-actions button {
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 1px solid #6c5436;
+  background: #2d2518;
+  color: #ffd9b8;
+  font-size: 10px;
+  font-weight: 700;
+}
+.directory-duplicate-actions button:disabled {
+  opacity: 0.5;
+}

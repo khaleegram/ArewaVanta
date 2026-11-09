@@ -6,6 +6,7 @@ use App\Domain\Competition\ClanTag;
 use App\Domain\Competition\PlayerNameSearch;
 use App\Models\Clan;
 use App\Models\Player;
+use App\Models\PlayerAlias;
 
 final class ScreenshotResultMapper
 {
@@ -20,9 +21,16 @@ final class ScreenshotResultMapper
         $slotSquads = [];
         $playerIndex = [];
         $allPlayers = [];
+        $allCandidates = [];
         $knownPlayerIds = [];
         $allTags = [];
         $tagOwners = [];
+        $aliasesByPlayer = PlayerAlias::query()
+            ->whereHas('player', static fn ($query) => $query->where('status', 'active'))
+            ->get(['player_id', 'alias'])
+            ->groupBy('player_id')
+            ->map(static fn ($aliases): array => $aliases->pluck('alias')->all())
+            ->all();
         foreach (Clan::query()->get(['id', 'name', 'tag', 'tags']) as $clan) {
             foreach ($clan->tagList() as $tag) {
                 $allTags[] = $tag;
@@ -67,9 +75,11 @@ final class ScreenshotResultMapper
                     'clan_tag' => $squad['clan_tag'],
                     'clan_tags' => $squad['clan_tags'] ?? ($squad['clan_tag'] ? [$squad['clan_tag']] : []),
                     'slot_number' => $squad['slot_number'],
+                    'aliases' => $aliasesByPlayer[$player['id']] ?? [],
                 ];
                 $playerIndex[$squad['id']][$key][] = $candidate;
                 $allPlayers[$key][] = $candidate;
+                $allCandidates[$candidate['player_id']] ??= $candidate;
                 $knownPlayerIds[$candidate['player_id']] = true;
             }
         }
@@ -86,7 +96,7 @@ final class ScreenshotResultMapper
             if ($key === '') {
                 continue;
             }
-            $allPlayers[$key][] = [
+            $candidate = [
                 'player_id' => $player->id,
                 'ign' => $cleanIgn,
                 'squad_id' => null,
@@ -96,7 +106,10 @@ final class ScreenshotResultMapper
                 'clan_tag' => $player->clan?->tag,
                 'clan_tags' => $clanTags,
                 'slot_number' => null,
+                'aliases' => $aliasesByPlayer[$player->id] ?? [],
             ];
+            $allPlayers[$key][] = $candidate;
+            $allCandidates[$player->id] ??= $candidate;
         }
 
         $usedPlayers = [];
@@ -114,29 +127,56 @@ final class ScreenshotResultMapper
             $teamKills = is_int($team['team_kills'] ?? null) ? $team['team_kills'] : null;
             $extractedPlayers = array_values((array) ($team['players'] ?? []));
 
-            $slotSquad = $number !== null ? ($slotSquads[$number] ?? null) : null;
+            $teamClanId = $this->teamClanVote($extractedPlayers, $allTags, $tagOwners);
+            $explicitTeamNumber = $number !== null && preg_match('/^\s*TEAM\s*\d{1,2}\b/i', $label) === 1;
+            $slotSquad = $explicitTeamNumber ? ($slotSquads[$number] ?? null) : null;
+            $clanSquads = $teamClanId === null
+                ? []
+                : array_values(array_filter($squads, static fn (array $squad): bool => ($squad['clan_id'] ?? null) === $teamClanId));
+            $clanNumberSquads = array_values(array_filter(
+                $clanSquads,
+                static fn (array $squad): bool => $number !== null && (int) ($squad['squad_number'] ?? 0) === $number,
+            ));
             $best = $this->bestRosterMatch($extractedPlayers, $playerIndex, $squads, $allTags);
-            $matchedSquad = $slotSquad;
+            if ($best !== null && $teamClanId !== null && ($best['squad']['clan_id'] ?? null) !== $teamClanId) {
+                $best = null;
+            }
+
+            $matchedSquad = count($clanNumberSquads) === 1 ? $clanNumberSquads[0] : null;
+            $matchedBy = $matchedSquad === null ? null : 'clan_squad';
+            if ($matchedSquad === null && $slotSquad !== null) {
+                $matchedSquad = $slotSquad;
+                $matchedBy = 'slot';
+            }
+            if ($matchedSquad === null && $teamClanId !== null && count($clanSquads) === 1) {
+                $matchedSquad = $clanSquads[0];
+                $matchedBy = 'clan';
+            }
+            if ($matchedSquad === null && $best !== null) {
+                $matchedSquad = $best['squad'];
+                $matchedBy = 'roster';
+            }
             $suggestedSquad = null;
             $status = 'unassigned';
 
             if ($matchedSquad !== null) {
                 $slotOverlap = $this->overlap($extractedPlayers, $playerIndex[$matchedSquad['id']] ?? [], $allTags);
-                if ($best !== null && $best['squad']['id'] !== $matchedSquad['id'] && $best['score'] > $slotOverlap && $slotOverlap === 0) {
+                if ($matchedBy === 'slot' && $best !== null && $best['squad']['id'] !== $matchedSquad['id'] && $best['score'] > $slotOverlap && $slotOverlap === 0) {
                     $suggestedSquad = $best['squad'];
                     $status = 'roster_mismatch';
                     $warnings[] = $label.' is on slot '.$number.', but its players look more like '.$this->squadName($best['squad']).'. Confirm the mapping before applying.';
+                } elseif ($matchedBy === 'roster') {
+                    $status = 'roster_matched';
+                    $warnings[] = $label.' has no explicit TEAM number but its players match '.$this->squadName($matchedSquad).' by roster. Confirm before applying.';
                 } else {
                     $status = 'matched';
                 }
-            } elseif ($best !== null) {
-                $matchedSquad = $best['squad'];
-                $status = 'roster_matched';
-                $warnings[] = $label.' has no slot '.$number.' in this game, but its players match '.$this->squadName($best['squad']).' by roster. Confirm before applying.';
-            } elseif ($number !== null) {
+            } elseif ($teamClanId !== null && count($clanSquads) > 1) {
+                $warnings[] = $label.' looks like '.$this->clanName($teamClanId, $tagOwners).' but several squads belong to that clan. Choose the correct squad.';
+            } elseif ($number !== null && $explicitTeamNumber) {
                 $warnings[] = $label.' is not assigned to slot '.$number.' in this game.';
             } else {
-                $warnings[] = $label.' has no readable team number and could not be matched to a squad.';
+                $warnings[] = $label.' has no readable TEAM number and could not be matched to a squad by clan tag or roster.';
             }
 
             $players = [];
@@ -155,7 +195,7 @@ final class ScreenshotResultMapper
                     : ($tagOwners[PlayerNameSearch::key($split['tag'])] ?? null);
                 $key = PlayerNameSearch::key($lookupName);
                 $kills = is_int($player['kills'] ?? null) ? $player['kills'] : null;
-                $resolved = $this->resolvePlayer($key, $lookupName, $matchedSquad, $playerIndex, $allPlayers, $tagOwner);
+                $resolved = $this->resolvePlayer($key, $lookupName, $matchedSquad, $playerIndex, $allPlayers, $allCandidates, $tagOwner);
                 if ($resolved['player_id'] !== null && isset($usedPlayers[$resolved['player_id']])) {
                     $resolved['status'] = 'duplicate';
                     $resolved['duplicate_of'] = $usedPlayers[$resolved['player_id']];
@@ -219,6 +259,60 @@ final class ScreenshotResultMapper
     }
 
     /**
+     * Use the clan tags visible in the player names to identify the team's clan.
+     * This is stronger evidence than a generic board label such as "Squad 1".
+     *
+     * @param  list<array<string, mixed>>  $players
+     * @param  list<string>  $allTags
+     * @param  array<string, array<string, string>>  $tagOwners
+     */
+    private function teamClanVote(array $players, array $allTags, array $tagOwners): ?string
+    {
+        $votes = [];
+        foreach ($players as $player) {
+            if (! is_array($player)) {
+                continue;
+            }
+            $split = ClanTag::split((string) ($player['name'] ?? ''), $allTags);
+            if ($split['tag'] === null) {
+                continue;
+            }
+            $owner = $tagOwners[PlayerNameSearch::key($split['tag'])] ?? null;
+            if ($owner !== null) {
+                $votes[$owner['id']] = ($votes[$owner['id']] ?? 0) + 1;
+            }
+        }
+
+        if ($votes === []) {
+            return null;
+        }
+
+        arsort($votes);
+        $top = array_keys($votes)[0] ?? null;
+        if ($top === null) {
+            return null;
+        }
+        $counts = array_values($votes);
+        if (count($counts) > 1 && $counts[0] === $counts[1]) {
+            return null;
+        }
+
+        return $top;
+    }
+
+    /** @param array<string, array<string, string>> $tagOwners */
+    private function clanName(string $clanId, array $tagOwners): string
+    {
+        foreach ($tagOwners as $owner) {
+            if (($owner['id'] ?? null) === $clanId) {
+                return (string) ($owner['name'] ?? 'that clan');
+            }
+        }
+
+        return 'that clan';
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $players
      * @param  array<string, array<string, list<array<string, mixed>>>>  $playerIndex
      * @param  list<array<string, mixed>>  $squads
@@ -251,7 +345,7 @@ final class ScreenshotResultMapper
      * @param  array<string, list<array<string, mixed>>>  $allPlayers
      * @return array<string, mixed>
      */
-    private function resolvePlayer(string $key, string $name, ?array $squad, array $squadPlayers, array $allPlayers, ?array $tagOwner): array
+    private function resolvePlayer(string $key, string $name, ?array $squad, array $squadPlayers, array $allPlayers, array $allCandidates, ?array $tagOwner): array
     {
         $tagClanId = $tagOwner['id'] ?? null;
         $sameSquad = $squad === null ? [] : ($squadPlayers[$squad['id']][$key] ?? []);
@@ -280,6 +374,18 @@ final class ScreenshotResultMapper
             return ['status' => 'ambiguous', 'player_id' => null, 'ign' => null, 'clan_id' => $tagClanId, 'candidates' => $global];
         }
 
+        $similar = $this->similarCandidates($name, $allCandidates, $tagClanId, $squad);
+        if ($similar !== []) {
+            $best = $similar[0];
+            return [
+                'status' => $best['match_score'] >= 86 ? 'suggested' : 'ambiguous',
+                'player_id' => null,
+                'ign' => null,
+                'clan_id' => $tagClanId,
+                'candidates' => $similar,
+            ];
+        }
+
         return [
             'status' => 'new',
             'player_id' => null,
@@ -289,6 +395,47 @@ final class ScreenshotResultMapper
             'clan_tag' => $tagOwner['tag'] ?? null,
             'candidates' => [],
         ];
+    }
+
+    /**
+     * Surface likely existing profiles instead of silently creating a near-duplicate.
+     *
+     * @param  array<string, array<string, mixed>>  $allCandidates
+     * @return list<array<string, mixed>>
+     */
+    private function similarCandidates(string $name, array $allCandidates, ?string $tagClanId, ?array $squad): array
+    {
+        $matches = [];
+        foreach ($allCandidates as $candidate) {
+            $names = [(string) ($candidate['ign'] ?? ''), ...($candidate['aliases'] ?? [])];
+            $score = max(array_map(
+                static fn (string $alias): float => PlayerNameSearch::similarity($name, $alias),
+                $names,
+            ));
+            $sameClan = $tagClanId !== null && ($candidate['clan_id'] ?? null) === $tagClanId;
+            $sameSquad = $squad !== null && ($candidate['squad_id'] ?? null) === $squad['id'];
+            if ($sameClan) {
+                $score += 0.08;
+            } elseif ($sameSquad) {
+                $score += 0.04;
+            }
+            $score = min(0.99, $score);
+            $threshold = $sameClan || $sameSquad ? 0.62 : 0.70;
+            if ($score < $threshold) {
+                continue;
+            }
+            $matches[$candidate['player_id']] = [
+                ...$candidate,
+                'match_score' => (int) round($score * 100),
+                'match_reason' => $sameClan
+                    ? 'Similar name in the same clan'
+                    : ($sameSquad ? 'Similar name in this squad' : 'Similar registered name'),
+            ];
+        }
+
+        usort($matches, static fn (array $left, array $right): int => $right['match_score'] <=> $left['match_score']);
+
+        return array_slice(array_values($matches), 0, 5);
     }
 
     /** @param list<array<string, mixed>> $candidates @return list<array<string, mixed>> */
@@ -316,6 +463,8 @@ final class ScreenshotResultMapper
             'clan_tag' => $candidate['clan_tag'],
             'clan_tags' => $candidate['clan_tags'] ?? [],
             'slot_number' => $candidate['slot_number'],
+            'match_score' => 100,
+            'match_reason' => 'Exact registered name',
             'candidates' => [],
         ];
     }

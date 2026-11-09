@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\V1\Manage;
 use App\Domain\Competition\ClanTag;
 use App\Domain\Competition\ClanTagRegistry;
 use App\Domain\Competition\OrganizationPermissions;
+use App\Domain\Competition\PlayerNameSearch;
+use App\Domain\Directory\MergePlayerProfiles;
 use App\Domain\Notifications\AdminActivity;
 use App\Http\Controllers\Controller;
 use App\Models\Clan;
@@ -74,6 +76,99 @@ final class DirectoryController extends Controller
         ]]);
     }
 
+    public function duplicatePlayers(Request $request, OrganizationPermissions $permissions): JsonResponse
+    {
+        abort_unless($permissions->canManageAll($request->user()), 403);
+
+        $players = Player::query()
+            ->with('clan:id,name,tag,tags')
+            ->withCount('matchResults')
+            ->where('status', 'active')
+            ->orderBy('created_at')
+            ->get();
+        $suggestions = [];
+
+        foreach ($players as $player) {
+            $candidates = [];
+            foreach ($players as $candidate) {
+                if ($candidate->id === $player->id) {
+                    continue;
+                }
+                $sameClan = $player->clan_id !== null && $player->clan_id === $candidate->clan_id;
+                $playerName = $this->coreName($player);
+                $candidateName = $this->coreName($candidate);
+                $playerKey = PlayerNameSearch::key($playerName);
+                $candidateKey = PlayerNameSearch::key($candidateName);
+                if ($playerKey === '' || $candidateKey === '') {
+                    continue;
+                }
+                if (substr($playerKey, 0, 2) !== substr($candidateKey, 0, 2)) {
+                    continue;
+                }
+                $score = PlayerNameSearch::similarity($playerName, $candidateName);
+                if ($sameClan) {
+                    $score += 0.08;
+                }
+                $score = min(0.99, $score);
+                if ($score < ($sameClan ? 0.75 : 0.82)) {
+                    continue;
+                }
+                $candidateCount = (int) $candidate->match_results_count;
+                $playerCount = (int) $player->match_results_count;
+                $candidateIsBetter = $candidate->created_at !== null && $player->created_at !== null
+                    ? $candidate->created_at->lt($player->created_at)
+                    : $candidateCount > $playerCount;
+                if (! $candidateIsBetter) {
+                    continue;
+                }
+                $candidates[] = [
+                    'id' => $candidate->id,
+                    'current_ign' => $candidate->current_ign,
+                    'clan' => $candidate->clan?->name,
+                    'clan_tag' => $candidate->clan?->tag,
+                    'games' => $candidateCount,
+                    'match_score' => (int) round($score * 100),
+                    'match_reason' => $sameClan ? 'Similar name in the same clan' : 'Similar registered name',
+                ];
+            }
+            usort($candidates, static fn (array $left, array $right): int => $right['match_score'] <=> $left['match_score']);
+            if ($candidates === []) {
+                continue;
+            }
+            $suggestions[] = [
+                'source' => [
+                    'id' => $player->id,
+                    'current_ign' => $player->current_ign,
+                    'clan' => $player->clan?->name,
+                    'clan_tag' => $player->clan?->tag,
+                    'games' => (int) $player->match_results_count,
+                    'created_at' => $player->created_at?->toIso8601String(),
+                ],
+                'candidates' => array_slice($candidates, 0, 4),
+            ];
+        }
+
+        return response()->json(['data' => array_slice($suggestions, 0, 100)]);
+    }
+
+    public function mergePlayer(Request $request, Player $player, OrganizationPermissions $permissions, MergePlayerProfiles $merge): JsonResponse
+    {
+        abort_unless($permissions->canManageAll($request->user()), 403);
+        $data = $request->validate([
+            'target_id' => ['required', 'ulid', 'exists:players,id'],
+        ]);
+        $target = Player::query()->findOrFail($data['target_id']);
+        $counts = $merge->handle($player, $target);
+        app(AdminActivity::class)->record(
+            $request->user(),
+            $request->user()->name.' merged player '.$player->current_ign.' into '.$target->current_ign.'.',
+        );
+
+        return response()->json(['data' => [
+            'player' => $this->playerData($target), 'merge' => $counts,
+        ]]);
+    }
+
     public function showPlayer(Request $request, Player $player, OrganizationPermissions $permissions): JsonResponse
     {
         abort_unless($permissions->canManageAll($request->user()), 403);
@@ -129,6 +224,19 @@ final class DirectoryController extends Controller
         return ['clan_id' => $clanId,
             'current_ign' => ClanTag::strip($data['current_ign'], $clan?->tagList() ?? []),
             'normalized_uid' => $data['uid'] ?? null, 'uid_public' => $data['uid_public'] ?? ($player?->uid_public ?? false)];
+    }
+
+    private function coreName(Player $player): string
+    {
+        $name = trim($player->current_ign);
+        foreach ($player->clan?->tagList() ?? [] as $tag) {
+            if ($tag !== '' && mb_stripos($name, $tag) === 0) {
+                $name = trim(mb_substr($name, mb_strlen($tag)));
+                break;
+            }
+        }
+
+        return ClanTag::strip($name, $player->clan?->tagList() ?? []);
     }
 
     private function playerData(Player $player): array

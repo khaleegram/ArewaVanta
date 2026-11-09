@@ -273,6 +273,11 @@
 .score-workspace .score-import-kills input { width:64px; padding:8px; text-align:center; font-size:17px; font-weight:750; }
 .score-import-player-buttons { display:flex; flex-wrap:wrap; gap:7px; margin-top:8px; }
 .score-workspace .score-import-player-buttons button { min-height:36px; font-size:10px; padding:6px 9px; }
+.score-workspace .score-import-player-buttons .score-import-accept { border-color:#f06549; background:#2d3d2c; color:#fff; font-weight:800; }
+.score-import-insight { margin-top:8px; padding:9px 11px; border:1px solid #d4dfcf; border-radius:8px; background:#f7f8f2; }
+.score-import-insight > small { display:block; color:#4d604c; font-size:10px; line-height:1.5; }
+.score-import-insight > label { display:block; margin-top:8px; font-size:10px; font-weight:700; color:#637462; }
+.score-workspace .score-import-insight input { display:block; width:100%; margin-top:5px; padding:8px; font-size:15px; }
 .score-import-player-picker { padding:12px; margin-top:10px; border:1px solid #d4dfcf; border-radius:8px; background:#f4f7f0; }
 .score-import-player-picker > label { display:block; font-size:11px; font-weight:600; margin-bottom:10px; }
 .score-workspace .score-import-player-picker input { display:block; margin-top:6px; font-size:16px; }

@@ -4,6 +4,7 @@ import type {
   ManageClan,
   ManagePlayer,
   ManagePerson,
+  PlayerDuplicate,
   PublicClan,
   PublicPlayer,
   RosterMember,
@@ -551,6 +552,12 @@ export default function DirectoryManager() {
             </>
           ) : (
             <>
+              {global && (
+                <PlayerDuplicates
+                  token={session.token}
+                  onMerged={() => setRefresh((x) => x + 1)}
+                />
+              )}
               {players.status === "loading" ? (
                 <Notice text="Loading players…" />
               ) : players.status === "error" ? (
@@ -612,6 +619,114 @@ export default function DirectoryManager() {
         </>
       )}
     </Shell>
+  );
+}
+function PlayerDuplicates({
+  token,
+  onMerged,
+}: {
+  token: string;
+  onMerged: () => void;
+}) {
+  const [state, setState] = useState<Load<PlayerDuplicate[]>>({
+    status: "loading",
+  });
+  const [revision, setRevision] = useState(0);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({ status: "loading" });
+    api
+      .playerDuplicates(token, controller.signal)
+      .then(({ data }) => setState({ status: "ready", data }))
+      .catch((err) => {
+        if (!controller.signal.aborted)
+          setState({ status: "error", message: message(err) });
+      });
+    return () => controller.abort();
+  }, [token, revision]);
+  async function merge(source: PlayerDuplicate["source"], targetId: string) {
+    const target = state.status === "ready"
+      ? state.data
+          .flatMap((group) => group.candidates)
+          .find((candidate) => candidate.id === targetId)
+      : undefined;
+    if (
+      !window.confirm(
+        `Merge ${source.current_ign} into ${target?.current_ign ?? "the selected profile"}? All match history moves to the kept profile and the duplicate is deleted.`,
+      )
+    )
+      return;
+    setBusy(source.id);
+    setError("");
+    try {
+      await api.mergePlayer(token, source.id, targetId);
+      setRevision((value) => value + 1);
+      onMerged();
+    } catch (err) {
+      setError(message(err));
+    } finally {
+      setBusy("");
+    }
+  }
+  const groups = state.status === "ready" ? state.data : [];
+  return (
+    <details className="directory-duplicates" open={groups.length > 0}>
+      <summary>
+        Possible duplicate players <span>{groups.length}</span>
+      </summary>
+      <p>
+        Newer or less-used profiles are matched against older players. Merging
+        moves their game history and records the spelling as an alias for
+        future imports.
+      </p>
+      {state.status === "loading" && <p role="status">Checking names…</p>}
+      {state.status === "error" && (
+        <p className="manage-error" role="alert">
+          {state.message}{" "}
+          <button type="button" onClick={() => setRevision((value) => value + 1)}>
+            Try again
+          </button>
+        </p>
+      )}
+      {error && (
+        <p className="manage-error" role="alert">
+          {error}
+        </p>
+      )}
+      {!groups.length && state.status === "ready" && (
+        <p className="directory-roster-empty">
+          No likely duplicate names found.
+        </p>
+      )}
+      {groups.map((group) => (
+        <article className="directory-duplicate" key={group.source.id}>
+          <div>
+            <strong>
+              {playerHandle(group.source.current_ign, group.source.clan_tag)}
+            </strong>
+            <small>
+              {group.source.games} game{group.source.games === 1 ? "" : "s"}{" "}
+              recorded
+            </small>
+          </div>
+          <div className="directory-duplicate-actions">
+            {group.candidates.map((candidate) => (
+              <button
+                type="button"
+                key={candidate.id}
+                disabled={!!busy}
+                onClick={() => void merge(group.source, candidate.id)}
+              >
+                Merge into {playerHandle(candidate.current_ign, candidate.clan_tag)}
+                {" · "}{candidate.match_score}%
+              </button>
+            ))}
+          </div>
+        </article>
+      ))}
+    </details>
   );
 }
 function Editor({

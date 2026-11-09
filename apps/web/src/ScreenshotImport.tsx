@@ -10,8 +10,6 @@ import type {
 import { playerSearchKey } from "./playerSearch";
 import {
   applicableTeam,
-  autoCreateNewPlayerKeys,
-  autoCreateNewPlayers,
   importProblems,
   playerKey,
   prepareReview,
@@ -46,10 +44,16 @@ function statusText(player: ScreenshotPlayer) {
     return player.confirmed ? "Player confirmed" : "Matched player";
   if (player.status === "other_squad")
     return `Existing player · ${player.clan ?? "another squad"} · added as guest`;
+  if (player.status === "suggested") {
+    const best = player.candidates[0];
+    return best
+      ? `Likely ${best.ign}${best.clan_tag ? ` (${best.clan_tag})` : ""} · ${best.match_score ?? player.match_score ?? "?"}% match · confirm or choose another`
+      : "Likely existing player · confirm or choose another";
+  }
   if (player.status === "ambiguous")
-    return "Choose the correct existing player";
+    return "More than one similar player exists · choose the correct one";
   if (player.status === "duplicate") return "Choose the correct occurrence";
-  return `New name · profile created${player.clan ? ` under ${player.clan}` : ""} when you save`;
+  return "No similar existing player · create a profile only if this is someone new";
 }
 function numeric(value: string, min = 0, max = 999): number | null | undefined {
   if (value === "") return null;
@@ -269,13 +273,9 @@ export function ScreenshotImport({
   }
   async function apply(saveAfter: boolean) {
     if (!review || reading || busy || savingDraft) return;
-    // New names are created automatically on apply. Ambiguous and duplicate
-    // names stay in this review rather than blocking the whole result board.
-    const prepared = prepareReview(review, sheet);
-    const normalized = {
-      ...prepared,
-      teams: autoCreateNewPlayers(prepared.teams),
-    };
+    // Every new or similar name needs an explicit decision. Nothing is created
+    // from an OCR guess, even when the read name looks unique.
+    const normalized = prepareReview(review, sheet);
     const problems = importProblems(normalized.teams);
     if (problems.length) {
       setError(problems.join(" "));
@@ -306,19 +306,9 @@ export function ScreenshotImport({
   }
   const activeTeams = review?.teams.filter(applicableTeam) ?? [];
   const pending = review ? unresolvedPlayers(review.teams) : [];
-  const autoNewKeys = review
-    ? autoCreateNewPlayerKeys(review.teams)
-    : new Set<string>();
-  const newPending = pending.filter(
-    (player) =>
-      player.status === "new" && autoNewKeys.has(playerSearchKey(player.name)),
-  );
-  const blockedPending = pending.filter(
-    (player) => !newPending.includes(player),
-  );
-  const newNames = newPending.length;
-  const unresolved = blockedPending.length;
-  const unresolvedKills = blockedPending.reduce(
+  const newNames = pending.filter((player) => player.status === "new").length;
+  const unresolved = pending.length;
+  const unresolvedKills = pending.reduce(
     (sum, player) => sum + (player.kills ?? 0),
     0,
   );
@@ -438,19 +428,19 @@ export function ScreenshotImport({
               <strong>{activeTeams.length}</strong> selected & mapped
             </span>
             <span>
-              <strong>{newNames}</strong> new profiles to create
+              <strong>{newNames}</strong> new names to review
             </span>
             <span>
               <strong>{unresolved}</strong> names need a choice
               {unresolvedKills ? ` · ${unresolvedKills} kills` : ""}
             </span>
           </div>
-          {!!newNames && (
+          {!!unresolved && (
             <div className="score-import-bulk">
               <p>
-                {newNames} new player profile{newNames === 1 ? "" : "s"} will
-                be created automatically when you save the scores. Their kills
-                are included.
+                No player is created automatically. Accept a suggested existing
+                player, choose another profile, or explicitly create a new one
+                for every unresolved name.
               </p>
             </div>
           )}
@@ -810,8 +800,24 @@ function ImportPlayer({
       candidates: [],
     }));
   }
-  const canCreate =
-    player.status === "new" && !!player.name.trim() && !exact.length;
+  function createProfile() {
+    const name = player.name.trim();
+    if (!name || exact.length) return;
+    onChange((p) => ({
+      ...p,
+      status: "matched",
+      confirmed: true,
+      player_id: `new:${crypto.randomUUID()}`,
+      ign: name,
+      note: p.note,
+    }));
+    setChoosing(false);
+  }
+  const best = player.candidates[0];
+  const needsDecision =
+    !player.excluded &&
+    ["suggested", "new", "ambiguous", "duplicate"].includes(player.status);
+  const canCreate = !!player.name.trim() && !exact.length;
   const creationBlocked =
     searching ||
     !!error ||
@@ -880,13 +886,36 @@ function ImportPlayer({
         </p>
       )}
       <div className="score-import-player-buttons">
+        {best && !player.confirmed && (
+          <button
+            type="button"
+            className="score-import-accept"
+            onClick={() => choose(best)}
+          >
+            Accept {best.ign}
+            {best.match_score ? ` · ${best.match_score}%` : ""}
+          </button>
+        )}
         <button type="button" onClick={() => setChoosing(!choosing)}>
           {choosing
             ? "Close player choices"
-            : player.status === "ambiguous"
-              ? "Choose player"
+            : player.status === "ambiguous" || player.status === "suggested"
+              ? "Choose another player"
               : "Change / find player"}
         </button>
+        {needsDecision && canCreate && (
+          <button type="button" onClick={createProfile}>
+            Create new profile
+          </button>
+        )}
+        {needsDecision && (
+          <button
+            type="button"
+            onClick={() => onChange((p) => ({ ...p, excluded: true }))}
+          >
+            Skip player
+          </button>
+        )}
         {player.status === "other_squad" && (
           <button
             type="button"
@@ -898,6 +927,32 @@ function ImportPlayer({
           </button>
         )}
       </div>
+      {needsDecision && (
+        <div className="score-import-insight">
+          {player.match_reason || best?.match_reason ? (
+            <small>
+              AI: {best?.match_reason ?? player.match_reason}
+              {best?.match_score ? ` · ${best.match_score}% name match` : ""}
+            </small>
+          ) : (
+            <small>
+              AI: no reliable registered player match. Check the full list
+              before creating a profile.
+            </small>
+          )}
+          <label>
+            Decision note (optional)
+            <input
+              maxLength={200}
+              value={player.note ?? ""}
+              placeholder="Why accepted, changed or skipped"
+              onChange={(event) =>
+                onChange((p) => ({ ...p, note: event.target.value }))
+              }
+            />
+          </label>
+        </div>
+      )}
       {choosing && (
         <div className="score-import-player-picker">
           <label>
@@ -939,6 +994,14 @@ function ImportPlayer({
                   {candidate.clan ?? "Registered player"}
                   {candidate.squad_name ? ` · ${candidate.squad_name}` : ""}
                 </small>
+                {candidate.match_score ? (
+                  <small>
+                    {candidate.match_score}% match
+                    {candidate.match_reason
+                      ? ` · ${candidate.match_reason}`
+                      : ""}
+                  </small>
+                ) : null}
               </button>
             ))}
           </div>
@@ -953,18 +1016,11 @@ function ImportPlayer({
               type="button"
               disabled={creationBlocked}
               onClick={() => {
-                if (creationBlocked || exact.length) return;
-                onChange((p) => ({
-                  ...p,
-                  status: "matched",
-                  confirmed: true,
-                  player_id: `new:${crypto.randomUUID()}`,
-                  ign: p.name.trim(),
-                }));
-                setChoosing(false);
+                if (creationBlocked) return;
+                createProfile();
               }}
             >
-              Create new player on save
+              Create new profile on save
             </button>
           )}
           {player.status === "new" && exact.length > 0 && (

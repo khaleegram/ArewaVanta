@@ -117,6 +117,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/clans/{clan}/squads', [OrganizationController::class, 'createSquad'])->name('squads.store');
         Route::patch('/squads/{squad}', [DirectoryController::class, 'updateSquad'])->name('squads.update');
         Route::post('/players', [DirectoryController::class, 'storePlayer'])->name('players.store');
+        Route::get('/players/duplicates', [DirectoryController::class, 'duplicatePlayers'])->name('players.duplicates');
+        Route::post('/players/{player}/merge', [DirectoryController::class, 'mergePlayer'])->name('players.merge');
         Route::get('/players/{player}', [DirectoryController::class, 'showPlayer'])->name('players.show');
         Route::patch('/players/{player}', [DirectoryController::class, 'updatePlayer'])->name('players.update');
         Route::get('/squads/{squad}/roster', [OrganizationController::class, 'roster'])->name('rosters.show');

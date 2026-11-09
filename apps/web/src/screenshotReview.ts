@@ -113,9 +113,14 @@ export function remapTeam(
     ),
   );
   const players = team.players.map((player): ScreenshotPlayer => {
-    // Duplicate occurrences need an explicit choice; importing them twice would
-    // credit the same player in two teams.
-    if (player.status === "duplicate") return player;
+    // Duplicate occurrences and AI suggestions need an explicit choice;
+    // importing them twice would credit the same player in two teams.
+    if (
+      player.status === "duplicate" ||
+      player.status === "suggested" ||
+      player.status === "ambiguous"
+    )
+      return player;
     // A confirmed identity remains the same person when a team mapping changes.
     if (player.player_id && !player.player_id.startsWith("new:"))
       return {
@@ -188,45 +193,8 @@ export function prepareReview(
     }),
   };
 }
-// A genuinely new, unambiguous name should not need a second click. Create the
-// profile on apply. Names that appear more than once are left for review so an
-// OCR duplicate never creates two profiles with the same IGN.
-export function autoCreateNewPlayerKeys(
-  teams: ScreenshotImportTeam[],
-): Set<string> {
-  const counts = new Map<string, number>();
-  for (const team of teams.filter(applicableTeam))
-    for (const player of team.players) {
-      if (player.excluded || player.status !== "new") continue;
-      const key = playerSearchKey(player.name);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  return new Set(
-    [...counts].filter(([, count]) => count === 1).map(([key]) => key),
-  );
-}
-export function autoCreateNewPlayers(
-  teams: ScreenshotImportTeam[],
-): ScreenshotImportTeam[] {
-  const keys = autoCreateNewPlayerKeys(teams);
-  return teams.map((team) => {
-    if (!applicableTeam(team)) return team;
-    return {
-      ...team,
-      players: team.players.map((player) => {
-        if (player.excluded || player.status !== "new") return player;
-        if (!keys.has(playerSearchKey(player.name))) return player;
-        return {
-          ...player,
-          status: "matched" as const,
-          confirmed: true,
-          player_id: `new:${player.review_id ?? crypto.randomUUID()}`,
-          ign: player.name.trim(),
-        };
-      }),
-    };
-  });
-}
+// Every new name is explicitly confirmed in the review. This guard only checks
+// that the organizer did not select the same person or squad twice.
 export function importProblems(teams: ScreenshotImportTeam[]): string[] {
   const problems: string[] = [];
   const usedSquads = new Map<string, string>();

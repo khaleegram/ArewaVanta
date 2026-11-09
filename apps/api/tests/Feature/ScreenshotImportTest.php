@@ -180,6 +180,46 @@ final class ScreenshotImportTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_generic_squad_labels_and_fuzzy_names_require_confirmation_instead_of_creating_duplicates(): void
+    {
+        [$organizer, $matchId, $squadA, , $playerA] = $this->competition();
+
+        config(['services.deepseek.key' => 'test-deepseek-key']);
+        Http::fake([
+            'https://api.deepseek.com/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => json_encode([
+                            'teams' => [[
+                                'team_label' => 'Squad 1',
+                                'team_number' => 1,
+                                'placement' => 3,
+                                'players' => [
+                                    ['name' => 'KC | GrBtnes', 'kills' => 8],
+                                ],
+                            ]],
+                            'warnings' => [],
+                        ], JSON_THROW_ON_ERROR),
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        $teams = $this->actingAs($organizer, 'sanctum')
+            ->post("/api/v1/manage/matches/{$matchId}/screenshot-import", [
+                'images' => [UploadedFile::fake()->image('scores.jpg', 1194, 834)],
+            ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->json('data.teams');
+
+        $team = $teams[0];
+        $this->assertSame($squadA->id, $team['squad']['id']);
+        $this->assertSame('matched', $team['status']);
+        $this->assertSame('suggested', $team['players'][0]['status']);
+        $this->assertSame($playerA->id, $team['players'][0]['candidates'][0]['player_id']);
+        $this->assertGreaterThanOrEqual(80, $team['players'][0]['candidates'][0]['match_score']);
+    }
+
     /** @return array{User, string, Squad, Squad, Player, Player} */
     private function competition(): array
     {

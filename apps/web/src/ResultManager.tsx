@@ -715,6 +715,17 @@ function ScoreWorkspace({
         (filter === "pending" &&
           (rows[s.id]?.status === "unentered" || incomplete(rows[s.id])))),
   );
+  const presentRows = Object.values(rows).filter(
+    (row) => row.status === "present",
+  );
+  const recordedPlayers = presentRows.reduce(
+    (total, row) => total + row.players.length,
+    0,
+  );
+  const expectedPlayers = presentRows.length * 4;
+  const incompleteSquads = presentRows.filter(
+    (row) => row.players.length < 4,
+  ).length;
   return (
     <>
       <div className="score-match-bar">
@@ -748,6 +759,18 @@ function ScoreWorkspace({
           </button>
         </div>
       </div>
+      {incompleteSquads > 0 && (
+        <p className="score-warning" role="status">
+          Player detail is incomplete: <strong>{recordedPlayers}</strong> of{" "}
+          <strong>{expectedPlayers}</strong> player slots recorded across{" "}
+          {presentRows.length} present squad
+          {presentRows.length === 1 ? "" : "s"}. Team totals and points stay
+          saved; add the missing players so individual stats are not lost.
+          {incompleteSquads
+            ? ` ${incompleteSquads} squad${incompleteSquads === 1 ? " has" : "s have"} fewer than four names.`
+            : ""}
+        </p>
+      )}
       <div hidden={!importOpen}>
         <ScreenshotImport
           token={session.token}

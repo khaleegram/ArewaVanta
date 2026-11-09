@@ -98,8 +98,10 @@ Return JSON only, no markdown.
 
 The screenshots may be scrolled or overlap. Merge the same TEAM number into one team object.
 For every visible team return:
-- team_label: exactly as printed, for example "TEAM12"
-- team_number: the integer after TEAM, or null if it is not readable
+- team_label: exactly as printed, for example "TEAM12" or "Squad 1"
+- team_number: only the integer after an explicit "TEAM" label, or null. Never
+  treat a generic "Squad 1" label as a global slot number.
+- team_clan: the clan name or tag printed above/on the team, or null
 - placement: the team's rank/placement shown by the rank badge or rank number (1 = first place). This is NOT the kill count.
 - team_kills: only if the board separately shows a team kill total; otherwise null
 - players: every visible player observation, in the order shown. Teams normally have four players; retain extra names if overlapping images disagree so an organizer can resolve them. Each player:
@@ -114,6 +116,7 @@ Rules:
 - If the same player appears with different kill numbers, set kills to null, include all observed numbers in kills_options, and add a warning. Never pick the highest value automatically.
 - If placements or separately printed team totals conflict, return separate observations for the same team so the organizer can review them.
 - Ignore teams that are completely unreadable rather than guessing.
+- Keep every visible player row, even when you are unsure whether it matches an existing player.
 
 JSON shape:
 {"teams":[{"team_label":"TEAM12","team_number":12,"placement":1,"team_kills":null,"players":[{"name":"PlayerName","kills":13}]}],"warnings":["..."]}

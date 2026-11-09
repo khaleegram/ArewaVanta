@@ -35,4 +35,9 @@ class Player extends Model
     {
         return $this->hasMany(MatchPlayerResult::class);
     }
+
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(PlayerAlias::class);
+    }
 }
