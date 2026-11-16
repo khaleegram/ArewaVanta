@@ -15,6 +15,8 @@ final class SeriesStandingsController extends Controller
             ->where('visibility', 'public')
             ->get();
 
+        abort_if($events->isEmpty(), 404);
+
         return response()->json(['data' => [
             'series' => [
                 'id' => $series->id,

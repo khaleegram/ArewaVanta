@@ -288,6 +288,9 @@ function PlayerBreakdown({ playerId }: { playerId: string }) {
 }
 export default function LiveLeaderboard() {
   const initialParams = new URLSearchParams(window.location.search);
+  const shortCode = window.location.pathname
+    .match(/^\/l\/([a-z0-9]{8})$/i)?.[1]
+    ?.toLowerCase();
   const [kind, setKind] = useState<Kind>(
     initialParams.get("type") === "players" ? "players" : "squads",
   );
@@ -296,6 +299,12 @@ export default function LiveLeaderboard() {
   });
   const [event, setEvent] = useState(initialParams.get("event") ?? "");
   const [seasonId, setSeasonId] = useState(initialParams.get("season") ?? "");
+  const [period, setPeriod] = useState<"overall" | "weekend">(
+    initialParams.get("view") !== "overall" &&
+      (initialParams.has("event") || shortCode)
+      ? "weekend"
+      : "overall",
+  );
   const [standings, setStandings] = useState<Load<Standings>>({
     status: "loading",
   });
@@ -312,14 +321,17 @@ export default function LiveLeaderboard() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const [shareMessage, setShareMessage] = useState("");
-  const shortCode = window.location.pathname
-    .match(/^\/l\/([a-z0-9]{8})$/i)?.[1]
-    ?.toLowerCase();
+  const currentEvent =
+    events.status === "ready"
+      ? events.data.find((e) => e.slug === event)
+      : undefined;
+  const seriesId = period === "overall" ? currentEvent?.series_id : null;
   useEffect(() => {
     const controller = new AbortController();
     setEvents({ status: "loading" });
     allPublicEvents(controller.signal)
       .then((data) => {
+        if (controller.signal.aborted) return;
         setEvents({ status: "ready", data });
         setEvent((current) =>
           data.some((e) => e.slug === current)
@@ -327,6 +339,9 @@ export default function LiveLeaderboard() {
             : (data.find(
                 (e) =>
                   shortCode && e.slug.toLowerCase().endsWith(`-${shortCode}`),
+              )?.slug ??
+              data.find(
+                (e) => e.series_id && e.series_id === initialParams.get("series"),
               )?.slug ??
               (data.find((e) => e.scored_match_count > 0) ?? data[0])?.slug ??
               ""),
@@ -342,20 +357,24 @@ export default function LiveLeaderboard() {
     return () => controller.abort();
   }, [retry]);
   useEffect(() => {
-    if (!event && !seasonId) return;
+    if (events.status !== "ready" || (!currentEvent && !seasonId)) return;
     const controller = new AbortController();
     setStandings({ status: "loading" });
     (seasonId
       ? api.seasonStandings(seasonId, controller.signal)
-      : api.eventStandings(event, controller.signal)
+      : seriesId
+        ? api.seriesStandings(seriesId, controller.signal)
+        : api.eventStandings(event, controller.signal)
     )
-      .then(({ data }) => setStandings({ status: "ready", data }))
+      .then(({ data }) => {
+        if (!controller.signal.aborted) setStandings({ status: "ready", data });
+      })
       .catch((error) => {
         if (!controller.signal.aborted)
           setStandings({ status: "error", message: message(error) });
       });
     return () => controller.abort();
-  }, [event, seasonId, retry]);
+  }, [events.status, event, seasonId, seriesId, period, retry]);
   useEffect(() => {
     if (kind !== "players") return;
     const controller = new AbortController();
@@ -420,6 +439,11 @@ export default function LiveLeaderboard() {
       if (playerPage > 1) p.set("page", String(playerPage));
     } else if (seasonId) {
       p.set("season", seasonId);
+    } else if (seriesId) {
+      p.set("series", seriesId);
+    } else if (event && period === "overall") {
+      p.set("event", event);
+      p.set("view", "overall");
     } else if (event) {
       const target = new URL(
         leaderboardSharePath(event),
@@ -427,16 +451,20 @@ export default function LiveLeaderboard() {
       );
       path = target.pathname;
       target.searchParams.forEach((value, key) => p.set(key, value));
-      if (query.trim()) p.set("q", query.trim());
     }
+    if (kind === "squads" && query.trim()) p.set("q", query.trim());
     const search = p.size ? `?${p}` : "";
     window.history.replaceState(null, "", `${path}${search}`);
-  }, [events.status, kind, event, seasonId, playerPage, query]);
-  const currentEvent =
-    events.status === "ready"
-      ? events.data.find((e) => e.slug === event)
-      : undefined;
-  const sharePath = currentEvent ? leaderboardSharePath(currentEvent.slug) : "";
+  }, [events.status, kind, event, seasonId, seriesId, period, playerPage, query]);
+  const sharePath = seasonId
+    ? `/leaderboard?season=${encodeURIComponent(seasonId)}`
+    : seriesId
+      ? `/leaderboard?series=${encodeURIComponent(seriesId)}`
+      : currentEvent
+        ? period === "overall"
+          ? `/leaderboard?event=${encodeURIComponent(currentEvent.slug)}&view=overall`
+          : leaderboardSharePath(currentEvent.slug)
+        : "";
   const shareUrl = sharePath ? `${window.location.origin}${sharePath}` : "";
   async function copyShareLink() {
     if (!shareUrl) return;
@@ -547,10 +575,11 @@ export default function LiveLeaderboard() {
     standings.status === "ready" ? standings.data.standings.length : null;
   const completedGames =
     standings.status === "ready"
-      ? Math.max(
-          0,
-          ...standings.data.standings.map((row) => row.matches_played),
-        )
+      ? new Set(
+          standings.data.standings.flatMap((row) =>
+            row.match_results.map((match) => match.match_id),
+          ),
+        ).size
       : 0;
   return (
     <div className={`arena-page arena-${kind}`}>
@@ -612,14 +641,14 @@ export default function LiveLeaderboard() {
             <p>
               <span className="arena-status-dot" />{" "}
               {kind === "squads"
-                ? `${countLabel(completedGames, "game")} played${currentEvent ? ` · ${currentEvent.title}` : ""}`
+                ? `${countLabel(completedGames, "game")} played${activeContext ? ` · ${activeContext.title}` : ""}${seasonId || period === "overall" ? " · Overall" : ""}`
                 : "Across public competitions"}
             </p>
           </div>
         </section>
         <div className="arena-navigation">
           <Tabs kind={kind} onChange={changeKind} />
-          {kind === "squads" && currentEvent && !seasonId && (
+          {kind === "squads" && sharePath && (
             <div className="arena-share-strip">
               <div>
                 <small>SHARE THIS LIVE BOARD</small>
@@ -649,6 +678,7 @@ export default function LiveLeaderboard() {
                       setSeasonId(e.target.value.slice(7));
                     else {
                       setSeasonId("");
+                      setPeriod("overall");
                       const group = groups.find(
                         (item) => item.key === e.target.value,
                       );
@@ -688,19 +718,23 @@ export default function LiveLeaderboard() {
               <label className="arena-select arena-week">
                 <Icon name="calendar" />
                 <span>
-                  <small>
-                    {currentGroup.weeks.length > 1 ? "WEEKEND" : "DATES"}
-                  </small>
+                  <small>RANKINGS PERIOD</small>
                   <select
-                    aria-label="Competition weekend"
-                    value={event}
+                    aria-label="Rankings period"
+                    value={period === "overall" ? "overall" : event}
                     onChange={(e) => {
-                      setEvent(e.target.value);
+                      setPeriod(
+                        e.target.value === "overall" ? "overall" : "weekend",
+                      );
+                      if (e.target.value !== "overall") setEvent(e.target.value);
                       setStandings({ status: "loading" });
                       setExpanded(null);
                       setQuery("");
                     }}
                   >
+                    <option value="overall">
+                      {currentEvent?.series_id ? "Overall · All weekends" : "Overall"}
+                    </option>
                     {currentGroup.weeks.map((week) => (
                       <option key={week.id} value={week.slug}>
                         {formatDateRange(week.start_date, week.end_date)}
@@ -715,6 +749,11 @@ export default function LiveLeaderboard() {
             {currentSeason && (
               <span className="arena-filter-note">
                 Combined season standings
+              </span>
+            )}
+            {seriesId && !seasonId && (
+              <span className="arena-filter-note">
+                Combined standings across all weekends
               </span>
             )}
           </section>
@@ -774,8 +813,9 @@ export default function LiveLeaderboard() {
                           Clan slot standings<span>{squadCount}</span>
                         </h2>
                         <p>
-                          {activeContext.title} · Ranked by points, kills and
-                          wins
+                          {activeContext.title} ·{" "}
+                          {seasonId || period === "overall" ? "Overall" : "Weekend"}{" "}
+                          rankings · Ranked by points, kills and wins
                         </p>
                       </div>
                       <a href={`/competitions/${encodeURIComponent(event)}`}>

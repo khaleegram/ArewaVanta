@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "./api/client";
 import { allPublicEvents } from "./api/events";
-import type { EventStandings, EventSummary, PublicEvent } from "./api/types";
+import type { Standings, EventSummary, PublicEvent } from "./api/types";
 import {
   competitionTypeLabel,
   formatDate,
@@ -163,7 +163,7 @@ export default function LiveHome() {
   const [details, setDetails] = useState<Load<PublicEvent>>({
     status: "loading",
   });
-  const [results, setResults] = useState<Load<EventStandings>>({
+  const [results, setResults] = useState<Load<Standings & { contextSlug: string }>>({
     status: "loading",
   });
   const [eventRetry, setEventRetry] = useState(0);
@@ -210,15 +210,34 @@ export default function LiveHome() {
     if (!latest) return;
     const controller = new AbortController();
     setResults({ status: "loading" });
-    api
-      .eventStandings(latest.slug, controller.signal)
-      .then(({ data }) => setResults({ status: "ready", data }))
+    (latest.series_id
+      ? api.seriesStandings(latest.series_id, controller.signal)
+      : api.eventStandings(latest.slug, controller.signal)
+    )
+      .then(({ data }) => {
+        if (!controller.signal.aborted)
+          setResults({
+            status: "ready",
+            data: { ...data, contextSlug: latest.slug },
+          });
+      })
       .catch((error) => {
         if (!controller.signal.aborted)
           setResults({ status: "error", message: errorText(error) });
       });
     return () => controller.abort();
-  }, [latest?.slug, resultsRetry]);
+  }, [latest?.slug, latest?.series_id, resultsRetry]);
+  const rankingEvents =
+    events.status === "ready" && latest
+      ? events.data.filter((item) =>
+          latest.series_id
+            ? item.series_id === latest.series_id
+            : item.id === latest.id,
+        )
+      : [];
+  const rankingsPath = latest?.series_id
+    ? `/leaderboard?series=${encodeURIComponent(latest.series_id)}`
+    : "/leaderboard";
   const days =
     details.status === "ready" && details.data.slug === next?.slug
       ? [...details.data.days].sort((a, b) => a.sort_order - b.sort_order)
@@ -226,7 +245,7 @@ export default function LiveHome() {
   const selected = days[day] ?? days[0];
   const dayHasResults = !!selected?.matches.some((match) => match.has_results);
   const rows =
-    results.status === "ready" && results.data.event.slug === latest?.slug
+    results.status === "ready" && results.data.contextSlug === latest?.slug
       ? results.data.standings
           .filter((row) => row.matches_played > 0)
           .slice(0, 5)
@@ -261,7 +280,7 @@ export default function LiveHome() {
                   See rules <Icon name="arrow" />
                 </a>
                 <a href="#standings" className="home-button home-button-outline">
-                  Latest standings <Icon name="arrow" />
+                  Overall standings <Icon name="arrow" />
                 </a>
               </div>
             </div>
@@ -495,16 +514,12 @@ export default function LiveHome() {
               <div>
                 <p className="home-label">SQUAD RANKINGS</p>
                 <h2 id="standings-title">
-                  Latest standings<span>.</span>
+                  Overall standings<span>.</span>
                 </h2>
               </div>
             </div>
             <a
-              href={
-                latest
-                  ? `/leaderboard?type=squads&event=${encodeURIComponent(latest.slug)}`
-                  : "/leaderboard"
-              }
+              href={rankingsPath}
               className="home-link"
             >
               Full rankings <Icon name="arrow" />
@@ -525,7 +540,7 @@ export default function LiveHome() {
           {latest &&
             (results.status === "loading" ||
               (results.status === "ready" &&
-                results.data.event.slug !== latest.slug)) && (
+                results.data.contextSlug !== latest.slug)) && (
               <StateMessage text="Loading standings…" />
             )}
           {latest && results.status === "error" && (
@@ -536,16 +551,21 @@ export default function LiveHome() {
           )}
           {latest &&
             results.status === "ready" &&
-            results.data.event.slug === latest.slug && (
+            results.data.contextSlug === latest.slug && (
               <div className="home-standings-card">
                 <div className="home-result-context">
                   <div>
                     <strong>{latest.title}</strong>
                     <span>
                       {gamesWithResults(
-                        latest.scored_match_count,
-                        latest.match_count,
+                        rankingEvents.reduce(
+                          (count, item) => count + item.scored_match_count, 0,
+                        ),
+                        rankingEvents.reduce(
+                          (count, item) => count + item.match_count, 0,
+                        ),
                       )}
+                      {latest.series_id ? " · All weekends" : ""}
                     </span>
                   </div>
                   {results.data.uses_mixed_scoring_presets && (
@@ -605,7 +625,7 @@ export default function LiveHome() {
                 <div className="home-standings-foot">
                   <span>Top 5 squads</span>
                   <a
-                    href={`/leaderboard?type=squads&event=${encodeURIComponent(latest.slug)}`}
+                    href={rankingsPath}
                     className="home-link"
                   >
                     View full table <Icon name="arrow" />
