@@ -10,6 +10,7 @@ use App\Models\AssistantThread;
 use App\Models\AuditLog;
 use App\Models\CompetitionEvent;
 use App\Models\CompetitionMatch;
+use App\Models\Player;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +51,10 @@ final class AssistantCsvImports
                 'columns.*' => ['nullable', 'string', 'max:200'],
                 'columns.team_number' => ['required', 'string'],
                 'create_missing_players' => ['required', 'boolean'],
+                'player_mappings' => ['sometimes', 'array', 'list', 'max:300'],
+                'player_mappings.*.name' => ['required', 'string', 'max:150'],
+                'player_mappings.*.record' => ['sometimes', 'integer', 'min:2'],
+                'player_mappings.*.player_id' => ['required', 'ulid', 'exists:players,id'],
                 'exclude_players' => ['sometimes', 'array', 'list', 'max:25'],
                 'exclude_players.*.player_clan_id' => ['required', 'ulid', 'exists:clans,id'],
                 'exclude_players.*.slot_owner_clan_id' => ['required', 'ulid', 'exists:clans,id'],
@@ -81,6 +86,7 @@ final class AssistantCsvImports
             $slotPlan = $this->slots->prepare($actor, $event, $action['slot_changes'] ?? []);
             $projected = $this->slots->project($context, $slotPlan);
             $this->players->load();
+            $overrides = collect($action['player_mappings'] ?? [])->keyBy(fn ($p): string => ($p['record'] ?? '*').':'.$p['name']);
             $groups = [];
             $omitted = [];
             $recordKeys = [];
@@ -147,6 +153,14 @@ final class AssistantCsvImports
                     }
                     foreach ($appearances as $appearance) {
                         $profile = $this->players->resolve($appearance['name'], $action['create_missing_players']);
+                        $override = $overrides->get($record['record'].':'.$appearance['name']) ?? $overrides->get('*:'.$appearance['name']);
+                        if ($override !== null) {
+                            $selected = Player::query()->where('status', 'active')->find($override['player_id']);
+                            if ($selected === null) {
+                                throw new InvalidArgumentException('The chosen player profile is no longer active.');
+                            }
+                            $profile = ['player_id' => $selected->id, 'ign' => $selected->current_ign, 'clan_id' => $selected->clan_id, 'source_clan_id' => $profile['source_clan_id']];
+                        }
                         $excluded = collect($action['exclude_players'] ?? [])->contains(fn ($rule): bool => $rule['slot_owner_clan_id'] === $entry['clan_id']
                             && in_array($rule['player_clan_id'], [$profile['clan_id'], $profile['source_clan_id']], true));
                         if ($excluded || isset($profile['unresolved'])) {
@@ -192,6 +206,7 @@ final class AssistantCsvImports
                         }
                         if (collect($action['exclude_players'] ?? [])->contains(fn ($rule): bool => $rule['slot_owner_clan_id'] === $group['entry']['clan_id'] && $rule['player_clan_id'] === $player['clan_id'])) {
                             $omitted[] = ['record' => $player['record'], 'name' => $player['source_name'], 'reason' => 'Individual stats excluded by organizer instruction; team total retained.'];
+
                             continue;
                         }
                         $merged[$identity][] = $player;
@@ -255,7 +270,7 @@ final class AssistantCsvImports
                 'message_id' => $message->id, 'match_id' => $games[0]['match_id'], 'status' => 'pending',
                 'title' => count($games).' games · '.implode(' / ', array_unique(array_column($context['schedule'], 'date'))),
                 'reason' => $action['reason'],
-                'payload' => ['kind' => 'csv_import', 'games' => $games, 'slot_plan' => $slotPlan, 'evidence_id' => $evidence->id, 'evidence_sha256' => $evidence->sha256],
+                'payload' => ['kind' => 'csv_import', 'import_action' => $action, 'games' => $games, 'slot_plan' => $slotPlan, 'evidence_id' => $evidence->id, 'evidence_sha256' => $evidence->sha256],
                 'preview' => ['kind' => 'csv_import', 'rows' => [], 'evidence_ids' => [$evidence->id],
                     'games' => array_map(fn ($g): array => ['match_id' => $g['match_id'], 'title' => $g['title'], 'rows' => $g['preview']['rows']], $games),
                     'slot_changes' => $slotPlan['changes'] ?? [], 'affected_weeks' => $slotPlan['weeks'] ?? [],

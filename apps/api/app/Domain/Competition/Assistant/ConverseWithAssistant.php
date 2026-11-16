@@ -46,7 +46,11 @@ final class ConverseWithAssistant
             $csvTables = ($selectedCsv->isNotEmpty() ? $selectedCsv : $csvEvidence->take(-1))->pluck('observations')->all();
             $context = $this->context->forEvent($destination, $destination->id === $thread->event_id ? $message->details['match_id'] : null, $csvTables, $actor);
             $context['proposal_decisions'] = $thread->proposals()->reorder()->orderByDesc('id')->limit(24)->get()
-                ->map(fn ($p): array => ['id' => $p->id, 'title' => $p->title, 'status' => $p->status, 'reason' => $p->reason])->all();
+                ->map(fn ($p): array => ['id' => $p->id, 'title' => $p->title, 'status' => $p->status, 'reason' => $p->reason,
+                    'review_issues' => $p->status === 'pending' ? ($p->preview['omitted_players'] ?? []) : [],
+                    'new_profiles' => $p->status === 'pending' ? ($p->preview['new_players'] ?? []) : [],
+                    'import_policy' => in_array($p->status, ['pending', 'accepted'], true) ? ($p->payload['import_action'] ?? null) : null,
+                ])->all();
             $context['requested_evidence_ids'] = $readIds;
             $images = $evidence->whereIn('id', $readIds)->filter(fn ($item): bool => $item->mime !== 'text/csv')->values()->all();
             $imageReadIds = array_map(fn ($image): string => $image->id, $images);
@@ -99,6 +103,19 @@ final class ConverseWithAssistant
                 }
                 if ($locked->proposals()->where('message_id', $response->id)->exists() || $context['event']['id'] !== $thread->event_id) {
                     $locked->proposals()->whereIn('id', $previousProposals)->update(['status' => 'superseded', 'updated_at' => now()]);
+                }
+                $prepared = $locked->proposals()->where('message_id', $response->id)->first();
+                if (($prepared?->preview['kind'] ?? null) === 'csv_import') {
+                    $preview = $prepared->preview;
+                    $summary = 'Review ready: '.count($preview['games']).' games for '.implode(' / ', array_unique(array_column($context['schedule'], 'date'))).'.';
+                    $summary .= "\n".$preview['team_count'].' team entries from the CSV. '.count($preview['new_players']).' new player profiles proposed after searching the directory.';
+                    foreach ($preview['slot_changes'] as $change) {
+                        $summary .= "\nSlot ".$change['slot'].': '.$change['before'].' → '.$change['after'].', including the permanent allocation and listed unscored weekends.';
+                    }
+                    if ($preview['omitted_players'] !== []) {
+                        $summary .= "\n".count($preview['omitted_players']).' individual appearances are excluded or unresolved; their known team totals are retained. See the review issues below, or tell me which existing profile an uncertain name belongs to.';
+                    }
+                    $response->content = $summary."\n\nAccept the review below to save the scores, slot changes and new profiles together. Nothing has been published yet.";
                 }
                 $response->update(['details' => [...$response->details, 'warnings' => $warnings]]);
                 $message->update(['status' => 'completed']);
