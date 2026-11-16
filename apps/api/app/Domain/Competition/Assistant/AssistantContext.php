@@ -81,7 +81,7 @@ final class AssistantContext
         $matches = CompetitionMatch::query()->whereIn('id', $selected)
             ->with(['day.event.squadEntries', 'squadEntries.squad.clan', 'currentResult.squadResults.playerResults.player.clan'])
             ->orderBy('id')->get()->map(fn ($match): array => $this->forMatch($match))->keyBy('id');
-        $players = Player::query()->where('status', 'active')->with(['clan:id,name,tag,tags', 'aliases:id,player_id,alias'])
+        $players = Player::query()->with(['clan:id,name,tag,tags', 'aliases:id,player_id,alias'])
             ->orderBy('current_ign')->orderBy('id')->limit(801)->get();
 
         $today = CarbonImmutable::now($event->timezone ?: config('app.timezone'));
@@ -219,7 +219,7 @@ final class AssistantContext
 
                     continue;
                 }
-                $found = Player::query()->where('status', 'active')
+                $found = Player::query()
                     ->with(['clan:id,name,tag,tags', 'aliases:id,player_id,alias'])
                     ->lazyById(300)->filter(function (Player $player) use ($query, $key): bool {
                         $name = ClanTag::strip($player->current_ign, $player->clan?->tagList() ?? []);
@@ -247,6 +247,7 @@ final class AssistantContext
     {
         return [
             'id' => $player->id, 'name' => $player->current_ign, 'clan_id' => $player->clan_id,
+            'status' => $player->status,
             'clan' => $player->clan?->name, 'tags' => $player->clan?->tagList() ?? [],
             'aliases' => $player->aliases->pluck('alias')->all(),
         ];

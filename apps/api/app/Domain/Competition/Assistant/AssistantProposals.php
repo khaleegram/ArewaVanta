@@ -30,6 +30,7 @@ final class AssistantProposals
         private readonly AssistantContext $context,
         private readonly SaveMatchResults $save,
         private readonly ResultPermissions $permissions,
+        private readonly AssistantPlayerResolver $directory,
     ) {}
 
     /** @param array<string, mixed> $context
@@ -214,7 +215,7 @@ final class AssistantProposals
                 if ($ign === '' || PlayerNameSearch::key($ign) === '') {
                     throw new InvalidArgumentException('A new profile needs a readable player name.');
                 }
-                $existing = Player::query()->where('clan_id', $update['clan_id'])->where('status', 'active')->get()
+                $existing = Player::query()->where('clan_id', $update['clan_id'])->get()
                     ->filter(fn ($p): bool => PlayerNameSearch::key(ClanTag::strip($p->current_ign, $tags)) === PlayerNameSearch::key($ign));
                 if ($existing->count() > 1) {
                     throw new InvalidArgumentException('Multiple existing profiles match '.$ign.'. Choose the correct profile before adding player details.');
@@ -323,12 +324,15 @@ final class AssistantProposals
         }
         $clans = Clan::query()->get(['id', 'tag', 'tags'])->keyBy('id');
         $tags = $clans->flatMap(fn ($clan): array => $clan->tagList())->all();
+        $this->directory->load();
         foreach ($payload['new_players'] ?? [] as $newPlayer) {
             abort_unless(($newPlayer['clan_id'] === null || $clans->has($newPlayer['clan_id'])) && ClanTag::strip($newPlayer['ign'], $tags) === $newPlayer['ign'], 409, 'The new player’s clan or name interpretation changed. Ask for a fresh review.');
             if (isset($created[$this->newPlayerKey($newPlayer)])) {
                 continue;
             }
-            $existing = Player::query()->where('clan_id', $newPlayer['clan_id'])->where('status', 'active')->lockForUpdate()->get()
+            $resolved = $this->directory->resolve($newPlayer['ign'], true);
+            abort_if(isset($resolved['player_id']) || isset($resolved['candidates']), 409, 'An existing profile, including an inactive profile, may match '.$newPlayer['ign'].'. Ask for a fresh player review before creating another profile.');
+            $existing = Player::query()->where('clan_id', $newPlayer['clan_id'])->lockForUpdate()->get()
                 ->contains(fn ($p): bool => PlayerNameSearch::key(ClanTag::strip($p->current_ign, $tags)) === PlayerNameSearch::key($newPlayer['ign']));
             abort_if($existing, 409, 'A matching player profile was created after this proposal. Ask the assistant to reuse the existing profile.');
         }

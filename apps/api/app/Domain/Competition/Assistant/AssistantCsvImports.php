@@ -155,9 +155,9 @@ final class AssistantCsvImports
                         $profile = $this->players->resolve($appearance['name'], $action['create_missing_players']);
                         $override = $overrides->get($record['record'].':'.$appearance['name']) ?? $overrides->get('*:'.$appearance['name']);
                         if ($override !== null) {
-                            $selected = Player::query()->where('status', 'active')->find($override['player_id']);
+                            $selected = Player::query()->find($override['player_id']);
                             if ($selected === null) {
-                                throw new InvalidArgumentException('The chosen player profile is no longer active.');
+                                throw new InvalidArgumentException('The chosen player profile no longer exists.');
                             }
                             $profile = ['player_id' => $selected->id, 'ign' => $selected->current_ign, 'clan_id' => $selected->clan_id, 'source_clan_id' => $profile['source_clan_id']];
                         }

@@ -25,6 +25,7 @@ final class ConverseWithAssistant
         private readonly AssistantProposals $proposals,
         private readonly ReadAssistantCsv $csv,
         private readonly AssistantCsvImports $imports,
+        private readonly AssistantPlayerResolver $directory,
     ) {}
 
     /** @param array<string, mixed> $input */
@@ -45,12 +46,17 @@ final class ConverseWithAssistant
             $selectedCsv = $csvEvidence->whereIn('id', $readIds);
             $csvTables = ($selectedCsv->isNotEmpty() ? $selectedCsv : $csvEvidence->take(-1))->pluck('observations')->all();
             $context = $this->context->forEvent($destination, $destination->id === $thread->event_id ? $message->details['match_id'] : null, $csvTables, $actor);
-            $context['proposal_decisions'] = $thread->proposals()->reorder()->orderByDesc('id')->limit(24)->get()
+            $previous = $thread->proposals()->reorder()->orderByDesc('id')->limit(24)->get();
+            $context['proposal_decisions'] = $previous
                 ->map(fn ($p): array => ['id' => $p->id, 'title' => $p->title, 'status' => $p->status, 'reason' => $p->reason,
                     'review_issues' => $p->status === 'pending' ? ($p->preview['omitted_players'] ?? []) : [],
                     'new_profiles' => $p->status === 'pending' ? ($p->preview['new_players'] ?? []) : [],
                     'import_policy' => in_array($p->status, ['pending', 'accepted'], true) ? ($p->payload['import_action'] ?? null) : null,
                 ])->all();
+            $latestCsv = $previous->first(fn ($p): bool => ($p->payload['kind'] ?? '') === 'csv_import');
+            if ($latestCsv !== null) {
+                $context['proposed_player_reviews'] = $this->directory->reviewProposed($latestCsv->preview['new_players'] ?? []);
+            }
             $context['requested_evidence_ids'] = $readIds;
             $images = $evidence->whereIn('id', $readIds)->filter(fn ($item): bool => $item->mime !== 'text/csv')->values()->all();
             $imageReadIds = array_map(fn ($image): string => $image->id, $images);
@@ -109,6 +115,12 @@ final class ConverseWithAssistant
                     $preview = $prepared->preview;
                     $summary = 'Review ready: '.count($preview['games']).' games for '.implode(' / ', array_unique(array_column($context['schedule'], 'date'))).'.';
                     $summary .= "\n".$preview['team_count'].' team entries from the CSV. '.count($preview['new_players']).' new player profiles proposed after searching the directory.';
+                    $usedIds = collect($prepared->payload['games'])->flatMap(fn ($game): array => $game['payload']['rows'])
+                        ->flatMap(fn ($row): array => $row['players'])->pluck('player_id')->filter()->all();
+                    $reused = collect($context['proposed_player_reviews'] ?? [])->filter(fn ($review): bool => isset($review['resolution']['player_id']) && in_array($review['resolution']['player_id'], $usedIds, true));
+                    if ($reused->isNotEmpty()) {
+                        $summary .= "\nExisting profiles found and reused instead of creating duplicates: ".$reused->map(fn ($r): string => $r['resolution']['ign'].($r['existing_profile_status'] === 'inactive' ? ' (inactive profile retained)' : ''))->implode(', ').'.';
+                    }
                     foreach ($preview['slot_changes'] as $change) {
                         $summary .= "\nSlot ".$change['slot'].': '.$change['before'].' → '.$change['after'].', including the permanent allocation and listed unscored weekends.';
                     }

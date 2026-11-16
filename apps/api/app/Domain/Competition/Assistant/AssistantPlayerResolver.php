@@ -32,10 +32,10 @@ final class AssistantPlayerResolver
                 }
             }
         }
-        foreach (Player::query()->where('status', 'active')->with('aliases')->orderBy('id')->get() as $player) {
+        foreach (Player::query()->with('aliases')->orderBy('id')->get() as $player) {
             $names = [$player->current_ign, ...$player->aliases->pluck('alias')->all()];
             $names = array_unique([...$names, ...array_map(fn ($name): string => $this->split($name)['name'], $names)]);
-            $this->profiles[] = ['id' => $player->id, 'clan_id' => $player->clan_id, 'ign' => $player->current_ign, 'names' => $names];
+            $this->profiles[] = ['id' => $player->id, 'clan_id' => $player->clan_id, 'ign' => $player->current_ign, 'status' => $player->status, 'names' => $names];
         }
     }
 
@@ -70,6 +70,12 @@ final class AssistantPlayerResolver
                 $exact = $sameClan;
             }
         }
+        if (count($exact) > 1) {
+            $active = array_values(array_filter($exact, fn ($p): bool => $p['status'] === 'active'));
+            if (count($active) === 1) {
+                $exact = $active;
+            }
+        }
         $match = count($exact) === 1 ? $exact[0] : null;
         $threshold = $clan !== null && ($ranked[0]['clan_id'] ?? null) === $clan ? .90 : .96;
         if ($match === null && $exact === [] && strlen($key) >= 5 && ($ranked[0]['score'] ?? 0) >= $threshold
@@ -80,14 +86,61 @@ final class AssistantPlayerResolver
             return $this->resolved[$cacheKey] = ['player_id' => $match['id'], 'ign' => $match['ign'], 'clan_id' => $match['clan_id'], 'source_clan_id' => $clan];
         }
         $base = ['ign' => $name, 'clan_id' => $clan, 'source_clan_id' => $clan];
+        if ($ranked === []) {
+            $cores = $this->nameCores($name);
+            foreach ($this->profiles as $profile) {
+                foreach ($profile['names'] as $candidate) {
+                    $other = $this->nameCores($candidate);
+                    if (array_intersect($cores, $other) !== [] || collect($cores)->contains(fn ($core): bool => strlen($core) >= 4 && collect($other)->contains(fn ($part): bool => strlen($part) >= 4 && PlayerNameSearch::similarity($core, $part) >= .9))) {
+                        $ranked[] = $profile;
+                        break;
+                    }
+                }
+            }
+        }
         if ($ranked !== []) {
-            return $this->resolved[$cacheKey] = [...$base, 'unresolved' => 'Similar existing profiles: '.implode(', ', array_column(array_slice($ranked, 0, 3), 'ign')).'. Choose the actual player; their team total is retained.'];
+            return $this->resolved[$cacheKey] = [...$base,
+                'unresolved' => 'Similar existing profiles: '.implode(', ', array_column(array_slice($ranked, 0, 3), 'ign')).'. Choose the actual player; their team total is retained.',
+                'candidates' => array_map(fn ($p): array => ['id' => $p['id'], 'ign' => $p['ign'], 'clan_id' => $p['clan_id'], 'status' => $p['status']], array_slice($ranked, 0, 5)),
+            ];
         }
         if (! $create || $key === '' || mb_strlen($name) > 100) {
             return $this->resolved[$cacheKey] = [...$base, 'unresolved' => 'No existing profile identified. Team totals are retained until this player is identified.'];
         }
 
         return $this->resolved[$cacheKey] = [...$base, 'create_player' => true];
+    }
+
+    /** @param list<array<string, mixed>> $proposed
+     * @return list<array<string, mixed>>
+     */
+    public function reviewProposed(array $proposed): array
+    {
+        $this->load();
+
+        return array_map(function ($player): array {
+            $resolution = $this->resolve($player['ign'], true);
+            $existing = isset($resolution['player_id']) ? collect($this->profiles)->firstWhere('id', $resolution['player_id']) : null;
+
+            return ['proposed_name' => $player['ign'], 'proposed_clan_id' => $player['clan_id'], 'resolution' => $resolution,
+                'existing_profile_status' => $existing['status'] ?? null];
+        }, $proposed);
+    }
+
+    /** Additional cores find possible duplicates; they never establish a player's identity automatically. */
+    private function nameCores(string $name): array
+    {
+        $parts = [$name, ...(preg_split('/[|丨·・:]+/u', $name) ?: [])];
+        $cores = [];
+        foreach ($parts as $part) {
+            $latin = preg_replace('/[^\p{Latin}\p{N}]/u', '', $this->fold($part)) ?? '';
+            $key = trim(PlayerNameSearch::key($latin), '0123456789');
+            if (strlen($key) >= 2) {
+                $cores[] = $key;
+            }
+        }
+
+        return array_values(array_unique($cores));
     }
 
     /** Recognize stored clan tags even when screenshots/exports use a different decorative separator. */
