@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1\Manage;
 
-use App\Domain\Competition\ClanTag;
 use App\Domain\Competition\OrganizationPermissions;
 use App\Domain\Competition\PlayerNameSearch;
 use App\Domain\Notifications\AdminActivity;
@@ -53,7 +52,6 @@ final class ClanPlayerController extends Controller
             'current_ign' => ['required', 'string', 'max:100'],
             'uid' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('players', 'normalized_uid')],
         ]);
-        $data['current_ign'] = ClanTag::strip($data['current_ign'], $clan->tagList());
         $player = Player::query()->create([
             'clan_id' => $clan->id, 'current_ign' => $data['current_ign'],
             'normalized_uid' => $data['uid'] ?? null, 'status' => 'active',
@@ -66,11 +64,7 @@ final class ClanPlayerController extends Controller
     public function update(Request $request, Clan $clan, Player $player, OrganizationPermissions $permissions): JsonResponse
     {
         abort_unless($permissions->canManageClan($request->user(), $clan), 403);
-        abort_unless(
-            $player->clan_id === $clan->id,
-            404,
-            'That player is no longer in this clan. Refresh the player list and try again.',
-        );
+        abort_unless($player->clan_id === $clan->id, 404);
         if (is_string($request->input('current_ign'))) {
             $request->merge(['current_ign' => trim($request->input('current_ign'))]);
         }
@@ -82,7 +76,6 @@ final class ClanPlayerController extends Controller
             'current_ign' => ['required', 'string', 'max:100'],
             'uid' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('players', 'normalized_uid')->ignore($player->id)],
         ]);
-        $data['current_ign'] = ClanTag::strip($data['current_ign'], $clan->tagList());
         $player = DB::transaction(function () use ($request, $player, $data): Player {
             $player = Player::query()->lockForUpdate()->findOrFail($player->id);
             $player->current_ign = $data['current_ign'];
@@ -101,11 +94,7 @@ final class ClanPlayerController extends Controller
     public function destroy(Request $request, Clan $clan, Player $player, OrganizationPermissions $permissions): Response
     {
         abort_unless($permissions->canManageClan($request->user(), $clan), 403);
-        abort_unless(
-            $player->clan_id === $clan->id,
-            404,
-            'That player is no longer in this clan. Refresh the player list and try again.',
-        );
+        abort_unless($player->clan_id === $clan->id, 404);
         DB::transaction(function () use ($player): void {
             $player = Player::query()->lockForUpdate()->findOrFail($player->id);
             $player->squadMemberships()->whereNull('left_at')->update(['left_at' => now()]);

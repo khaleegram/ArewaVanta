@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
-import { playerHandle } from "./playerDisplay";
 import type {
   ManageEvent,
   ResultSheet,
@@ -151,6 +150,7 @@ export default function ResultManager({ eventId }: { eventId: string }) {
               </h1>
               <p>Record what you know. Finish or correct any game anytime.</p>
             </div>
+            <a href={`/manage/competitions/${encodeURIComponent(eventId)}/assistant${validGame ? `?match=${encodeURIComponent(game!)}` : ""}`} target="_blank" rel="noreferrer">Ask assistant ↗</a>
           </header>
           <label className="score-game-select">
             Game
@@ -382,17 +382,13 @@ function ScoreWorkspace({
     replace?: string,
   ): boolean {
     const row = rows[squadId];
-    const squadTag =
-      sheet.status === "ready"
-        ? sheet.data.squads.find((s) => s.id === squadId)?.clan_tag
-        : null;
     const removed = row.players.find(
       (p) => p.id === replace && p.id !== player.id,
     );
     if (
       removed?.kills &&
       !window.confirm(
-        `Replace ${playerHandle(removed.ign, removed.clan_tag ?? squadTag)}? Their ${removed.kills} recorded kills will be removed from this game.`,
+        `Replace ${removed.ign}? Their ${removed.kills} recorded kills will be removed from this game.`,
       )
     )
       return false;
@@ -402,7 +398,7 @@ function ScoreWorkspace({
     if (
       source &&
       !window.confirm(
-        `${playerHandle(player.ign, player.clan_tag ?? squadTag)} is recorded for another team in this game. Move them and their kills here? Both team changes will be saved together.`,
+        `${player.ign} is recorded for another team in this game. Move them and their kills here? Both team changes will be saved together.`,
       )
     )
       return false;
@@ -434,22 +430,19 @@ function ScoreWorkspace({
     setNotice("");
     return true;
   }
-  function changedWithMoves(ids: string[], source: ScoreRows = rows): string[] {
-    const dirty = new Set(
-      Object.keys(source).filter((id) => !sameRow(source[id], base[id])),
-    );
+  function changedWithMoves(ids: string[]): string[] {
     const selected = new Set(ids);
     let again = true;
     while (again) {
       again = false;
       for (const id of [...selected]) {
         const playerIds = new Set(
-          [...source[id].players, ...(base[id]?.players ?? [])].map((p) => p.id),
+          [...rows[id].players, ...(base[id]?.players ?? [])].map((p) => p.id),
         );
-        for (const other of dirty) {
+        for (const other of dirtyIds) {
           if (
             !selected.has(other) &&
-            [...source[other].players, ...(base[other]?.players ?? [])].some(
+            [...rows[other].players, ...(base[other]?.players ?? [])].some(
               (p) => playerIds.has(p.id),
             )
           ) {
@@ -461,42 +454,26 @@ function ScoreWorkspace({
     }
     return [...selected];
   }
-  async function persistRows(
-    source: ScoreRows,
-    options: { only?: string; nextAfter?: boolean; merge?: boolean } = {},
-  ): Promise<{ ok: boolean; message: string }> {
-    const { only, nextAfter = false, merge = false } = options;
-    if (sheet.status !== "ready" || saving || adding)
-      return {
-        ok: false,
-        message: "Wait for the current save or slot update, then try again.",
-      };
+  async function save(only?: string, next = false, merge = false) {
+    if (sheet.status !== "ready" || saving || adding) return;
     const ids = changedWithMoves(
-      (only
-        ? [only]
-        : Object.keys(source).filter((id) => !sameRow(source[id], base[id]))
-      ).filter((id) => source[id] && !sameRow(source[id], base[id])),
-      source,
+      (only ? [only] : dirtyIds).filter((id) => !sameRow(rows[id], base[id])),
     );
     if (!ids.length) {
-      if (nextAfter && only) nextSquad(only);
+      if (next) nextSquad(only!);
       else setNotice("No unsaved score changes.");
-      return { ok: true, message: "No unsaved score changes." };
+      return;
     }
     const invalid = Object.fromEntries(
       ids
-        .map((id) => [id, validateRow(source[id])])
+        .map((id) => [id, validateRow(rows[id])])
         .filter((pair): pair is [string, string] => pair[1] !== null),
     );
     setIssues(invalid);
     if (Object.keys(invalid).length) {
       setError("Check the highlighted numbers, or leave unknown values blank.");
       setOpen(Object.keys(invalid)[0]);
-      return {
-        ok: false,
-        message:
-          "Check the highlighted numbers, or leave unknown values blank.",
-      };
+      return;
     }
     if (
       merge &&
@@ -504,11 +481,7 @@ function ScoreWorkspace({
         "Use your changed teams over their latest saved values? All other teams will keep their latest server values. Review any shared player moves first.",
       )
     )
-      return {
-        ok: false,
-        message:
-          "Save cancelled. Nothing was changed; your draft is still on this device.",
-      };
+      return;
     setSaving(true);
     setError("");
     setNotice("");
@@ -519,42 +492,32 @@ function ScoreWorkspace({
       const result = await api.saveResults(
         session.token,
         matchId,
-        ids.map((id) => scoreInput(id, source[id])),
+        ids.map((id) => scoreInput(id, rows[id])),
         merge ? (latest.result?.lock_version ?? null) : lockVersion,
         merge ? versionOf(latest) : scoringVersion,
       );
       const updated = sheetWithResult(latest, result.data);
       const original = sheetRows(updated);
-      const dirtyBefore = new Set(
-        Object.keys(source).filter((id) => !sameRow(source[id], base[id])),
-      );
-      const keep = [...dirtyBefore].filter(
-        (id) => !ids.includes(id) && original[id],
-      );
+      const keep = dirtyIds.filter((id) => !ids.includes(id) && original[id]);
       setSheet({ status: "ready", data: updated });
       setBase(original);
       setRows({
         ...original,
-        ...Object.fromEntries(keep.map((id) => [id, source[id]])),
+        ...Object.fromEntries(keep.map((id) => [id, rows[id]])),
       });
       setLockVersion(result.data.lock_version);
       setScoringVersion(versionOf(updated));
       setConflict(false);
-      const message = `${ids.length === 1 ? "Team saved" : "Results saved"}. Standings updated. Missing details can be filled in anytime.`;
-      setNotice(message);
-      if (nextAfter && only) nextSquad(only);
-      return { ok: true, message };
+      setNotice(
+        `${ids.length === 1 ? "Team saved" : "Results saved"}. Standings updated. Missing details can be filled in anytime.`,
+      );
+      if (next && only) nextSquad(only);
     } catch (e) {
-      const message = errorText(e);
-      setError(message);
+      setError(errorText(e));
       setConflict(e instanceof ApiError && e.status === 409);
-      return { ok: false, message };
     } finally {
       setSaving(false);
     }
-  }
-  async function save(only?: string, next = false, merge = false) {
-    await persistRows(rows, { only, nextAfter: next, merge });
   }
   function nextSquad(id: string) {
     if (sheet.status !== "ready") return;
@@ -570,28 +533,20 @@ function ScoreWorkspace({
       0,
     );
   }
-  function mergeReviewedTeams(
-    teams: ScreenshotImportTeam[],
-  ):
-    | { merged: ReturnType<typeof mergeImport> }
-    | { result: ApplyImportResult } {
+  function applyImport(teams: ScreenshotImportTeam[]): ApplyImportResult {
     if (sheet.status !== "ready" || saving || adding) {
       return {
-        result: {
-          applied: false,
-          message: "Wait for the current save or slot update, then apply again.",
-        },
+        applied: false,
+        message: "Wait for the current save or slot update, then apply again.",
       };
     }
     const merged = mergeImport(teams, rows);
     if (merged.errors.length)
-      return { result: { applied: false, message: merged.errors.join(" ") } };
+      return { applied: false, message: merged.errors.join(" ") };
     if (!merged.count)
       return {
-        result: {
-          applied: false,
-          message: "Map and include at least one team first.",
-        },
+        applied: false,
+        message: "Map and include at least one team first.",
       };
     if (
       merged.conflicts.length &&
@@ -600,54 +555,17 @@ function ScoreWorkspace({
       )
     )
       return {
-        result: {
-          applied: false,
-          message:
-            "Import cancelled. Your existing score draft is unchanged. You can edit this review and try again.",
-        },
+        applied: false,
+        message:
+          "Import cancelled. Your existing score draft is unchanged. You can edit this review and try again.",
       };
-    return { merged };
-  }
-  function commitImport(
-    merged: ReturnType<typeof mergeImport>,
-    teams: ScreenshotImportTeam[],
-  ) {
     setRows(merged.rows);
     setOpen(
       teams.find((team) => team.squad && !team.excluded)?.squad?.id ?? null,
     );
+    const message = `${merged.count} team${merged.count === 1 ? "" : "s"} merged into the score draft. Existing details were kept unless you confirmed a change. Unresolved names and scores remain in this import review.`;
+    setNotice(message);
     setIssues({});
-  }
-  function importSummary(merged: ReturnType<typeof mergeImport>) {
-    return `${merged.count} team${merged.count === 1 ? "" : "s"} · ${merged.players} player${merged.players === 1 ? "" : "s"}${merged.kills ? ` · ${merged.kills} kills` : ""}`;
-  }
-  function applyImport(teams: ScreenshotImportTeam[]): ApplyImportResult {
-    const prepared = mergeReviewedTeams(teams);
-    if ("result" in prepared) return prepared.result;
-    const merged = prepared.merged;
-    commitImport(merged, teams);
-    const message = `${importSummary(merged)} merged into the score draft. Not saved yet — press Save all changes to publish. Unresolved names stay in this review.`;
-    setNotice(message);
-    return { applied: true, message };
-  }
-  async function applyImportAndSave(
-    teams: ScreenshotImportTeam[],
-  ): Promise<ApplyImportResult> {
-    const prepared = mergeReviewedTeams(teams);
-    if ("result" in prepared) return prepared.result;
-    const merged = prepared.merged;
-    commitImport(merged, teams);
-    const saved = await persistRows(merged.rows);
-    if (!saved.ok) {
-      setNotice("");
-      return {
-        applied: true,
-        failed: true,
-        message: `${importSummary(merged)} were added to this device draft, but saving failed. ${saved.message} Your changes are kept — press Save all changes to retry.`,
-      };
-    }
-    const message = `${importSummary(merged)} saved to the score database. Standings updated. You can keep editing this game.`;
-    setNotice(message);
     return { applied: true, message };
   }
   async function addEntry(body: {
@@ -707,7 +625,7 @@ function ScoreWorkspace({
   const visible = data.squads.filter(
     (s) =>
       matchesPlayerSearch(
-        `${s.slot_number ?? ""} ${s.clan} ${s.clan_tag ?? ""} ${s.name}`,
+        `${s.slot_number ?? ""} ${s.clan} ${s.clan_tag} ${s.name}`,
         query,
       ) &&
       (filter === "all" ||
@@ -715,17 +633,6 @@ function ScoreWorkspace({
         (filter === "pending" &&
           (rows[s.id]?.status === "unentered" || incomplete(rows[s.id])))),
   );
-  const presentRows = Object.values(rows).filter(
-    (row) => row.status === "present",
-  );
-  const recordedPlayers = presentRows.reduce(
-    (total, row) => total + row.players.length,
-    0,
-  );
-  const expectedPlayers = presentRows.length * 4;
-  const incompleteSquads = presentRows.filter(
-    (row) => row.players.length < 4,
-  ).length;
   return (
     <>
       <div className="score-match-bar">
@@ -759,18 +666,6 @@ function ScoreWorkspace({
           </button>
         </div>
       </div>
-      {incompleteSquads > 0 && (
-        <p className="score-warning" role="status">
-          Player detail is incomplete: <strong>{recordedPlayers}</strong> of{" "}
-          <strong>{expectedPlayers}</strong> player slots recorded across{" "}
-          {presentRows.length} present squad
-          {presentRows.length === 1 ? "" : "s"}. Team totals and points stay
-          saved; add the missing players so individual stats are not lost.
-          {incompleteSquads
-            ? ` ${incompleteSquads} squad${incompleteSquads === 1 ? " has" : "s have"} fewer than four names.`
-            : ""}
-        </p>
-      )}
       <div hidden={!importOpen}>
         <ScreenshotImport
           token={session.token}
@@ -779,7 +674,6 @@ function ScoreWorkspace({
           storageKey={`${draftKey}:import-review`}
           busy={saving || adding}
           onApply={applyImport}
-          onSave={applyImportAndSave}
           onLateEntry={(teamNumber, teamLabel) => {
             setLateSlot(teamNumber);
             setLate(true);

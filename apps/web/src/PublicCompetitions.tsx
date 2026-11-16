@@ -8,7 +8,6 @@ import type {
   PublicMatchResult,
 } from "./api/types";
 import { Brand, Icon } from "./ui";
-import { playerHandle } from "./playerDisplay";
 import { pageMetadata, SITE_ORIGIN, usePageSeo } from "./seo";
 import {
   competitionLabel as displayCompetitionLabel,
@@ -483,19 +482,14 @@ export function CompetitionDetail({ slug }: { slug: string }) {
                 <div>
                   <p className="public-kicker">COMPETITION RESULTS</p>
                   <h2>
-                    {data?.series_id ? "Week" : "Overall"} standings
-                    <span>.</span>
+                    Overall standings<span>.</span>
                   </h2>
                 </div>
                 <a
                   className="public-text-link"
-                  href={
-                    data?.series_id
-                      ? `/leaderboard?type=squads&series=${encodeURIComponent(data.series_id)}`
-                      : `/leaderboard?type=squads&event=${encodeURIComponent(slug)}`
-                  }
+                  href={`/leaderboard?type=squads&event=${encodeURIComponent(slug)}`}
                 >
-                  {data?.series_id ? "Main ranking" : "Full rankings"} →
+                  Full rankings →
                 </a>
               </div>
               <Notice state={standings} retry={retryStandings} />
@@ -695,7 +689,7 @@ export function MatchPage({
                                     <tbody>
                                       {row.players.map((player) => (
                                         <tr key={player.player_id}>
-                                          <th scope="row"><a className="public-inline-link" href={`/players/${encodeURIComponent(player.player_id)}`}>{playerHandle(player.ign, row.clan_tag)}</a></th>
+                                          <th scope="row"><a className="public-inline-link" href={`/players/${encodeURIComponent(player.player_id)}`}>{player.ign}</a></th>
                                           <td>{player.kills}</td>
                                         </tr>
                                       ))}

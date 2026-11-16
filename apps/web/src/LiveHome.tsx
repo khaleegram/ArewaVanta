@@ -192,11 +192,6 @@ export default function LiveHome() {
   );
   const nextBadge = next ? startDateBadge(next.start_date) : null;
   const nextSquadCount = next?.squad_count ?? 0;
-  const mainRankingHref = latest
-    ? latest.series_id
-      ? `/leaderboard?type=squads&series=${encodeURIComponent(latest.series_id)}`
-      : `/leaderboard?type=squads&event=${encodeURIComponent(latest.slug)}`
-    : "/leaderboard";
   useEffect(() => {
     if (!next) return;
     const controller = new AbortController();
@@ -504,7 +499,14 @@ export default function LiveHome() {
                 </h2>
               </div>
             </div>
-            <a href={mainRankingHref} className="home-link">
+            <a
+              href={
+                latest
+                  ? `/leaderboard?type=squads&event=${encodeURIComponent(latest.slug)}`
+                  : "/leaderboard"
+              }
+              className="home-link"
+            >
               Full rankings <Icon name="arrow" />
             </a>
           </div>
@@ -602,7 +604,10 @@ export default function LiveHome() {
                 )}
                 <div className="home-standings-foot">
                   <span>Top 5 squads</span>
-                  <a href={mainRankingHref} className="home-link">
+                  <a
+                    href={`/leaderboard?type=squads&event=${encodeURIComponent(latest.slug)}`}
+                    className="home-link"
+                  >
                     View full table <Icon name="arrow" />
                   </a>
                 </div>

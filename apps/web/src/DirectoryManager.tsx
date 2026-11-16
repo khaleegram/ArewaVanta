@@ -4,7 +4,6 @@ import type {
   ManageClan,
   ManagePlayer,
   ManagePerson,
-  PlayerDuplicate,
   PublicClan,
   PublicPlayer,
   RosterMember,
@@ -18,7 +17,6 @@ import {
   type Session,
 } from "./CompetitionManager";
 import { Icon } from "./ui";
-import { playerHandle } from "./playerDisplay";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
 import { ClanPlayerPool, ClanRoster } from "./ClanPlayers";
@@ -123,7 +121,7 @@ function ClanCard({ clan, token, initiallyOpen, canEditCaptains, canSubmit, busy
 }) {
   const [expanded, setExpanded] = useState(initiallyOpen);
   const bodyId = `clan-${clan.id}-body`;
-  return <article className="directory-compact-clan"><div className="directory-compact-head"><button type="button" className="directory-clan-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setExpanded(!expanded)}><span className="directory-clan-avatar" aria-hidden="true">{Array.from(clan.tag || clan.name).slice(0, 3).join("")}</span><span className="directory-clan-label"><strong>{clan.name}</strong><span>{clan.tags?.length ? clan.tags.join(" · ") : (clan.tag || "No tag")}</span></span><Icon name="chevron" className={expanded ? "is-expanded" : ""} /></button></div>
+  return <article className="directory-compact-clan"><div className="directory-compact-head"><button type="button" className="directory-clan-toggle" aria-expanded={expanded} aria-controls={bodyId} onClick={() => setExpanded(!expanded)}><span className="directory-clan-avatar" aria-hidden="true">{Array.from(clan.tag || clan.name).slice(0, 3).join("")}</span><span className="directory-clan-label"><strong>{clan.name}</strong><span>{clan.tag}</span></span><Icon name="chevron" className={expanded ? "is-expanded" : ""} /></button></div>
     {expanded && <div id={bodyId} className="directory-clan-body"><div className="directory-clan-toolbar"><strong className="directory-section-label">Clan players</strong><div className="directory-clan-tools"><a className="directory-monthly-report" href={`/manage/clans/${encodeURIComponent(clan.id)}/reports`}>Monthly report <Icon name="arrow" /></a>{canEditCaptains && <button type="button" onClick={onCaptains}>Team captains</button>}<button type="button" disabled={busy} onClick={onEdit}>Edit clan</button></div></div>{canSubmit && <ClanSlots token={token} clan={clan} />}<ClanPlayerPool token={token} clan={clan} /></div>}
   </article>;
 }
@@ -401,7 +399,7 @@ export default function DirectoryManager() {
     setRefresh((x) => x + 1);
   }
   const visibleClans = clans.status === "ready" ? clans.data.filter((clan) =>
-    `${clan.name} ${clan.tag ?? ""} ${(clan.tags ?? []).join(" ")} ${clan.squads.map((squad) => `${squad.name} ${squad.tag ?? ""}`).join(" ")}`
+    `${clan.name} ${clan.tag} ${clan.squads.map((squad) => `${squad.name} ${squad.tag ?? ""}`).join(" ")}`
       .toLowerCase().includes(search.toLowerCase()),
   ) : [];
   return (
@@ -552,12 +550,6 @@ export default function DirectoryManager() {
             </>
           ) : (
             <>
-              {global && (
-                <PlayerDuplicates
-                  token={session.token}
-                  onMerged={() => setRefresh((x) => x + 1)}
-                />
-              )}
               {players.status === "loading" ? (
                 <Notice text="Loading players…" />
               ) : players.status === "error" ? (
@@ -573,9 +565,7 @@ export default function DirectoryManager() {
                         <span className="directory-mark">
                           {player.current_ign.slice(0, 2).toUpperCase()}
                         </span>
-                        <strong>
-                          {playerHandle(player.current_ign, player.clan_tag)}
-                        </strong>
+                        <strong>{player.current_ign}</strong>
                         <a href={`/players/${encodeURIComponent(player.id)}`}>
                           View
                         </a>
@@ -621,114 +611,6 @@ export default function DirectoryManager() {
     </Shell>
   );
 }
-function PlayerDuplicates({
-  token,
-  onMerged,
-}: {
-  token: string;
-  onMerged: () => void;
-}) {
-  const [state, setState] = useState<Load<PlayerDuplicate[]>>({
-    status: "loading",
-  });
-  const [revision, setRevision] = useState(0);
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
-  useEffect(() => {
-    const controller = new AbortController();
-    setState({ status: "loading" });
-    api
-      .playerDuplicates(token, controller.signal)
-      .then(({ data }) => setState({ status: "ready", data }))
-      .catch((err) => {
-        if (!controller.signal.aborted)
-          setState({ status: "error", message: message(err) });
-      });
-    return () => controller.abort();
-  }, [token, revision]);
-  async function merge(source: PlayerDuplicate["source"], targetId: string) {
-    const target = state.status === "ready"
-      ? state.data
-          .flatMap((group) => group.candidates)
-          .find((candidate) => candidate.id === targetId)
-      : undefined;
-    if (
-      !window.confirm(
-        `Merge ${source.current_ign} into ${target?.current_ign ?? "the selected profile"}? All match history moves to the kept profile and the duplicate is deleted.`,
-      )
-    )
-      return;
-    setBusy(source.id);
-    setError("");
-    try {
-      await api.mergePlayer(token, source.id, targetId);
-      setRevision((value) => value + 1);
-      onMerged();
-    } catch (err) {
-      setError(message(err));
-    } finally {
-      setBusy("");
-    }
-  }
-  const groups = state.status === "ready" ? state.data : [];
-  return (
-    <details className="directory-duplicates" open={groups.length > 0}>
-      <summary>
-        Possible duplicate players <span>{groups.length}</span>
-      </summary>
-      <p>
-        Newer or less-used profiles are matched against older players. Merging
-        moves their game history and records the spelling as an alias for
-        future imports.
-      </p>
-      {state.status === "loading" && <p role="status">Checking names…</p>}
-      {state.status === "error" && (
-        <p className="manage-error" role="alert">
-          {state.message}{" "}
-          <button type="button" onClick={() => setRevision((value) => value + 1)}>
-            Try again
-          </button>
-        </p>
-      )}
-      {error && (
-        <p className="manage-error" role="alert">
-          {error}
-        </p>
-      )}
-      {!groups.length && state.status === "ready" && (
-        <p className="directory-roster-empty">
-          No likely duplicate names found.
-        </p>
-      )}
-      {groups.map((group) => (
-        <article className="directory-duplicate" key={group.source.id}>
-          <div>
-            <strong>
-              {playerHandle(group.source.current_ign, group.source.clan_tag)}
-            </strong>
-            <small>
-              {group.source.games} game{group.source.games === 1 ? "" : "s"}{" "}
-              recorded
-            </small>
-          </div>
-          <div className="directory-duplicate-actions">
-            {group.candidates.map((candidate) => (
-              <button
-                type="button"
-                key={candidate.id}
-                disabled={!!busy}
-                onClick={() => void merge(group.source, candidate.id)}
-              >
-                Merge into {playerHandle(candidate.current_ign, candidate.clan_tag)}
-                {" · "}{candidate.match_score}%
-              </button>
-            ))}
-          </div>
-        </article>
-      ))}
-    </details>
-  );
-}
 function Editor({
   token,
   view,
@@ -753,9 +635,9 @@ function Editor({
           ? (view.player?.current_ign ?? "")
           : "",
   );
-  const [tags, setTags] = useState(
+  const [tag, setTag] = useState(
     view.kind === "clan"
-      ? (view.clan?.tags?.length ? view.clan.tags : view.clan?.tag ? [view.clan.tag] : []).join(", ")
+      ? (view.clan?.tag ?? "")
       : "",
   );
   const [bio, setBio] = useState(
@@ -768,10 +650,6 @@ function Editor({
   const [uidPublic, setUidPublic] = useState(
     view.kind === "player" ? (view.player?.uid_public ?? false) : false,
   );
-  const playerClanTags =
-    view.kind === "player"
-      ? (clanChoices.find((clan) => clan.id === playerClanId)?.tags ?? [])
-      : [];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   async function save(e: React.FormEvent) {
@@ -782,7 +660,7 @@ function Editor({
       if (view.kind === "clan") {
         const body = {
           name: name.trim(),
-          tags: [...new Set(tags.split(/[,;]+/).map((tag) => tag.trim().toUpperCase()).filter(Boolean))],
+          tag: tag.trim(),
           bio: bio.trim() || null,
         };
         if (view.clan) await api.updateClan(token, view.clan.id, body);
@@ -858,11 +736,6 @@ function Editor({
             : view.kind === "player"
               ? "Player IGN"
               : "Clan name"}
-          {view.kind === "player" && !!playerClanTags.length && (
-            <span className="clan-player-tag-fixed" aria-label="Clan tag">
-              {playerClanTags.join(" · ")}
-            </span>
-          )}
           <input
             autoFocus={view.kind !== "squad"}
             required={view.kind !== "squad"}
@@ -875,7 +748,7 @@ function Editor({
             Numbered automatically and cannot be renamed. It will appear as {squadIdentity({
               name,
               squadNumber: Number(/^Squad\s+(\d+)$/i.exec(name)?.[1] ?? 0),
-              clanTag: view.clan.tag ?? "",
+              clanTag: view.clan.tag,
               clanName: view.clan.name,
               clanSquadCount: view.clan.squads.length + 1,
             })}.
@@ -883,17 +756,13 @@ function Editor({
         </label>
         {view.kind === "clan" && (
           <label className="manage-field">
-            Clan tags <span>Optional · separate multiple tags with commas</span>
+            Clan tag
             <input
-              maxLength={200}
-              placeholder="e.g. NE, NElite"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
+              required={view.kind === "clan"}
+              maxLength={16}
+              value={tag}
+              onChange={(e) => setTag(e.target.value)}
             />
-            <span>
-              These are matched against player names. The first tag is used as
-              the main clan tag.
-            </span>
           </label>
         )}
         {view.kind === "clan" && (

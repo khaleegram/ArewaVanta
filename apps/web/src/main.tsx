@@ -45,6 +45,7 @@ import "./pwa-install.css";
 import "./workspace-theme.css";
 
 const root = ReactDOM.createRoot(document.getElementById("root")!);
+const OrganizerAssistant = React.lazy(() => import("./OrganizerAssistant"));
 
 function renderRoute() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
@@ -52,6 +53,7 @@ function renderRoute() {
   const eventMatch = path.match(/^\/competitions\/([^/]+)(?:\/games\/([^/]+))?$/);
   const personMatch = path.match(/^\/(clans|squads|players)\/([^/]+)$/);
   const managerResultsMatch = path.match(/^\/manage\/competitions\/([^/]+)\/results$/);
+  const managerAssistantMatch = path.match(/^\/manage\/competitions\/([^/]+)\/assistant$/);
   const managerEntriesMatch = path.match(/^\/manage\/competitions\/([^/]+)\/entries$/);
   const managerCompetitionMatch = path.match(/^\/manage\/competitions\/([^/]+)$/);
   const checkInMatch = path.match(/^\/manage\/competitions\/([^/]+)\/check-in$/);
@@ -64,6 +66,7 @@ function renderRoute() {
   else if (monthlyMatch) page = <ClanMonthlyReport clanId={decodeURIComponent(monthlyMatch[1])} />;
   else if (path === "/manage/organizers") page = <OrganizerManager />;
   else if (managerResultsMatch) page = <ResultManager eventId={decodeURIComponent(managerResultsMatch[1])} />;
+  else if (managerAssistantMatch) page = <React.Suspense fallback={<p role="status">Loading organizer assistant…</p>}><OrganizerAssistant eventId={decodeURIComponent(managerAssistantMatch[1])} /></React.Suspense>;
   else if (managerEntriesMatch) page = <CompetitionManager entriesEventId={decodeURIComponent(managerEntriesMatch[1])} />;
   else if (managerCompetitionMatch) page = <CompetitionManager workspaceEventId={decodeURIComponent(managerCompetitionMatch[1])} />;
   else if (path === "/manage/competitions") page = <CompetitionManager />;

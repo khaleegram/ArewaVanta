@@ -16,13 +16,15 @@ Compared one live DeepSeek response against the manually transcribed board from 
 
 | Measure | Latest observed result |
 | --- | --- |
-| TEAM numbers paired with finishing placements | 15 / 15 correct |
+| Visible cards: TEAM numbers paired with finishing placements | 15 / 15 correct |
 | Visible player kill values | 59 / 59 correct |
 | Sum of visible kills | 246, matching the screenshots |
 | Extraction request duration | 13.2 seconds |
 | Mobile save bar, 390px viewport | 87px, previously approximately 272px in the reviewed draft |
 
 This is one successful sample, not a general accuracy guarantee. Stylized player names still contain transcription differences, and end-to-end profile identity accuracy and a two-minute human review time have not been established. The heavily compressed WhatsApp copies remained unreliable in comparison. Use original screenshots when available. Production scores and the user's saved draft were not changed by this check.
+
+The November 10 personal receipts establish an additional limit: the 15 visible cards were not the entire match. A separate receipt shows 16th place with BOSSEY 7, botkiller 3, BRUNO 0 and RESPECT 0 (10 kills). Two uploads of that receipt have identical SHA-256 hashes and count once. The receipt does not show an in-game TEAM/slot number, so its target slot still needs independent evidence or organizer confirmation before any correction is applied.
 
 ## Regression checks
 

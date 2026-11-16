@@ -1,3 +1,4 @@
+import type { AssistantThread, AssistantThreadSummary, AssistantMessageInput } from "../assistantTypes";
 import type {
   ApiData,
   ApiPage,
@@ -28,7 +29,6 @@ import type {
   MatchResultInput,
   PlayerProfile,
   PlayerRanking,
-  PlayerDuplicate,
   PublicEvent,
   PublicClan,
   PublicSquad,
@@ -40,7 +40,6 @@ import type {
   ResultSheet,
   SavedResult,
   SeasonStandings,
-  SeriesStandings,
   SquadHistoryEntry,
   User,
 } from "./types";
@@ -321,7 +320,7 @@ export const api = {
     }),
   createClan: (
     token: string,
-    body: { name: string; tags: string[]; bio: string | null },
+    body: { name: string; tag: string; bio: string | null },
   ) =>
     request<ApiData<ClanEditResponse>>("/manage/clans", {
       method: "POST",
@@ -331,7 +330,7 @@ export const api = {
   updateClan: (
     token: string,
     id: string,
-    body: { name: string; tags: string[]; bio: string | null },
+    body: { name: string; tag: string; bio: string | null },
   ) =>
     request<ApiData<ClanEditResponse>>(`/manage/clans/${key(id)}`, {
       method: "PATCH",
@@ -402,16 +401,6 @@ export const api = {
       token,
       body,
     }),
-  playerDuplicates: (token: string, signal?: AbortSignal) =>
-    request<ApiData<PlayerDuplicate[]>>("/manage/players/duplicates", {
-      token,
-      signal,
-    }),
-  mergePlayer: (token: string, sourceId: Id, targetId: Id) =>
-    request<ApiData<{ player: ManagePlayer; merge: Record<string, number> }>>(
-      `/manage/players/${key(String(sourceId))}/merge`,
-      { method: "POST", token, body: { target_id: targetId } },
-    ),
   updatePlayer: (token: string, id: string, body: Omit<ManagePlayer, "id">) =>
     request<ApiData<ManagePlayer>>(`/manage/players/${key(id)}`, {
       method: "PATCH",
@@ -450,10 +439,6 @@ export const api = {
     }),
   seasonStandings: (id: Id, signal?: AbortSignal) =>
     request<ApiData<SeasonStandings>>(`/seasons/${key(id)}/standings`, {
-      signal,
-    }),
-  seriesStandings: (id: Id, signal?: AbortSignal) =>
-    request<ApiData<SeriesStandings>>(`/series/${key(id)}/standings`, {
       signal,
     }),
   playerRankings: (page = 1, signal?: AbortSignal) =>
@@ -664,22 +649,11 @@ export const api = {
     search: string,
     clanId?: Id,
     signal?: AbortSignal,
-    page = 1,
   ) =>
-    request<
-      ApiData<MatchParticipant[]> & {
-        meta: {
-          has_more: boolean;
-          page?: number;
-          per_page?: number;
-          total?: number;
-        };
-      }
-    >(`/manage/matches/${key(matchId)}/players`, {
-      token,
-      signal,
-      query: { search, clan_id: clanId, page },
-    }),
+    request<ApiData<MatchParticipant[]> & { meta: { has_more: boolean } }>(
+      `/manage/matches/${key(matchId)}/players`,
+      { token, signal, query: { search, clan_id: clanId } },
+    ),
   addLateEntry: (
     token: string,
     matchId: Id,
@@ -728,4 +702,29 @@ export const api = {
       },
       signal,
     }),
+  assistantThreads: (token: string, eventId: Id, signal?: AbortSignal) =>
+    request<ApiData<AssistantThreadSummary[]>>(`/manage/events/${key(eventId)}/assistant-threads`, { token, signal }),
+  createAssistantThread: (token: string, eventId: Id) =>
+    request<ApiData<AssistantThread>>(`/manage/events/${key(eventId)}/assistant-threads`, { token, method: "POST" }),
+  assistantThread: (token: string, threadId: Id, signal?: AbortSignal) =>
+    request<ApiData<AssistantThread>>(`/manage/assistant-threads/${key(threadId)}`, { token, signal }),
+  sendAssistantMessage: (token: string, threadId: Id, input: AssistantMessageInput) => {
+    const form = new FormData();
+    form.append("client_id", input.client_id);
+    form.append("message", input.message);
+    if (input.match_id) form.append("match_id", input.match_id);
+    for (const file of input.images ?? []) form.append("images[]", file);
+    for (const file of input.csv_files ?? []) form.append("csv_files[]", file);
+    for (const id of input.recheck_evidence_ids ?? []) form.append("recheck_evidence_ids[]", id);
+    return upload<ApiData<AssistantThread>>(`/manage/assistant-threads/${key(threadId)}/messages`, token, form);
+  },
+  decideAssistantProposal: (token: string, threadId: Id, proposalId: Id, decision: "accept" | "reject") =>
+    request<ApiData<AssistantThread>>(`/manage/assistant-threads/${key(threadId)}/proposals/${key(proposalId)}`, { token, method: "PATCH", body: { decision } }),
+  assistantEvidence: async (token: string, threadId: Id, evidenceId: Id, signal?: AbortSignal): Promise<Blob> => {
+    const response = await fetch(`${base}/manage/assistant-threads/${key(threadId)}/evidence/${key(evidenceId)}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "image/*, text/csv" }, cache: "no-store", signal,
+    });
+    if (!response.ok) throw new ApiError(response.status, "Could not open the saved evidence. Refresh the chat and try again.");
+    return response.blob();
+  },
 };

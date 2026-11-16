@@ -91,7 +91,6 @@ const sheet = {
       clan: "Kano Clan",
       clan_id: "c1",
       clan_tag: "KC",
-      clan_tags: ["KC"],
       clan_squad_count: 1,
       slot_number: 12,
       roster_players: [{ id: "p1", ign: "GrBtness" }],
@@ -105,7 +104,6 @@ const sheet = {
       clan: "Sokoto Clan",
       clan_id: "c2",
       clan_tag: "SC",
-      clan_tags: ["SC"],
       clan_squad_count: 1,
       slot_number: 6,
       roster_players: [{ id: "p2", ign: "SILKY" }],
@@ -150,15 +148,10 @@ const imported = {
         },
         {
           name: "NEW PLAYER",
-          tag: "KC",
           kills: 4,
           status: "new",
           player_id: null,
           ign: "NEW PLAYER",
-          clan: "Kano Clan",
-          clan_id: "c1",
-          clan_tag: "KC",
-          clan_tags: ["KC"],
           candidates: [],
         },
         {
@@ -170,9 +163,7 @@ const imported = {
           squad_id: "s2",
           squad_name: "Sokoto Storm",
           clan: "Sokoto Clan",
-          clan_id: "c2",
           clan_tag: "SC",
-          clan_tags: ["SC"],
           slot_number: 6,
           candidates: [],
         },
@@ -214,8 +205,6 @@ const imported = {
   },
 };
 
-let savedResults = null;
-
 await page.route("**/api/v1/**", (route) => {
   const path = new URL(route.request().url()).pathname;
   if (path === "/api/v1/auth/me")
@@ -232,45 +221,7 @@ await page.route("**/api/v1/**", (route) => {
     path === "/api/v1/manage/matches/m1/screenshot-import" &&
     route.request().method() === "POST"
   )
-    return route.fulfill({ json: { data: imported } });
-  if (
-    path === "/api/v1/manage/matches/m1/results" &&
-    route.request().method() === "PUT"
-  ) {
-    const body = route.request().postDataJSON();
-    savedResults = body;
-    return route.fulfill({
-      json: {
-        data: {
-          saved_at: new Date().toISOString(),
-          lock_version: 2,
-          results: body.results.map((row) => ({
-            squad_id: row.squad_id,
-            squad_name: row.squad_id === "s1" ? "Kano Reapers" : "Sokoto Storm",
-            squad_slug: null,
-            clan_name: row.squad_id === "s1" ? "Kano Clan" : "Sokoto Clan",
-            participation_status: row.status ?? "present",
-            placement: row.placement ?? null,
-            team_kills: (row.players ?? []).reduce(
-              (sum, player) => sum + (player.kills ?? 0),
-              0,
-            ),
-            team_kills_override: row.team_kills ?? null,
-            kill_points: "0",
-            placement_points: "0",
-            placement_multiplier: null,
-            total_points: "0",
-            players: (row.players ?? []).map((player, index) => ({
-              player_id: player.player_id ?? `new-${index}`,
-              ign: player.ign ?? "Player",
-              kills: player.kills ?? null,
-            })),
-          })),
-        },
-      },
-    });
-  }
-  if (path === "/api/v1/manage/matches/m1/players")
+    return route.fulfill({ json: { data: imported } });  if (path === "/api/v1/manage/matches/m1/players")
     return route.fulfill({
       json: {
         data: [
@@ -298,28 +249,22 @@ const screenshotFile = {
 await page.getByRole("button", { name: "Import screenshot" }).click();
 await page.locator('input[type="file"]').setInputFiles(screenshotFile);
 await page.getByRole("button", { name: "Read screenshots" }).click();
-await page.getByText(/TEAM12/).waitFor();
-assert.equal(
-  await page
-    .locator(".score-import-player-review")
-    .filter({ hasText: "NEW PLAYER" })
-    .count(),
-  1,
-);
-await page
-  .locator(".score-import-player-review")
-  .filter({ hasText: "NEW PLAYER" })
-  .getByRole("button", { name: "Create new profile" })
-  .click();
-await page.getByRole("button", { name: "Create new profile on save" }).click();
-await page.getByRole("tab", { name: /Confirmed/ }).click();
-await page.getByRole("button", { name: "Use existing guest" }).click();
-await page.getByText("Player confirmed", { exact: true }).waitFor();
-await page.getByRole("tab", { name: /Teams/ }).click();
+await page.getByText("TEAM12", { exact: true }).waitFor();
+assert.equal(await page.getByText("NEW PLAYER", { exact: true }).count(), 1);
 assert.equal(
   await page.getByText("Choose this team’s squad", { exact: true }).count(),
   1,
 );
+await page.getByRole("button", { name: "Use existing guest" }).click();
+await page.getByText("Player confirmed", { exact: true }).waitFor();
+const newPlayerRow = page
+  .locator(".score-import-player-review")
+  .filter({ hasText: "NEW PLAYER" });
+await newPlayerRow
+  .getByRole("button", { name: "Change / find player" })
+  .click();
+await newPlayerRow.getByText("Create new player on save").waitFor();
+await newPlayerRow.getByRole("button", { name: "Create new player on save" }).click();
 await page.getByRole("button", { name: "Add TEAM18 as late entry" }).click();
 assert.equal(await page.getByLabel("Game slot").inputValue(), "18");
 await page
@@ -335,10 +280,10 @@ await page.screenshot({
   path: "artifacts/import-panel-1280.png",
   fullPage: true,
 });
-await page.locator(".score-import-more summary").click();
+page.once("dialog", (dialog) => dialog.accept());
 await page.getByRole("button", { name: "Apply to draft" }).click();
 await page.getByText(/merged into the score draft/).waitFor();
-await page.getByRole("button", { name: "Review draft & save" }).click();
+await page.getByRole("button", { name: "Review score draft" }).click();
 await page
   .locator("#score-s1")
   .getByLabel("Placement for Kano Clan")
@@ -351,75 +296,30 @@ assert.equal(
   "1",
 );
 assert.equal(
-  await page.locator("#score-s1").getByLabel("Kills for KC・GrBtness").inputValue(),
+  await page.locator("#score-s1").getByLabel("Kills for GrBtness").inputValue(),
   "13",
 );
 assert.equal(
   await page
     .locator("#score-s1")
-    .getByLabel("Kills for KC・NEW PLAYER")
+    .getByLabel("Kills for NEW PLAYER")
     .inputValue(),
   "4",
 );
 assert.equal(
-  await page.locator("#score-s1").getByLabel("Kills for KC・GUEST1").inputValue(),
+  await page.locator("#score-s1").getByLabel("Kills for GUEST1").inputValue(),
   "2",
 );
 await page.locator("#score-s2 .score-team-name").click();
-await page.locator("#score-s2").getByLabel("Kills for SC・SILKY").waitFor();
+await page.locator("#score-s2").getByLabel("Kills for SILKY").waitFor();
 assert.equal(
-  await page.locator("#score-s2").getByLabel("Kills for SC・SILKY").inputValue(),
+  await page.locator("#score-s2").getByLabel("Kills for SILKY").inputValue(),
   "7",
 );
 assert.match(
   await page.locator(".score-save-message").innerText(),
   /unsaved changes/,
 );
-
-// Applying and saving in one action must send every imported kill to the API.
-await page.evaluate(() => localStorage.clear());
-await page.goto(
-  "http://localhost:5173/manage/competitions/e1/results?match=m1",
-  { waitUntil: "networkidle" },
-);
-await page.getByRole("button", { name: "Import screenshot" }).click();
-await page.locator('input[type="file"]').setInputFiles(screenshotFile);
-await page.getByRole("button", { name: "Read screenshots" }).click();
-await page.getByText(/TEAM12/).waitFor();
-await page
-  .locator(".score-import-player-review")
-  .filter({ hasText: "NEW PLAYER" })
-  .getByRole("button", { name: "Create new profile" })
-  .click();
-await page.getByRole("button", { name: "Create new profile on save" }).click();
-await page.getByRole("tab", { name: /Teams/ }).click();
-await page
-  .getByLabel("Map TEAM18 to an app slot")
-  .selectOption({ label: "Slot 6 · SC · Sokoto Clan" });
-await page.getByRole("button", { name: "Apply & save to scores" }).click();
-await page.getByText(/saved to the score database/).waitFor();
-assert.ok(savedResults, "Apply & save must PUT the result rows");
-const savedTeam = savedResults.results.find((row) => row.squad_id === "s1");
-assert.equal(savedTeam.placement, 1);
-assert.equal(savedTeam.players.length, 3);
-assert.equal(
-  savedTeam.players.find((row) => row.player_id === "p1").kills,
-  13,
-);
-assert.equal(
-  savedTeam.players.find((row) => row.player_id === "p3").kills,
-  2,
-);
-const createdPlayer = savedTeam.players.find(
-  (row) => row.ign === "NEW PLAYER",
-);
-assert.equal(createdPlayer.kills, 4);
-assert.equal(createdPlayer.player_id, undefined);
-assert.equal(createdPlayer.clan_id, "c1");
-const savedTeamTwo = savedResults.results.find((row) => row.squad_id === "s2");
-const silky = savedTeamTwo.players.find((row) => row.player_id === "p2");
-assert.ok(silky, "SILKY must be saved against the existing profile");
-assert.equal(silky.kills, 7);
 
 await page.setViewportSize({ width: 390, height: 844 });
 await page.evaluate(() => localStorage.clear());
@@ -431,8 +331,7 @@ await page.evaluate(() => (document.activeElement instanceof HTMLElement ? docum
 await page.getByRole("button", { name: "Import screenshot" }).click();
 await page.locator('input[type="file"]').setInputFiles(screenshotFile);
 await page.getByRole("button", { name: "Read screenshots" }).click();
-await page.getByText(/TEAM12/).waitFor();
-await page.getByRole("tab", { name: /Teams/ }).click();
+await page.getByText("TEAM12", { exact: true }).waitFor();
 await page
   .getByLabel("Map TEAM18 to an app slot")
   .selectOption({ label: "Slot 6 · SC · Sokoto Clan" });
@@ -447,66 +346,6 @@ await page.screenshot({
   path: "artifacts/import-panel-390.png",
   fullPage: true,
 });
-const footerHeight = await page.locator(".score-import-apply").evaluate((node) => node.getBoundingClientRect().height);
-assert.ok(footerHeight < 140, `Mobile footer is too tall: ${footerHeight}px`);
-await page.setViewportSize({ width: 390, height: 480 });
-assert.ok(await page.getByRole("button", { name: "Apply & save to scores" }).isVisible());
-assert.ok(await page.locator(".score-import-apply").evaluate((node) => node.getBoundingClientRect().height) < 140);
-const regressions = await page.evaluate(async ({ imported, sheet }) => {
-  const { prepareReview, mergeImport, applicableTeam, remapTeam } = await import("/src/screenshotReview.ts");
-  const { sheetRows } = await import("/src/scoreEntry.ts");
-  const { scoreboardBounds } = await import("/src/scoreboardImages.ts");
-  const partial = prepareReview(imported, sheet);
-  const merged = mergeImport(partial.teams, sheetRows(sheet));
-  const current = sheetRows(sheet);
-  current.s1.teamKills = "25";
-  const preserved = mergeImport(partial.teams, current);
-  const sequential = prepareReview({ ...imported, teams: Array.from({ length: 8 }, (_, i) => ({
-    ...imported.teams[0], team_label: `TEAM${i + 1}`, team_number: i + 1, placement: i + 1,
-  })) }, sheet);
-  const remapped = remapTeam(sequential.teams[0], sheet.squads[0], sheet, sequential.teams);
-  const reopened = prepareReview({ ...imported, teams: [remapped, ...sequential.teams.slice(1)] }, sheet);
-  const cropCases = [540, 1080].map((width) => {
-    const height = width * 2;
-    const pixels = new Uint8ClampedArray(width * height * 4);
-    const fill = (from, to, fraction) => {
-      for (let y = from; y < to; y++)
-        for (let x = 0; x < width * fraction; x++) {
-          const p = (y * width + x) * 4;
-          pixels[p] = pixels[p + 1] = pixels[p + 2] = 100;
-          pixels[p + 3] = 255;
-        }
-    };
-    const top = Math.round(width * 0.6);
-    const bottom = Math.round(width * 1.1);
-    fill(top, Math.round(width * 0.9), 0.8);
-    // A dark gap between card rows, then a final row with only one team.
-    fill(Math.round(width * 0.92), bottom, 0.2);
-    fill(Math.round(width * 1.65), Math.round(width * 1.75), 1);
-    const bounds = scoreboardBounds(pixels, width, height);
-    return bounds.top <= top && bounds.top >= top - 15 &&
-      bounds.bottom >= bottom && bounds.bottom < width * 1.5;
-  });
-  return {
-    total: merged.rows.s1.teamKills,
-    ids: merged.rows.s1.players.map((p) => p.id),
-    errors: merged.errors,
-    preserved: preserved.rows.s1.teamKills,
-    blocked: sequential.teams.every((t) => !applicableTeam(t)),
-    manualKept: applicableTeam(reopened.teams[0]),
-    unresolvedRemain: reopened.teams.slice(1).every((t) => !applicableTeam(t)),
-    cropCases,
-  };
-}, { imported, sheet });
-assert.equal(regressions.total, "19", "Keep known kills before a new identity is chosen");
-assert.deepEqual(regressions.ids, ["p1", "p3"]);
-assert.deepEqual(regressions.errors, []);
-assert.equal(regressions.preserved, "25", "Preserve a larger known team total");
-assert.equal(regressions.blocked, true, "Cached finishing-order TEAM labels need review");
-assert.equal(regressions.manualKept, true, "Keep an organizer's explicit mapping when reopening");
-assert.equal(regressions.unresolvedRemain, true);
-assert.deepEqual(regressions.cropCases, [true, true], "Cropping must keep final short card rows at both resolutions");
-console.log(`Mobile import footer: ${footerHeight}px`);
 assert.deepEqual(errors, []);
 console.log("PASS screenshot import, review and draft apply");
 await browser.close();

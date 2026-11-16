@@ -1,0 +1,17 @@
+{
+  "source": "/rules",
+  "snapshot_date": "2026-11-10",
+  "scope": "Snapshot of the posted public rules, not a match-specific historical policy version. Confirm historical or event-specific exceptions with the organizer.",
+  "allowed_classes": ["Rewind", "Trickster", "Ninja", "Medic", "Defender", "Pump"],
+  "shotguns_allowed": true,
+  "banned_weapons_and_attachments": ["SMRS", "Thumper", "War Machine", "Purifier", "Tempest", "Annihilator", "Exotic Arctic .50", "Thermite-reload attachments for snipers and marksman rifles"],
+  "banned_vehicles": ["Tanks", "Jackal jets", "Hoverbikes", "Cargo trucks"],
+  "policies": {
+    "report": "Screenshot the player's name and evidence of the banned item or class. Send it to an organizer.",
+    "smrs": "The victim receives the kill points. The offending player receives one warning.",
+    "warnings": "A player who receives three warnings is suspended from scrims for two weeks.",
+    "fixed_slots": "Your slot is permanent until an organizer reassigns it. Contact an organizer to request a change.",
+    "wrong_slot": "Playing outside your assigned slot, including in another team's slot, means no points for your team for that entire game.",
+    "report_slot_misuse": "If another team takes your slot, screenshot their names and report it to an organizer."
+  }
+}

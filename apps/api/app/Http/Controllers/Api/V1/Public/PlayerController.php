@@ -17,16 +17,12 @@ final class PlayerController extends Controller
     {
         $filters = $request->validate(['search' => ['sometimes', 'nullable', 'string', 'max:100']]);
         $search = Str::lower($filters['search'] ?? '');
-        $players = Player::query()->with('clan:id,tag')->where('status', 'active')
+        $players = Player::query()->where('status', 'active')
             ->when($search !== '', fn ($query) => $query->whereRaw('LOWER(current_ign) LIKE ?', ['%'.$search.'%']))
-            ->orderBy('current_ign')->orderBy('id')->paginate(20, ['id', 'current_ign', 'clan_id']);
+            ->orderBy('current_ign')->orderBy('id')->paginate(20, ['id', 'current_ign']);
 
         return response()->json([
-            'data' => $players->getCollection()->map(static fn (Player $player): array => [
-                'id' => $player->id,
-                'current_ign' => $player->current_ign,
-                'clan_tag' => $player->clan?->tag,
-            ])->values(),
+            'data' => $players->items(),
             'meta' => ['current_page' => $players->currentPage(), 'last_page' => $players->lastPage(), 'total' => $players->total()],
         ]);
     }

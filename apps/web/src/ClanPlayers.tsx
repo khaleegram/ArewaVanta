@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "./api/client";
 import type { ClanPlayer, ManageClan, RosterMember } from "./api/types";
 import { Icon } from "./ui";
-import { playerHandle } from "./playerDisplay";
 import { matchesPlayerSearch } from "./playerSearch";
 import "./clan-players.css";
 
@@ -38,11 +37,9 @@ function useClanPlayers(token: string, clanId: string, revision: number) {
 }
 
 function NewPlayerForm({
-  tags = [],
   onCreate,
   onCancel,
 }: {
-  tags?: string[];
   onCreate: (ign: string, uid: string | null) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -67,16 +64,10 @@ function NewPlayerForm({
     <form className="clan-new-player" onSubmit={submit}>
       <label>
         Player IGN
-        {!!tags.length && (
-          <span className="clan-player-tag-fixed" aria-label="Clan tag">
-            {tags.join(" · ")}
-          </span>
-        )}
         <input
           autoFocus
           required
           maxLength={100}
-          placeholder={tags.length ? "Player name only" : "Player name"}
           value={ign}
           onChange={(event) => setIgn(event.target.value)}
           disabled={busy}
@@ -109,12 +100,10 @@ function NewPlayerForm({
 }
 
 function EditPlayerForm({
-  tags = [],
   player,
   onSave,
   onCancel,
 }: {
-  tags?: string[];
   player: ClanPlayer;
   onSave: (body: { current_ign: string; uid?: string | null }) => Promise<void>;
   onCancel: () => void;
@@ -144,16 +133,10 @@ function EditPlayerForm({
     <form className="clan-new-player clan-edit-player" onSubmit={submit}>
       <label>
         Player IGN
-        {!!tags.length && (
-          <span className="clan-player-tag-fixed" aria-label="Clan tag">
-            {tags.join(" · ")}
-          </span>
-        )}
         <input
           autoFocus
           required
           maxLength={100}
-          placeholder={tags.length ? "Player name only" : "Player name"}
           value={ign}
           onChange={(event) => setIgn(event.target.value)}
           disabled={busy}
@@ -208,7 +191,7 @@ export function ClanPlayerPool({ token, clan }: { token: string; clan: ManageCla
     if (busy) return;
     if (
       !window.confirm(
-        `Remove ${playerHandle(player.current_ign, clan.tag)} from ${clan.name}? Their past match records will stay intact.`,
+        `Remove ${player.current_ign} from ${clan.name}? Their past match records will stay intact.`,
       )
     )
       return;
@@ -217,24 +200,22 @@ export function ClanPlayerPool({ token, clan }: { token: string; clan: ManageCla
     try {
       await api.deleteClanPlayer(token, clan.id, player.id);
       if (editing?.id === player.id) setEditing(null);
-      setNotice(`${playerHandle(player.current_ign, clan.tag)} removed from ${clan.name}. Past match records were kept.`);
+      setNotice(`${player.current_ign} removed from ${clan.name}. Past match records were kept.`);
       setRevision((value) => value + 1);
     } catch (reason) {
       setError(errorText(reason));
-      if (reason instanceof ApiError && reason.status === 404)
-        setRevision((value) => value + 1);
     } finally {
       setBusy("");
     }
   }
   return <section className="clan-players clan-player-pool" aria-label={`${clan.name} players`}>
     <div className="clan-players-heading"><div><h3>Clan players {players.status === "ready" && <span>{players.data.length}</span>}</h3><p>Players can play in any of this clan’s slots.</p></div><button type="button" className="clan-player-add" onClick={() => { setCreating(true); setEditing(null); setError(""); }} disabled={creating || !!editing}><Icon name="plus" />Add new player</button></div>
-    {creating && <NewPlayerForm tags={clan.tags ?? (clan.tag ? [clan.tag] : [])} onCancel={() => setCreating(false)} onCreate={async (ign, uid) => { await api.createClanPlayer(token, clan.id, ign, uid); setCreating(false); setNotice(`${playerHandle(ign, clan.tag)} added to this clan.`); setRevision((value) => value + 1); }} />}
-    {editing && <EditPlayerForm key={editing.id} tags={clan.tags ?? (clan.tag ? [clan.tag] : [])} player={editing} onCancel={() => setEditing(null)} onSave={async (body) => { await api.updateClanPlayer(token, clan.id, editing.id, body); setEditing(null); setNotice(`${playerHandle(body.current_ign, clan.tag)} updated.`); setRevision((value) => value + 1); }} />}
+    {creating && <NewPlayerForm onCancel={() => setCreating(false)} onCreate={async (ign, uid) => { await api.createClanPlayer(token, clan.id, ign, uid); setCreating(false); setNotice(`${ign} added to this clan.`); setRevision((value) => value + 1); }} />}
+    {editing && <EditPlayerForm key={editing.id} player={editing} onCancel={() => setEditing(null)} onSave={async (body) => { await api.updateClanPlayer(token, clan.id, editing.id, body); setEditing(null); setNotice(`${body.current_ign} updated.`); setRevision((value) => value + 1); }} />}
     {notice && <p className="clan-player-notice" role="status">{notice}</p>}
     {error && <p className="clan-player-error" role="alert">{error}</p>}
     <label className="clan-player-search"><span className="sr-only">Search clan players</span><input type="search" placeholder="Search player names" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-    {players.status === "loading" ? <p className="clan-player-empty">Loading clan players…</p> : players.status === "error" ? <div className="clan-player-empty" role="alert">{players.message}<button type="button" onClick={() => setRevision((value) => value + 1)}>Try again</button></div> : visible.length ? <ul className="clan-player-items">{visible.map((player) => <li key={player.id}><div><strong>{playerHandle(player.current_ign, clan.tag)}</strong>{player.squads?.length ? <small>Also in a saved lineup</small> : null}</div><div className="clan-player-row-actions"><button type="button" disabled={!!busy || creating} aria-label={`Edit ${playerHandle(player.current_ign, clan.tag)}`} onClick={() => { setEditing(player); setCreating(false); setError(""); }}>Edit</button><button type="button" disabled={!!busy || creating} aria-label={`Remove ${playerHandle(player.current_ign, clan.tag)}`} onClick={() => void removePlayer(player)}>{busy === player.id ? "Removing…" : "Remove"}</button></div></li>)}</ul> : <p className="clan-player-empty">{query ? "No matching clan players." : "No players added yet."}</p>}
+    {players.status === "loading" ? <p className="clan-player-empty">Loading clan players…</p> : players.status === "error" ? <div className="clan-player-empty" role="alert">{players.message}<button type="button" onClick={() => setRevision((value) => value + 1)}>Try again</button></div> : visible.length ? <ul className="clan-player-items">{visible.map((player) => <li key={player.id}><div><strong>{player.current_ign}</strong>{player.squads?.length ? <small>Also in a saved lineup</small> : null}</div><div className="clan-player-row-actions"><button type="button" disabled={!!busy || creating} aria-label={`Edit ${player.current_ign}`} onClick={() => { setEditing(player); setCreating(false); setError(""); }}>Edit</button><button type="button" disabled={!!busy || creating} aria-label={`Remove ${player.current_ign}`} onClick={() => void removePlayer(player)}>{busy === player.id ? "Removing…" : "Remove"}</button></div></li>)}</ul> : <p className="clan-player-empty">{query ? "No matching clan players." : "No players added yet."}</p>}
   </section>;
 }
 
@@ -295,7 +276,7 @@ export function ClanRoster({
       !remove &&
       fromSquad &&
       !window.confirm(
-        `Move ${playerHandle(ign, clan.tag)} from ${fromSquad.name} to ${squad.name}? They will leave the old squad. Previous match results stay unchanged.`,
+        `Move ${ign} from ${fromSquad.name} to ${squad.name}? They will leave the old squad. Previous match results stay unchanged.`,
       )
     )
       return;
@@ -306,7 +287,7 @@ export function ClanRoster({
       if (remove) await api.removeRosterPlayer(token, squad.id, id);
       else await api.addRosterPlayer(token, squad.id, id, fromSquad?.id);
       setNotice(
-        `${playerHandle(ign, clan.tag)} ${remove ? "removed from" : fromSquad ? "moved to" : "added to"} ${squad.name}.`,
+        `${ign} ${remove ? "removed from" : fromSquad ? "moved to" : "added to"} ${squad.name}.`,
       );
       setRevision((value) => value + 1);
     } catch (error) {
@@ -371,14 +352,14 @@ export function ClanRoster({
             <ul className="clan-player-items">
               {roster.data.map((member) => (
                 <li key={member.membership_id}>
-                  <strong>{playerHandle(member.ign, clan.tag)}</strong>
+                  <strong>{member.ign}</strong>
                   <button
                     type="button"
                     disabled={!!busy}
                     onClick={() =>
                       changePlayer(member.player_id, member.ign, true)
                     }
-                    aria-label={`Remove ${playerHandle(member.ign, clan.tag)} from ${squad.name}`}
+                    aria-label={`Remove ${member.ign} from ${squad.name}`}
                   >
                     {busy === member.player_id ? "Saving…" : "Remove"}
                     <Icon name="close" />
@@ -415,14 +396,11 @@ export function ClanRoster({
           </div>
           {creating && (
             <NewPlayerForm
-              tags={clan.tags ?? (clan.tag ? [clan.tag] : [])}
               onCancel={() => setCreating(false)}
               onCreate={async (ign, uid) => {
                 await api.addNewRosterPlayer(token, squad.id, ign, uid);
                 setCreating(false);
-                setNotice(
-                  `${playerHandle(ign, clan.tag)} created and added to ${squad.name}.`,
-                );
+                setNotice(`${ign} created and added to ${squad.name}.`);
                 setRevision((value) => value + 1);
               }}
             />
@@ -457,7 +435,7 @@ export function ClanRoster({
               {available.map((player) => (
                 <li key={player.id}>
                   <div>
-                    <strong>{playerHandle(player.current_ign, clan.tag)}</strong>
+                    <strong>{player.current_ign}</strong>
                     <small>
                       {player.squads.length
                         ? player.squads.map((entry) => entry.name).join(", ")
@@ -475,7 +453,7 @@ export function ClanRoster({
                         player.squads[0],
                       )
                     }
-                    aria-label={`${player.squads.length ? "Move" : "Add"} ${playerHandle(player.current_ign, clan.tag)} to ${squad.name}`}
+                    aria-label={`${player.squads.length ? "Move" : "Add"} ${player.current_ign} to ${squad.name}`}
                   >
                     {busy === player.id
                       ? "Saving…"

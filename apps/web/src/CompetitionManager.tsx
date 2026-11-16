@@ -649,6 +649,7 @@ function EventWorkspace({
       </section>
       <div className="studio-actions">
         <a className="studio-action-primary" href={resultsUrl}>Enter results <Icon name="arrow" /></a>
+        <a className="studio-action-secondary" href={`/manage/competitions/${encodeURIComponent(event.id)}/assistant`}>Ask assistant <Icon name="arrow" /></a>
         <a className="studio-action-secondary" href={entriesUrl}>Manage slots <Icon name="trophy" /></a>
       </div>
       </div>

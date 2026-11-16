@@ -69,6 +69,7 @@ services:
       DEEPSEEK_TIMEOUT: ${DEEPSEEK_TIMEOUT:-90}
     volumes:
       - ./backups:/backups
+      - arewavanta-evidence:/var/www/html/storage/app
     depends_on:
       db:
         condition: service_healthy
@@ -131,6 +132,7 @@ services:
 
 volumes:
   arewavanta-postgres:
+  arewavanta-evidence:
   arewavanta-caddy-data:
   arewavanta-caddy-config:
 

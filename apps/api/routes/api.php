@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CaptainInvitationController;
 use App\Http\Controllers\Api\V1\Manage\AdminActivityController;
+use App\Http\Controllers\Api\V1\Manage\AssistantProposalController;
 use App\Http\Controllers\Api\V1\Manage\AuditController;
 use App\Http\Controllers\Api\V1\Manage\ClanMonthlyReportController;
 use App\Http\Controllers\Api\V1\Manage\ClanPlayerController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\Api\V1\Manage\MatchResultSheetController;
 use App\Http\Controllers\Api\V1\Manage\MatchScoringController;
 use App\Http\Controllers\Api\V1\Manage\MatchScreenshotImportController;
 use App\Http\Controllers\Api\V1\Manage\OrganizationController;
+use App\Http\Controllers\Api\V1\Manage\OrganizerAssistantController;
 use App\Http\Controllers\Api\V1\Manage\PeopleController;
 use App\Http\Controllers\Api\V1\Manage\ScoringPresetController as ManageScoringPresetController;
 use App\Http\Controllers\Api\V1\Manage\SeasonController;
@@ -39,7 +41,6 @@ use App\Http\Controllers\Api\V1\Public\PlayerController;
 use App\Http\Controllers\Api\V1\Public\PlayerRankingsController;
 use App\Http\Controllers\Api\V1\Public\ScoringPresetController;
 use App\Http\Controllers\Api\V1\Public\SeasonStandingsController;
-use App\Http\Controllers\Api\V1\Public\SeriesStandingsController;
 use App\Http\Controllers\Api\V1\Public\SquadHistoryController;
 use Illuminate\Support\Facades\Route;
 
@@ -84,8 +85,6 @@ Route::prefix('v1')->group(function (): void {
             ->name('api.v1.players.show');
         Route::get('/rankings/players', PlayerRankingsController::class)->name('api.v1.players.rankings');
         Route::get('/seasons/{season}/standings', SeasonStandingsController::class)->name('api.v1.seasons.standings');
-        Route::get('/series/{series}/standings', SeriesStandingsController::class)
-            ->name('api.v1.series.standings');
     });
     Route::get('/clans', [PublicOrganizationController::class, 'clans'])
         ->middleware('throttle:public-search')
@@ -95,6 +94,12 @@ Route::prefix('v1')->group(function (): void {
         ->name('api.v1.players.index');
 
     Route::middleware('auth:sanctum')->prefix('manage')->name('api.v1.manage.')->group(function (): void {
+        Route::get('/events/{event}/assistant-threads', [OrganizerAssistantController::class, 'index'])->name('assistant.index');
+        Route::post('/events/{event}/assistant-threads', [OrganizerAssistantController::class, 'store'])->middleware('throttle:12,1')->name('assistant.store');
+        Route::get('/assistant-threads/{thread}', [OrganizerAssistantController::class, 'show'])->name('assistant.show');
+        Route::post('/assistant-threads/{thread}/messages', [OrganizerAssistantController::class, 'message'])->middleware('throttle:6,1')->name('assistant.messages.store');
+        Route::get('/assistant-threads/{thread}/evidence/{evidence}', [OrganizerAssistantController::class, 'evidence'])->name('assistant.evidence.show');
+        Route::patch('/assistant-threads/{thread}/proposals/{proposal}', [AssistantProposalController::class, 'update'])->middleware('throttle:30,1')->name('assistant.proposals.update');
         Route::get('/activity', [AdminActivityController::class, 'index']);
         Route::post('/activity/read', [AdminActivityController::class, 'read']);
         Route::post('/push-subscriptions', [AdminActivityController::class, 'subscribe']);
@@ -117,8 +122,6 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/clans/{clan}/squads', [OrganizationController::class, 'createSquad'])->name('squads.store');
         Route::patch('/squads/{squad}', [DirectoryController::class, 'updateSquad'])->name('squads.update');
         Route::post('/players', [DirectoryController::class, 'storePlayer'])->name('players.store');
-        Route::get('/players/duplicates', [DirectoryController::class, 'duplicatePlayers'])->name('players.duplicates');
-        Route::post('/players/{player}/merge', [DirectoryController::class, 'mergePlayer'])->name('players.merge');
         Route::get('/players/{player}', [DirectoryController::class, 'showPlayer'])->name('players.show');
         Route::patch('/players/{player}', [DirectoryController::class, 'updatePlayer'])->name('players.update');
         Route::get('/squads/{squad}/roster', [OrganizationController::class, 'roster'])->name('rosters.show');
