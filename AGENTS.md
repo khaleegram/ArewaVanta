@@ -5,4 +5,5 @@
 - Preserve known team totals while player details are filled in later. Label incomplete or unattributed information; never invent player kills or placements.
 - Prefer helpful warnings to arbitrary roster, date, completeness, or approval gates. Do not block an otherwise valid partial save.
 - Keep authentication, clan privacy, valid data, and protection against silently overwriting another organizer’s edits. Captains can only access their clan’s player pool; organizer match substitutions must not transfer a player’s permanent clan automatically.
-- When the user says “push”, include all local frontend and backend changes.
+- When the user says “push”, include all local frontend and backend changes, deploy both applications to their existing production hosts, apply pending backend migrations after a database backup, and verify the live frontend/API integration. A Git push alone does not complete the request. Do not ask again for deployment permission already granted by “push”.
+- The frontend is hosted on Vercel; the API runs on the existing Oracle server with Docker Compose. The backend deployment directory contains copied source files rather than a Git checkout, so pushing to GitHub does not update it automatically. Preserve its production environment, database, backups, and uploaded evidence during releases.
