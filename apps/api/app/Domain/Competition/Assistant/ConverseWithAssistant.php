@@ -38,12 +38,13 @@ final class ConverseWithAssistant
         try {
             $deadline = microtime(true) + min(110, 2 * max(10, (int) config('services.deepseek.timeout', 90)));
             $thread->refresh()->load('event');
+            $destination = $this->context->requestedEvent($actor, $thread->event, $message->content);
             $evidence = $thread->evidence()->get();
             $readIds = $message->details['read_evidence_ids'];
             $csvEvidence = $evidence->where('mime', 'text/csv');
             $selectedCsv = $csvEvidence->whereIn('id', $readIds);
             $csvTables = ($selectedCsv->isNotEmpty() ? $selectedCsv : $csvEvidence->take(-1))->pluck('observations')->all();
-            $context = $this->context->forEvent($thread->event, $message->details['match_id'], $csvTables, $actor);
+            $context = $this->context->forEvent($destination, $destination->id === $thread->event_id ? $message->details['match_id'] : null, $csvTables, $actor);
             $context['proposal_decisions'] = $thread->proposals()->reorder()->orderByDesc('id')->limit(24)->get()
                 ->map(fn ($p): array => ['id' => $p->id, 'title' => $p->title, 'status' => $p->status, 'reason' => $p->reason])->all();
             $context['requested_evidence_ids'] = $readIds;

@@ -17,6 +17,51 @@ final class AssistantContext
 {
     public function __construct(private readonly ResultPermissions $permissions) {}
 
+    /** Resolve an explicit organizer date against authorized schedule dates before calling the model. */
+    public function requestedEvent(User $actor, CompetitionEvent $current, string $message): CompetitionEvent
+    {
+        $options = CompetitionEvent::query()->when($current->series_id !== null, fn ($q) => $q->where('series_id', $current->series_id), fn ($q) => $q->whereKey($current->id))
+            ->with('days')->orderByDesc('series_week_date')->limit(24)->get()->filter(fn ($e): bool => $this->permissions->canManage($actor, $e));
+        $dates = [];
+        if (preg_match_all('/\b20\d{2}-\d{2}-\d{2}\b/', $message, $found, PREG_OFFSET_CAPTURE)) {
+            foreach ($found[0] as [$date, $position]) {
+                if (! $this->previousDateReference($message, $position)) {
+                    $dates[] = $date;
+                }
+            }
+        }
+        if (preg_match_all('/\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\s+(\d{1,2})(?:\s*[–—-]\s*\d{1,2})?(?:,?\s+(20\d{2}))?\b/i', $message, $found, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
+            foreach ($found as $match) {
+                if ($this->previousDateReference($message, $match[0][1])) {
+                    continue;
+                }
+                foreach ($options as $option) {
+                    foreach ($option->days as $day) {
+                        $date = $day->event_date;
+                        if ((int) $match[2][0] === $date->day && strtolower(substr($match[1][0], 0, 3)) === strtolower($date->format('M'))
+                            && (! isset($match[3][0]) || (int) $match[3][0] === $date->year)) {
+                            $dates[] = $date->toDateString();
+                        }
+                    }
+                }
+            }
+        }
+        if ($dates === [] && preg_match('/(?:^|\b(?:its|it.s|is|for|dates?|weekend)\s+(?:is\s+|the\s+)?)(\d{1,2})\s*(?:and|&|[–—-])\s*(\d{1,2})\b/i', $message, $pair)) {
+            $candidates = $options->filter(fn ($e): bool => $e->days->contains(fn ($d): bool => $d->event_date->day === (int) $pair[1]) && $e->days->contains(fn ($d): bool => $d->event_date->day === (int) $pair[2]));
+        } elseif ($dates !== []) {
+            $candidates = $options->filter(fn ($e): bool => $e->days->contains(fn ($d): bool => in_array($d->event_date->toDateString(), $dates, true)));
+        } else {
+            return $current;
+        }
+
+        return $candidates->count() === 1 ? $candidates->first() : $current;
+    }
+
+    private function previousDateReference(string $message, int $position): bool
+    {
+        return preg_match('/(?:earlier|previous(?:ly)?|not|instead of|replacing|rather than)\s+(?:my\s+)?$/i', substr($message, max(0, $position - 35), min(35, $position))) === 1;
+    }
+
     /** @param list<array<string, mixed>> $csvTables
      * @return array<string, mixed>
      */
