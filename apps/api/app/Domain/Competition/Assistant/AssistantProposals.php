@@ -37,9 +37,23 @@ final class AssistantProposals
      */
     public function prepare(AssistantThread $thread, AssistantMessage $message, mixed $corrections, array $context): array
     {
+        $built = $this->build($thread, $message, $corrections, $context);
+        foreach ($built['proposals'] as $proposal) {
+            $thread->proposals()->create($proposal);
+        }
+
+        return $built['warnings'];
+    }
+
+    /** Build immutable previews without creating profiles or changing results.
+     * @return array{proposals: list<array<string, mixed>>, warnings: list<string>}
+     */
+    public function build(AssistantThread $thread, AssistantMessage $message, mixed $corrections, array $context): array
+    {
+        $prepared = [];
         $warnings = [];
         if (! is_array($corrections) || ! array_is_list($corrections) || count($corrections) > 300) {
-            return ['The AI returned an invalid correction list. No changes were prepared.'];
+            return ['proposals' => [], 'warnings' => ['The AI returned an invalid correction list. No changes were prepared.']];
         }
         $matches = collect($context['matches'])->keyBy('id');
         $profiles = collect($context['players'])->keyBy('id');
@@ -113,7 +127,7 @@ final class AssistantProposals
                         $seen[$identity] = $slot;
                     }
                 }
-                $thread->proposals()->create([
+                $prepared[] = [
                     'message_id' => $message->id, 'match_id' => $matchId, 'status' => 'pending',
                     'title' => $match['date'].' · Game '.$match['game'].' · '.$match['map'],
                     'reason' => implode("\n", array_unique($reasons)),
@@ -125,7 +139,7 @@ final class AssistantProposals
                         'new_players' => collect($rows)->flatMap(fn ($row): array => $row['players'])->filter(fn ($p): bool => empty($p['player_id']))->values()->all(),
                     ],
                     'preview' => ['rows' => $previews, 'evidence_ids' => array_values(array_unique($sources))],
-                ]);
+                ];
             } catch (ValidationException $exception) {
                 $warnings[] = 'No correction prepared for this game: '.collect($exception->errors())->flatten()->first();
             } catch (InvalidArgumentException $exception) {
@@ -133,7 +147,7 @@ final class AssistantProposals
             }
         }
 
-        return array_values(array_unique($warnings));
+        return ['proposals' => $prepared, 'warnings' => array_values(array_unique($warnings))];
     }
 
     /** @param array<string, mixed> $item
@@ -157,7 +171,7 @@ final class AssistantProposals
             'changes.player_updates.*.remove' => ['sometimes', 'boolean'],
             'changes.player_updates.*.create_player' => ['sometimes', 'boolean'],
             'changes.player_updates.*.ign' => ['sometimes', 'string', 'max:100'],
-            'changes.player_updates.*.clan_id' => ['sometimes', 'ulid'],
+            'changes.player_updates.*.clan_id' => ['sometimes', 'nullable', 'ulid'],
         ])->validate();
     }
 
@@ -193,8 +207,8 @@ final class AssistantProposals
                 }
                 $identities[] = $this->identity($player);
             } else {
-                if (! ($update['create_player'] ?? false) || ! isset($update['ign'], $update['clan_id']) || ! $clans->has($update['clan_id'])) {
-                    throw new InvalidArgumentException('An unresolved player needs an existing profile or an explicit new name and clan. Team totals can still be corrected separately.');
+                if (! ($update['create_player'] ?? false) || ! isset($update['ign']) || ! array_key_exists('clan_id', $update) || ($update['clan_id'] !== null && ! $clans->has($update['clan_id']))) {
+                    throw new InvalidArgumentException('An unresolved player needs an existing profile or an explicit new name (clan may be unknown). Team totals can still be corrected separately.');
                 }
                 $ign = ClanTag::strip(trim($update['ign']), $tags);
                 if ($ign === '' || PlayerNameSearch::key($ign) === '') {
@@ -285,56 +299,79 @@ final class AssistantProposals
             }
             abort_unless($proposal->status === 'pending', 409, 'This proposal is no longer pending. Ask the assistant for a fresh review.');
             if ($decision === 'accept') {
-                $match = CompetitionMatch::query()->lockForUpdate()->findOrFail($proposal->match_id);
-                abort_unless($match->day()->value('event_id') === $event->id, 404);
-                $current = $this->context->forMatch($match);
-                $payload = $proposal->payload;
-                abort_unless(hash_equals($payload['match_signature'], $current['signature']), 409, 'Results, scoring or slot assignments changed after this proposal. Ask the assistant to review the latest saved data before accepting.');
-                foreach ($payload['identities'] as $identity) {
-                    $player = Player::query()->lockForUpdate()->find($identity['id']);
-                    abort_unless($player !== null && $this->identity($player) === $identity, 409, 'A player profile changed after this proposal. Ask for a fresh review.');
-                }
-                $clans = Clan::query()->get(['id', 'tag', 'tags'])->keyBy('id');
-                $tags = $clans->flatMap(fn ($clan): array => $clan->tagList())->all();
-                foreach ($payload['new_players'] ?? [] as $newPlayer) {
-                    abort_unless($clans->has($newPlayer['clan_id']) && ClanTag::strip($newPlayer['ign'], $tags) === $newPlayer['ign'], 409, 'The new player’s clan or name interpretation changed. Ask for a fresh review.');
-                    $existing = Player::query()->where('clan_id', $newPlayer['clan_id'])->where('status', 'active')->lockForUpdate()->get()
-                        ->contains(fn ($p): bool => PlayerNameSearch::key(ClanTag::strip($p->current_ign, $tags)) === PlayerNameSearch::key($newPlayer['ign']));
-                    abort_if($existing, 409, 'A matching player profile was created after this proposal. Ask the assistant to reuse the existing profile.');
-                }
-                $rows = $payload['rows'];
-                $createdPlayerIds = [];
-                foreach ($rows as $rowIndex => $row) {
-                    foreach ($row['players'] as $playerIndex => $participant) {
-                        if (! empty($participant['player_id'])) {
-                            continue;
-                        }
-                        $player = Player::query()->create([
-                            'clan_id' => $participant['clan_id'],
-                            'current_ign' => $participant['ign'],
-                            'status' => 'active',
-                        ]);
-                        $createdPlayerIds[] = $player->id;
-                        $rows[$rowIndex]['players'][$playerIndex] = [
-                            'player_id' => $player->id,
-                            'kills' => $participant['kills'] ?? null,
-                        ];
-                    }
-                }
-                $result = $this->save->handle(
-                    $actor, $match, $rows, checkVersion: true, expectedLockVersion: $payload['expected_lock_version'],
-                    checkScoringVersion: true, expectedScoringVersionId: $payload['expected_scoring_version_id'], patchMode: true,
-                );
-                AuditLog::query()->create([
-                    'actor_user_id' => $actor->id, 'action' => 'assistant.result_correction.accepted',
-                    'entity_type' => 'match', 'entity_id' => $match->id,
-                    'before_data' => ['proposal_id' => $proposal->id, 'rows' => array_column($proposal->preview['rows'], 'before')],
-                    'after_data' => ['proposal_id' => $proposal->id, 'revision_id' => $result->id, 'lock_version' => $result->lock_version, 'rows' => array_column($proposal->preview['rows'], 'after'), 'evidence_ids' => $proposal->preview['evidence_ids'], 'created_player_ids' => $createdPlayerIds],
-                    'reason' => $proposal->reason, 'occurred_at' => now(),
-                ]);
+                $created = [];
+                $this->applyPrepared($actor, $event, $proposal, $created);
             }
             $proposal->forceFill(['status' => $status, 'decided_at' => now()])->save();
             $thread->touch();
         });
+    }
+
+    /** Called inside an authorized transaction; $created is shared only within one accepted batch.
+     * @param  array<string, string>  $created
+     */
+    public function applyPrepared(User $actor, CompetitionEvent $event, AssistantProposal $proposal, array &$created): void
+    {
+        $match = CompetitionMatch::query()->lockForUpdate()->findOrFail($proposal->match_id);
+        abort_unless($match->day()->value('event_id') === $event->id, 404);
+        $current = $this->context->forMatch($match);
+        $payload = $proposal->payload;
+        abort_unless(hash_equals($payload['match_signature'], $current['signature']), 409, 'Results, scoring or slot assignments changed after this proposal. Ask the assistant to review the latest saved data before accepting.');
+        foreach ($payload['identities'] as $identity) {
+            $player = Player::query()->lockForUpdate()->find($identity['id']);
+            abort_unless($player !== null && $this->identity($player) === $identity, 409, 'A player profile changed after this proposal. Ask for a fresh review.');
+        }
+        $clans = Clan::query()->get(['id', 'tag', 'tags'])->keyBy('id');
+        $tags = $clans->flatMap(fn ($clan): array => $clan->tagList())->all();
+        foreach ($payload['new_players'] ?? [] as $newPlayer) {
+            abort_unless(($newPlayer['clan_id'] === null || $clans->has($newPlayer['clan_id'])) && ClanTag::strip($newPlayer['ign'], $tags) === $newPlayer['ign'], 409, 'The new player’s clan or name interpretation changed. Ask for a fresh review.');
+            if (isset($created[$this->newPlayerKey($newPlayer)])) {
+                continue;
+            }
+            $existing = Player::query()->where('clan_id', $newPlayer['clan_id'])->where('status', 'active')->lockForUpdate()->get()
+                ->contains(fn ($p): bool => PlayerNameSearch::key(ClanTag::strip($p->current_ign, $tags)) === PlayerNameSearch::key($newPlayer['ign']));
+            abort_if($existing, 409, 'A matching player profile was created after this proposal. Ask the assistant to reuse the existing profile.');
+        }
+        $rows = $payload['rows'];
+        $createdPlayerIds = [];
+        foreach ($rows as $rowIndex => $row) {
+            foreach ($row['players'] as $playerIndex => $participant) {
+                if (! empty($participant['player_id'])) {
+                    continue;
+                }
+                $key = $this->newPlayerKey($participant);
+                $player = isset($created[$key]) ? Player::query()->findOrFail($created[$key]) : Player::query()->create([
+                    'clan_id' => $participant['clan_id'],
+                    'current_ign' => $participant['ign'],
+                    'status' => 'active',
+                ]);
+                if (! isset($created[$key])) {
+                    $createdPlayerIds[] = $player->id;
+                    $created[$key] = $player->id;
+                }
+                $rows[$rowIndex]['players'][$playerIndex] = [
+                    'player_id' => $player->id,
+                    'kills' => $participant['kills'] ?? null,
+                ];
+            }
+        }
+        $result = $this->save->handle(
+            $actor, $match, $rows, checkVersion: true, expectedLockVersion: $payload['expected_lock_version'],
+            checkScoringVersion: true, expectedScoringVersionId: $payload['expected_scoring_version_id'], patchMode: true,
+        );
+        AuditLog::query()->create([
+            'actor_user_id' => $actor->id, 'action' => 'assistant.result_correction.accepted',
+            'entity_type' => 'match', 'entity_id' => $match->id,
+            'before_data' => ['proposal_id' => $proposal->id, 'rows' => array_column($proposal->preview['rows'], 'before')],
+            'after_data' => ['proposal_id' => $proposal->id, 'revision_id' => $result->id, 'lock_version' => $result->lock_version, 'rows' => array_column($proposal->preview['rows'], 'after'), 'evidence_ids' => $proposal->preview['evidence_ids'], 'created_player_ids' => $createdPlayerIds],
+            'reason' => $proposal->reason, 'occurred_at' => now(),
+        ]);
+
+    }
+
+    /** @param array<string, mixed> $player */
+    private function newPlayerKey(array $player): string
+    {
+        return ($player['clan_id'] ?? '').':'.PlayerNameSearch::key($player['ign']);
     }
 }

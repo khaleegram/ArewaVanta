@@ -6,6 +6,7 @@ use App\Domain\Competition\ResultPermissions;
 use App\Domain\Competition\ScreenshotImport\ScreenshotImportFailed;
 use App\Models\AssistantMessage;
 use App\Models\AssistantThread;
+use App\Models\CompetitionEvent;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ final class ConverseWithAssistant
         private readonly DeepSeekOrganizerAssistant $ai,
         private readonly AssistantProposals $proposals,
         private readonly ReadAssistantCsv $csv,
+        private readonly AssistantCsvImports $imports,
     ) {}
 
     /** @param array<string, mixed> $input */
@@ -41,7 +43,7 @@ final class ConverseWithAssistant
             $csvEvidence = $evidence->where('mime', 'text/csv');
             $selectedCsv = $csvEvidence->whereIn('id', $readIds);
             $csvTables = ($selectedCsv->isNotEmpty() ? $selectedCsv : $csvEvidence->take(-1))->pluck('observations')->all();
-            $context = $this->context->forEvent($thread->event, $message->details['match_id'], $csvTables);
+            $context = $this->context->forEvent($thread->event, $message->details['match_id'], $csvTables, $actor);
             $context['proposal_decisions'] = $thread->proposals()->reorder()->orderByDesc('id')->limit(24)->get()
                 ->map(fn ($p): array => ['id' => $p->id, 'title' => $p->title, 'status' => $p->status, 'reason' => $p->reason])->all();
             $context['requested_evidence_ids'] = $readIds;
@@ -57,7 +59,7 @@ final class ConverseWithAssistant
             if (is_array($answer['lookups'] ?? null) && $answer['lookups'] !== []) {
                 abort_unless($this->permissions->canManage($actor, $thread->event), 403);
                 $firstPass = $answer;
-                $context = $this->context->lookUp($thread->event, $context, $answer['lookups']);
+                $context = $this->context->lookUp($thread->event, $context, $answer['lookups'], $actor, $csvTables);
                 $context['first_pass_evidence_reads'] = $firstPass['evidence_reads'] ?? [];
                 $answer = $this->ai->respond($context, $history, $evidence->map(fn ($e): array => [
                     'id' => $e->id, 'name' => $e->name, 'mime' => $e->mime, 'observations' => $e->observations,
@@ -69,13 +71,19 @@ final class ConverseWithAssistant
                 $locked = AssistantThread::query()->lockForUpdate()->findOrFail($thread->id);
                 abort_unless($locked->processing_token === $token, 409, 'A newer review replaced this request. Reload the chat.');
                 abort_unless($this->permissions->canManage($actor, $locked->event), 403);
+                if ($context['event']['id'] !== $locked->event_id) {
+                    $target = CompetitionEvent::query()->findOrFail($context['event']['id']);
+                    abort_unless($this->permissions->canManage($actor, $target), 403);
+                    $locked->event_id = $target->id;
+                    $locked->setRelation('event', $target);
+                }
                 $warnings = $this->saveReads($locked, $answer['evidence_reads'] ?? [], $imageReadIds);
                 if (is_array($answer['lookups'] ?? null) && $answer['lookups'] !== []) {
                     $warnings[] = 'Further information is still needed. Select the specific game or supply the missing player name in a follow-up.';
                 }
                 $evidenceIds = $locked->evidence()->pluck('id')->all();
                 $findings = $this->findings($answer['findings'] ?? [], $evidenceIds);
-                $locked->proposals()->where('status', 'pending')->update(['status' => 'superseded', 'updated_at' => now()]);
+                $previousProposals = $locked->proposals()->where('status', 'pending')->pluck('id');
                 $response = $locked->messages()->create([
                     'role' => 'assistant', 'status' => 'completed', 'content' => mb_substr(trim($answer['reply']), 0, 16000),
                     'details' => [
@@ -83,7 +91,14 @@ final class ConverseWithAssistant
                         'findings' => $findings, 'model' => $answer['model'], 'warnings' => $warnings,
                     ],
                 ]);
-                $warnings = [...$warnings, ...$this->proposals->prepare($locked, $response, $answer['corrections'] ?? [], $context)];
+                if (! empty($answer['csv_imports'])) {
+                    $warnings = [...$warnings, ...$this->imports->prepare($actor, $locked, $response, $answer['csv_imports'], $context)];
+                } else {
+                    $warnings = [...$warnings, ...$this->proposals->prepare($locked, $response, $answer['corrections'] ?? [], $context)];
+                }
+                if ($locked->proposals()->where('message_id', $response->id)->exists() || $context['event']['id'] !== $thread->event_id) {
+                    $locked->proposals()->whereIn('id', $previousProposals)->update(['status' => 'superseded', 'updated_at' => now()]);
+                }
                 $response->update(['details' => [...$response->details, 'warnings' => $warnings]]);
                 $message->update(['status' => 'completed']);
                 $locked->forceFill(['processing_token' => null, 'processing_started_at' => null])->save();

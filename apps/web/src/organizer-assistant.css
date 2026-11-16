@@ -114,3 +114,17 @@
   .assistant-dialog .assistant-proposal-actions { bottom: -16px; }
   .assistant-dialog .assistant-proposal-actions button { width: 100%; }
 }
+.assistant-destination { display: grid; gap: 5px; padding: 14px 16px; margin: 0 0 20px; border-left: 4px solid #27563e; background: #eaf0e5; }
+.assistant-destination > span { font-size: .75rem; color: #536849; }
+.assistant-destination > strong { font-size: 1rem; }
+.assistant-destination > small { font-size: .76rem; line-height: 1.5; color: #536849; }
+.assistant-import-review { font-size: .87rem; line-height: 1.6; }
+.assistant-import-review h4 { margin: 0 0 8px; font-size: .87rem; }
+.assistant-import-review ul { padding-left: 20px; }
+.assistant-import-review li { padding: 5px 0; overflow-wrap: anywhere; }
+.assistant-import-slots { background: #eaf0e5; padding: 14px; border-radius: 7px; margin: 14px 0; }
+.assistant-import-slots p { margin: 5px 0; }
+.assistant-import-games > details, .assistant-import-issues { border-top: 1px solid #c7d4c0; }
+.assistant-import-games summary { line-height: 1.5; }
+.assistant-import-games summary small { display: block; color: #58685a; font-weight: 400; margin-top: 3px; }
+.assistant-import-issues { color: #724221; }

@@ -13,6 +13,9 @@ const explain = (error: unknown) => error instanceof ApiError
   : error instanceof Error ? error.message : "Could not complete that request. Please try again.";
 const unknown = (value: number | string | null | undefined) => value ?? "Unknown";
 const isCsvUpload = (file: File) => /\.csv$/i.test(file.name);
+function openReviewDestination(data: AssistantThread) {
+  location.replace(`/manage/competitions/${encodeURIComponent(data.event_id)}/assistant?thread=${encodeURIComponent(data.id)}`);
+}
 
 export default function OrganizerAssistant({ eventId }: { eventId: string }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -80,7 +83,7 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
     const version = dataVersion.current;
     setOpening(true);
     api.assistantThread(token, threadId, controller.signal).then(({ data }) => {
-      if (data.event_id !== eventId) throw new Error("This chat belongs to another competition. Choose a review from this competition.");
+      if (data.event_id !== eventId) { openReviewDestination(data); return; }
       if (version === dataVersion.current) setThread(data);
     }).catch((e) => { if (!controller.signal.aborted) { setThread(null); setError(explain(e)); } })
       .finally(() => { if (!controller.signal.aborted) setOpening(false); });
@@ -127,6 +130,7 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
     setThreadId(id || null); updateUrl(id || null);
   }
   function remember(data: AssistantThread) {
+    if (data.event_id !== eventId) { openReviewDestination(data); return; }
     dataVersion.current++;
     setThread(data);
     setThreads((old) => [{ id: data.id, title: data.title, updated_at: new Date().toISOString() }, ...old.filter((item) => item.id !== data.id)]);
@@ -199,6 +203,7 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
       <div><p className="assistant-eyebrow">ORGANIZER ASSISTANT</p><h1>Review it together<span>.</span></h1><p>Describe the issue. Add proof. Review a ruling and accept exact corrections.</p></div>
       <a href={`${matchLink}${matchId ? `?match=${encodeURIComponent(matchId)}` : ""}`} target="_blank" rel="noreferrer">Open Match desk ↗</a>
     </header>
+    <p className="assistant-destination"><span>Score destination</span><strong>{(event.days ?? []).map((day) => formatDate(day.date)).join(" / ")}</strong><small>Tell the assistant if this review belongs to another weekend. Your files stay with the review.</small></p>
     <div className="assistant-controls">
       <label>Review<select value={threadId ?? ""} disabled={blocked} onChange={(e) => chooseThread(e.target.value)}><option value="">New review</option>{threadId && !threads.some((item) => item.id === threadId) && <option value={threadId}>{thread?.title || "Linked review"}</option>}{threads.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
       <label>Game context<select value={validMatch ? matchId : ""} disabled={blocked} onChange={(e) => { setMatchId(e.target.value); updateUrl(threadId, e.target.value); }}><option value="">Compare this competition</option>{matches.map((match) => <option key={match.id} value={match.id}>{formatDate(match.date)} · G{match.match_index} · {match.map_label}</option>)}</select></label>
@@ -206,7 +211,7 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
     <p className="assistant-context-note">Reads saved results, assigned slots, scoring rules and player profiles. Reviews and proof stay saved to your account across devices. Unsaved Match desk drafts stay on that device.</p>
     {!validMatch && <p className="manage-error" role="alert">The linked game is not in this competition. Choose the correct game context.</p>}
     {opening ? <p className="manage-notice">Opening saved review…</p> : <div className="assistant-conversation" aria-label="Review conversation">
-      {!thread?.messages.length && <section className="assistant-welcome"><h2>What needs checking?</h2><p>Upload a weekly CSV or screenshots to check scores, players and slots against saved results.</p><div className="assistant-welcome-actions"><button type="button" disabled={blocked} onClick={() => { setText("These players dispute their individual and team kills. Compare the attached proof with saved results, explain any differences and propose the supported corrections. Ask me about any uncertain game or slot."); composer.current?.focus(); }}>Review a score dispute</button><button type="button" disabled={blocked} onClick={() => { setText("Review this week's scores in the attached CSV against the competition's saved results and any attached screenshots. Check game and slot mappings, duplicates, player and team kills, and scoring. Show the differences and propose supported corrections. Ask me about any uncertain game, column or slot; do not reconstruct individual games from weekly totals."); composer.current?.focus(); }}>Review weekly CSV</button></div></section>}
+      {!thread?.messages.length && <section className="assistant-welcome"><h2>What needs checking?</h2><p>Upload a weekly CSV or screenshots to check scores, players and slots against saved results.</p><div className="assistant-welcome-actions"><button type="button" disabled={blocked} onClick={() => { setText("These players dispute their individual and team kills. Compare the attached proof with saved results, explain any differences and propose the supported corrections. Ask me about any uncertain game or slot."); composer.current?.focus(); }}>Review a score dispute</button><button type="button" disabled={blocked} onClick={() => { setText(`Prepare an import of the attached CSV into the games on ${(event.days ?? []).map((day) => day.date).join(" and ")}. Check game/slot mappings, duplicates and player/team kills. Search the full directory, reuse existing players and propose profiles for genuinely missing players. Preserve known team totals and leave uncertain details unknown. Show one review of all supported games for my acceptance.`); composer.current?.focus(); }}>Enter weekly CSV</button></div></section>}
       {thread?.messages.map((message) => <article className={`assistant-message assistant-message-${message.role}`} id={`assistant-turn-${message.id}`} key={message.id}>
         <p className="assistant-message-author">{message.role === "user" ? "You" : "Assistant"}</p>
         <div className="assistant-message-text">{message.content}</div>
@@ -237,11 +242,24 @@ function ProposalCard({ proposal, disabled, proofButtons, onAccept, onReject, re
   return <section className={`assistant-proposal is-${proposal.status}`} aria-label="Proposed result correction">
     <div className="assistant-proposal-heading"><h3>{proposal.title}</h3><span>{pending ? "Awaiting your acceptance" : proposal.status === "accepted" ? "Accepted & saved" : proposal.status === "superseded" ? "Replaced by a newer review" : "Rejected"}</span></div>
     <p className="assistant-message-text">{proposal.reason}</p>
-    {pending ? <ScoreChanges proposal={proposal} /> : <details><summary>View proposed changes</summary><ScoreChanges proposal={proposal} /></details>}
+    {proposal.preview.kind === "csv_import" ? <CsvImportChanges proposal={proposal} /> : pending ? <ScoreChanges proposal={proposal} /> : <details><summary>View proposed changes</summary><ScoreChanges proposal={proposal} /></details>}
     <div className="assistant-proof-links">{proofButtons(proposal.preview.evidence_ids)}</div>
-    {pending && <div className="assistant-proposal-actions"><button type="button" className="assistant-primary" disabled={disabled} onClick={onAccept}>Accept & update results</button><button type="button" disabled={disabled} onClick={onReject}>Reject</button></div>}
+    {pending && <div className="assistant-proposal-actions"><button type="button" className="assistant-primary" disabled={disabled} onClick={onAccept}>{proposal.preview.kind === "csv_import" ? `Accept & save ${proposal.preview.games?.length ?? 0} games` : "Accept & update results"}</button><button type="button" disabled={disabled} onClick={onReject}>Reject</button></div>}
     {proposal.status === "accepted" && <a href={resultUrl} target="_blank" rel="noreferrer">View updated results ↗</a>}
   </section>;
+}
+
+function CsvImportChanges({ proposal }: { proposal: AssistantProposal }) {
+  const preview = proposal.preview;
+  return <div className="assistant-import-review">
+    <p><strong>{preview.games?.length} games · {preview.team_count} team entries</strong><br />Known team totals stay intact while incomplete player details remain unattributed.</p>
+    {!!preview.slot_changes?.length && <section className="assistant-import-slots"><h4>Slot allocation changes included</h4>{preview.slot_changes.map((change) => <p key={change.slot}>Slot {change.slot}: <span>{change.before}</span> → <strong>{change.after}</strong></p>)}<small>Permanent allocation and these weekends: {preview.affected_weeks?.map((week) => formatDate(week.date)).join(", ")}. Other historical weekends stay as saved.</small></section>}
+    {!!preview.omitted_players?.length && <details className="assistant-import-issues"><summary>{preview.omitted_players.length} excluded or unresolved appearances · totals retained</summary><ul>{preview.omitted_players.map((player, index) => <li key={index}><strong>{player.name}</strong> · record {player.record}<br />{player.reason}</li>)}</ul></details>}
+    {!!preview.warnings?.length && <details className="assistant-import-issues"><summary>Review {preview.warnings.length} data warnings</summary>{preview.warnings.map((warning, index) => <p key={index}>{warning}</p>)}</details>}
+    {!!preview.new_players?.length && <details><summary>{preview.new_players.length} new player profiles proposed after directory search</summary><ul>{preview.new_players.map((player, index) => <li key={index}>{player.ign}{player.clan_id === null ? " · clan unknown" : ""}</li>)}</ul><p className="assistant-context-note">Created only when you accept. Existing players keep their permanent clan.</p></details>}
+    <div className="assistant-import-games">{preview.games?.map((game) => <details key={game.match_id}><summary>{game.title}<small>{game.rows.length} team changes · {game.rows.reduce((sum, row) => sum + (row.after.team_kills ?? 0), 0)} team kills</small></summary><ScoreChanges proposal={{ ...proposal, preview: { evidence_ids: preview.evidence_ids, rows: game.rows } }} /></details>)}</div>
+    <p className="assistant-context-note">Acceptance saves all changes shown here together. If another organizer has edited these games or slots since this review, refresh the proposal first.</p>
+  </div>;
 }
 
 function ScoreChanges({ proposal }: { proposal: AssistantProposal }) {

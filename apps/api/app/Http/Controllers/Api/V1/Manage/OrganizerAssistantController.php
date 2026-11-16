@@ -98,7 +98,7 @@ final class OrganizerAssistantController extends Controller
                 'observations' => $e->mime === 'text/csv' ? null : $e->observations,
                 'csv' => $e->mime === 'text/csv' ? $e->observations : null,
             ])->all(),
-            'proposals' => $thread->proposals->map(fn ($p): array => [
+            'proposals' => $thread->proposals->filter(fn ($p): bool => ! isset($p->payload['parent_id']))->values()->map(fn ($p): array => [
                 'id' => $p->id, 'message_id' => $p->message_id, 'match_id' => $p->match_id, 'status' => $p->status,
                 'title' => $p->title, 'reason' => $p->reason, 'preview' => $p->preview, 'decided_at' => $p->decided_at,
             ])->all(),

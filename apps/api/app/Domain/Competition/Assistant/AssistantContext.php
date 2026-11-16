@@ -4,17 +4,23 @@ namespace App\Domain\Competition\Assistant;
 
 use App\Domain\Competition\ClanTag;
 use App\Domain\Competition\PlayerNameSearch;
+use App\Domain\Competition\ResultPermissions;
+use App\Models\Clan;
 use App\Models\CompetitionEvent;
 use App\Models\CompetitionMatch;
 use App\Models\MatchResult;
 use App\Models\Player;
+use App\Models\User;
+use Carbon\CarbonImmutable;
 
 final class AssistantContext
 {
+    public function __construct(private readonly ResultPermissions $permissions) {}
+
     /** @param list<array<string, mixed>> $csvTables
      * @return array<string, mixed>
      */
-    public function forEvent(CompetitionEvent $event, ?string $focusMatchId, array $csvTables = []): array
+    public function forEvent(CompetitionEvent $event, ?string $focusMatchId, array $csvTables = [], ?User $actor = null): array
     {
         $event->load('days.matches');
         $schedule = $event->days->flatMap(fn ($day) => $day->matches->map(fn ($match): array => [
@@ -33,7 +39,17 @@ final class AssistantContext
         $players = Player::query()->where('status', 'active')->with(['clan:id,name,tag,tags', 'aliases:id,player_id,alias'])
             ->orderBy('current_ign')->orderBy('id')->limit(801)->get();
 
+        $today = CarbonImmutable::now($event->timezone ?: config('app.timezone'));
+        $weekends = $actor === null ? collect() : CompetitionEvent::query()
+            ->when($event->series_id !== null, fn ($query) => $query->where('series_id', $event->series_id), fn ($query) => $query->whereKey($event->id))
+            ->with('days.matches')->orderByDesc('series_week_date')->limit(24)->get()
+            ->filter(fn ($week): bool => $this->permissions->canManage($actor, $week))
+            ->map(fn ($week): array => ['id' => $week->id, 'title' => $week->title, 'dates' => $week->days->pluck('event_date')->map(fn ($date): string => $date->toDateString())->all()])->values();
+
         return [
+            'clock' => ['now' => $today->toIso8601String(), 'today' => $today->toDateString(), 'timezone' => $today->timezoneName],
+            'managed_competitions' => $weekends->all(),
+            'clans' => Clan::query()->orderBy('name')->get(['id', 'name', 'tag', 'tags'])->toArray(),
             'event' => ['id' => $event->id, 'title' => $event->title, 'description' => $event->description, 'timezone' => $event->timezone, 'squad_size' => $event->squad_size],
             'focus_match_id' => $focusMatchId,
             'lookups_remaining' => 1,
@@ -47,7 +63,7 @@ final class AssistantContext
                 'csv_match_ids_not_loaded' => array_values(array_diff($csvMatchIds, $selected->all())),
             ],
             'published_rules' => json_decode((string) file_get_contents(resource_path('data/scrim-rules.json')), true, flags: JSON_THROW_ON_ERROR),
-            'capabilities' => ['read_saved_results', 'read_slots', 'read_scoring_rules', 'read_player_directory', 'review_image_evidence', 'review_csv_evidence', 'propose_result_corrections'],
+            'capabilities' => ['read_saved_results', 'read_slots', 'read_scoring_rules', 'read_player_directory', 'review_image_evidence', 'review_csv_evidence', 'select_managed_weekend', 'propose_result_corrections', 'propose_csv_import_with_player_creation_and_slot_changes'],
         ];
     }
 
@@ -116,8 +132,25 @@ final class AssistantContext
      * @param  array<string, mixed>  $context
      * @return array<string, mixed>
      */
-    public function lookUp(CompetitionEvent $event, array $context, mixed $requests): array
+    public function lookUp(CompetitionEvent $event, array $context, mixed $requests, ?User $actor = null, array $csvTables = []): array
     {
+        foreach (is_array($requests) ? array_slice($requests, 0, 4) : [] as $request) {
+            if (! is_array($request) || ($request['type'] ?? null) !== 'competition' || $actor === null) {
+                continue;
+            }
+            $allowed = array_column($context['managed_competitions'] ?? [], 'id');
+            if (in_array($request['event_id'] ?? null, $allowed, true)) {
+                $target = CompetitionEvent::query()->find($request['event_id']);
+                if ($target !== null && $this->permissions->canManage($actor, $target)) {
+                    $event = $target;
+                    $previous = $context;
+                    $context = $this->forEvent($target, null, $csvTables, $actor);
+                    foreach (['requested_evidence_ids', 'proposal_decisions'] as $key) {
+                        $context[$key] = $previous[$key] ?? [];
+                    }
+                }
+            }
+        }
         $results = [];
         $matches = collect($context['matches'])->keyBy('id');
         $players = collect($context['players'])->keyBy('id');

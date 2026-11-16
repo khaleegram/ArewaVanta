@@ -23,7 +23,15 @@ export type AssistantProposal = {
   reason: string;
   status: "pending" | "accepted" | "rejected" | "superseded";
   preview: {
+    kind?: "csv_import";
     evidence_ids: string[];
+    games?: { match_id: string; title: string; rows: AssistantProposal["preview"]["rows"] }[];
+    slot_changes?: { slot: number; before: string; after: string }[];
+    affected_weeks?: { id: string; date: string }[];
+    new_players?: { ign: string; clan_id: string | null }[];
+    omitted_players?: { record: number; name: string; reason: string }[];
+    warnings?: string[];
+    team_count?: number;
     rows: {
       squad_id: string;
       clan: string;
