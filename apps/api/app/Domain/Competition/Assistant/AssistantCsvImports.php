@@ -165,6 +165,41 @@ final class AssistantCsvImports
                     unset($group);
                 }
             }
+            $proposedClans = [];
+            foreach ($groups as $group) {
+                foreach ($group['players'] as $appearances) {
+                    foreach ($appearances as $player) {
+                        if (($player['create_player'] ?? false) && $player['clan_id'] !== null) {
+                            $proposedClans[PlayerNameSearch::key($player['ign'])][$player['clan_id']] = true;
+                        }
+                    }
+                }
+            }
+            foreach ($groups as &$group) {
+                $merged = [];
+                foreach ($group['players'] as $identity => $appearances) {
+                    foreach ($appearances as $player) {
+                        if (($player['create_player'] ?? false) && $player['clan_id'] === null) {
+                            $clans = array_keys($proposedClans[PlayerNameSearch::key($player['ign'])] ?? []);
+                            if (count($clans) === 1) {
+                                $player['clan_id'] = $clans[0];
+                                $identity = 'new:'.$clans[0].':'.PlayerNameSearch::key($player['ign']);
+                            } elseif (count($clans) > 1) {
+                                $omitted[] = ['record' => $player['record'], 'name' => $player['source_name'], 'reason' => 'This new name occurs with multiple clan tags. Untagged appearance left unresolved; team total retained.'];
+
+                                continue;
+                            }
+                        }
+                        if (collect($action['exclude_players'] ?? [])->contains(fn ($rule): bool => $rule['slot_owner_clan_id'] === $group['entry']['clan_id'] && $rule['player_clan_id'] === $player['clan_id'])) {
+                            $omitted[] = ['record' => $player['record'], 'name' => $player['source_name'], 'reason' => 'Individual stats excluded by organizer instruction; team total retained.'];
+                            continue;
+                        }
+                        $merged[$identity][] = $player;
+                    }
+                }
+                $group['players'] = $merged;
+            }
+            unset($group);
             $seen = [];
             foreach ($groups as $key => $group) {
                 foreach ($group['players'] as $identity => $appearances) {
