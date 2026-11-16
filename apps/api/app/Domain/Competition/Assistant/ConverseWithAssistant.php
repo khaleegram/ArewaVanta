@@ -56,6 +56,7 @@ final class ConverseWithAssistant
             $latestCsv = $previous->first(fn ($p): bool => ($p->payload['kind'] ?? '') === 'csv_import');
             if ($latestCsv !== null) {
                 $context['proposed_player_reviews'] = $this->directory->reviewProposed($latestCsv->preview['new_players'] ?? []);
+                $context['latest_csv_import_policy'] = $latestCsv->payload['import_action'] ?? null;
             }
             $context['requested_evidence_ids'] = $readIds;
             $images = $evidence->whereIn('id', $readIds)->filter(fn ($item): bool => $item->mime !== 'text/csv')->values()->all();
