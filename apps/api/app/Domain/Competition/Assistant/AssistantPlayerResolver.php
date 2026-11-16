@@ -98,7 +98,7 @@ final class AssistantPlayerResolver
         if ($standard['tag'] !== null) {
             return ['name' => $standard['name'], 'clan_id' => $this->tagClans[PlayerNameSearch::key($standard['tag'])] ?? null];
         }
-        $separators = '\\s"“”\\[\\](){}|丨·・･•∙⋅:;\\/\\\\\\-–—_~.✝†〆メ乂ヤャ×';
+        $separators = '\\s"“”\\[\\](){}|丨·・･•∙⋅:;\\/\\\\\\-–—_~.✝†〆メ乂ヤャ×*';
         for ($length = min(12, mb_strlen($literal) - 1); $length > 0; $length--) {
             $prefix = mb_substr($literal, 0, $length);
             $key = $this->prefixKey($prefix);
