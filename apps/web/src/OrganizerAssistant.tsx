@@ -31,6 +31,20 @@ function RichText({ text }: { text: string }) {
   flush();
   return <div className="assistant-message-text">{blocks}</div>;
 }
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { ref.current?.showModal(); }, []);
+  return <dialog className="chat-sheet" ref={ref} onClose={onClose} onClick={(e) => { if (e.target === ref.current) onClose(); }}><div className="chat-sheet-head"><h2>{title}</h2><button type="button" onClick={onClose} aria-label="Close">×</button></div>{children}</dialog>;
+}
+function DoneCard({ proposal, disabled, onUndo, resultUrl }: { proposal: AssistantProposal; disabled: boolean; onUndo: () => void; resultUrl: string }) {
+  const rows = proposal.preview.rows ?? [];
+  const label = { accepted: "Saved", rejected: "Discarded", superseded: "Replaced by a newer review", undone: "Undone", pending: "" }[proposal.status];
+  const quiet = proposal.status === "rejected" || proposal.status === "superseded";
+  return <section className={`done-card is-${proposal.status}`}><p><b>{proposal.status === "accepted" ? "✓ " : ""}{label}</b><span>{proposal.title.replace(/ · Isolated$/, "")}{quiet ? "" : ` · ${rows.length} teams`}</span></p>
+    {proposal.status === "accepted" && <div className="done-actions"><a href={resultUrl} target="_blank" rel="noreferrer">View results ↗</a><button type="button" disabled={disabled} onClick={onUndo}>Undo</button></div>}
+    {!quiet && !!rows.length && <details><summary>What changed</summary><ScoreChanges proposal={proposal} /></details>}
+  </section>;
+}
 function Summary({ text, clamp }: { text: string; clamp: boolean }) {
   const [open, setOpen] = useState(false);
   const long = clamp && text.length > 220;
@@ -127,6 +141,7 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [proof, setProof] = useState<AssistantEvidence | null>(null);
+  const [sheet, setSheet] = useState<"context" | "history" | null>(null);
   const [retry, setRetry] = useState(0);
   const composer = useRef<HTMLTextAreaElement>(null);
   const sending = useRef(false);
@@ -298,58 +313,76 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
 
   if (loading) return <p className="manage-notice">Loading organizer assistant…</p>;
   if (!event) return <p className="manage-error" role="alert">{error || "Could not load this competition."} <button onClick={() => setRetry((n) => n + 1)}>Retry</button></p>;
-  return <div className="assistant-page">
-    <a className="score-back" href={`/manage/competitions/${encodeURIComponent(eventId)}`}>← {event.title}</a>
-    <details className="assistant-context" open={!thread?.messages.length}>
-      <summary><span className="assistant-context-title">Assistant</span><span className="assistant-chip">{currentGame}</span><span className="assistant-chip">{thread?.title || "New review"}</span></summary>
-      <div className="assistant-controls">
-        <label>Review<select value={threadId ?? ""} disabled={blocked} onChange={(e) => chooseThread(e.target.value)}><option value="">New review</option>{threadId && !threads.some((item) => item.id === threadId) && <option value={threadId}>{thread?.title || "Linked review"}</option>}{threads.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
-        <label>Game<select value={validMatch ? matchId : ""} disabled={blocked} onChange={(e) => { setMatchId(e.target.value); updateUrl(threadId, e.target.value); }}><option value="">Compare this competition</option>{matches.map((match) => <option key={match.id} value={match.id}>{formatDate(match.date)} · G{match.match_index} · {match.map_label}</option>)}</select></label>
+  const hasMessages = !!thread?.messages.length;
+  const working = busy || !!thread?.processing;
+  const quick: [string, string][] = files.length
+    ? [["Enter these results", "Enter these results for the selected game."], ["Only check them", "Compare these with the saved results and tell me what differs. Do not prepare changes yet."]]
+    : [["Enter results", "Extract and enter the results for the selected game."], ["Check slots", "Check that every team in the selected game is in the right slot and tell me anything off."], ["Dispute", "These players dispute their kills. Compare the proof with the saved results and propose the supported corrections."]];
+  function quickSend(message: string) {
+    if (files.length) void send({ client_id: crypto.randomUUID(), message, match_id: matchId || null, images: files.filter((file) => !isCsvUpload(file)), csv_files: files.filter(isCsvUpload) });
+    else { setText(message); composer.current?.focus(); }
+  }
+  return <div className="assistant-page chat-app">
+    <header className="chat-top">
+      <a className="chat-icon" href={`/manage/competitions/${encodeURIComponent(eventId)}`} aria-label={`Back to ${event.title}`}>←</a>
+      <button type="button" className="chat-title" onClick={() => setSheet("context")} aria-label="Change game"><strong>{thread?.title || "New review"}</strong><small>{currentGame} · {event.title}</small></button>
+      <button type="button" className="chat-icon" onClick={() => setSheet("history")} aria-label="Past reviews">☰</button>
+    </header>
+    {!validMatch && <p className="chat-banner is-error" role="alert">The linked game is not in this competition. Pick the game again.</p>}
+    <div className="chat-body">
+      <div className="chat-scroll">
+        {opening ? <p className="chat-hint">Opening review…</p> : <div className="chat-feed" aria-label="Conversation">
+          {!hasMessages && <div className="chat-row is-assistant"><div className="chat-bubble"><RichText text={`Hi. Send me the scoreboard screenshots or a CSV and say which game.\n\nI will read them, match every team to its slot and players, and show you a short review to approve. Nothing is saved until you tap Save.`} /></div></div>}
+          {thread?.messages.map((message) => {
+            const proposals = thread.proposals.filter((p) => p.message_id === message.id);
+            const assistant = message.role === "assistant";
+            const extras = (message.details?.findings?.length ?? 0) + (message.details?.warnings?.length ?? 0) + (message.details?.ruling ? 1 : 0);
+            const proofIds = message.details?.read_evidence_ids ?? [];
+            return <div className={`chat-row is-${message.role}`} id={`assistant-turn-${message.id}`} key={message.id}>
+              <div className="chat-bubble">
+                {assistant ? <Summary text={message.content} clamp={proposals.length > 0} /> : <div className="assistant-message-text">{message.content}</div>}
+                {!assistant && !!proofIds.length && <div className="chat-attached">{proofButtons(proofIds)}</div>}
+                {message.role === "user" && message.status !== "completed" && !thread.processing && <button type="button" className="chat-retry" disabled={blocked} onClick={() => retryMessage(message)}>Retry this message</button>}
+              </div>
+              {proposals.map((proposal) => proposal.preview.kind ? <ProposalCard key={proposal.id} proposal={proposal} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onUndo={() => void decide(proposal, "undo")} onEdit={(edits) => void edit(proposal, edits)} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />
+                : proposal.status === "pending"
+                  ? <ReviewSheet key={proposal.id} proposal={proposal} issues={message.details?.issues ?? []} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onEdit={(edits) => void edit(proposal, edits)} onAsk={(question) => void send({ client_id: crypto.randomUUID(), message: question, match_id: matchId || null })} onWrite={(value) => { setText(value); composer.current?.focus(); }} />
+                  : <DoneCard key={proposal.id} proposal={proposal} disabled={blocked} onUndo={() => void decide(proposal, "undo")} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />)}
+              {assistant && (extras > 0 || !!proofIds.length) && <details className="chat-more"><summary>Details{extras ? ` · ${extras}` : ""}</summary>
+                {!!proofIds.length && <div className="assistant-proof-links">{proofButtons(proofIds)}</div>}
+                {!!message.details?.duplicate_uploads?.length && <p className="assistant-context-note">Repeated uploads count once: {message.details.duplicate_uploads.join(", ")}.</p>}
+                {message.details?.ruling && <section className="assistant-ruling"><h3>Suggested ruling</h3><p>{message.details.ruling}</p></section>}
+                {!!message.details?.findings?.length && <ul className="assistant-findings-list">{[...message.details.findings].sort((a, b) => Number(b.kind === "unresolved") - Number(a.kind === "unresolved")).map((finding, index) => <li key={index}><span className={`assistant-finding-kind is-${finding.kind}`}>{finding.kind === "observed" ? "Seen" : finding.kind === "inferred" ? "Inferred" : "Needs a decision"}</span><p>{finding.text}</p><div className="assistant-proof-links">{proofButtons(finding.evidence_ids)}</div></li>)}</ul>}
+                {!!message.details?.warnings?.length && <ul className="assistant-findings-list">{message.details.warnings.map((warning, index) => <li key={index}><p>{warning}</p></li>)}</ul>}
+              </details>}
+            </div>;
+          })}
+          {working && <div className="chat-row is-assistant"><div className="chat-bubble"><Working /></div></div>}
+          <div ref={endMarker} aria-hidden="true" className="assistant-end" />
+        </div>}
       </div>
-      <p className="assistant-context-note">Scores go to {(event.days ?? []).map((day) => formatDate(day.date)).join(" / ")}. Name another game in your message and I will use that instead. Reviews and proof stay saved to your account. <a href={`${matchLink}${matchId ? `?match=${encodeURIComponent(matchId)}` : ""}`} target="_blank" rel="noreferrer">Open Match desk ↗</a></p>
-    </details>
-    {!validMatch && <p className="manage-error" role="alert">The linked game is not in this competition. Choose the correct game context.</p>}
-    {opening ? <p className="manage-notice">Opening saved review…</p> : <div className="assistant-conversation" aria-label="Review conversation">
-      {!thread?.messages.length && <section className="assistant-welcome"><h2>What needs checking?</h2><p>Upload a weekly CSV or screenshots to check scores, players and slots against saved results.</p><div className="assistant-welcome-actions"><button type="button" disabled={blocked} onClick={() => { setText("These players dispute their individual and team kills. Compare the attached proof with saved results, explain any differences and propose the supported corrections. Ask me about any uncertain game or slot."); composer.current?.focus(); }}>Review a score dispute</button><button type="button" disabled={blocked} onClick={() => { setText(`Prepare an import of the attached CSV into the games on ${(event.days ?? []).map((day) => day.date).join(" and ")}. Check game/slot mappings, duplicates and player/team kills. Search the full directory, reuse existing players and propose profiles for genuinely missing players. Preserve known team totals and leave uncertain details unknown. Show one review of all supported games for my acceptance.`); composer.current?.focus(); }}>Enter weekly CSV</button></div></section>}
-      {thread?.messages.map((message) => {
-        const proposals = thread.proposals.filter((p) => p.message_id === message.id);
-        const assistant = message.role === "assistant";
-        const extras = (message.details?.findings?.length ?? 0) + (message.details?.warnings?.length ?? 0) + (message.details?.ruling ? 1 : 0);
-        const hasProof = !!message.details?.read_evidence_ids?.length || !!message.details?.duplicate_uploads?.length;
-        return <article className={`assistant-message assistant-message-${message.role}`} id={`assistant-turn-${message.id}`} key={message.id}>
-          <p className="assistant-message-author">{assistant ? "Assistant" : "You"}</p>
-          {assistant ? <Summary text={message.content} clamp={proposals.length > 0} /> : <div className="assistant-message-text">{message.content}</div>}
-          {!assistant && !!message.details?.read_evidence_ids?.length && <div className="assistant-proof-links">{proofButtons(message.details.read_evidence_ids)}</div>}
-          {proposals.map((proposal) => proposal.status === "pending" && !proposal.preview.kind
-            ? <ReviewSheet key={proposal.id} proposal={proposal} issues={message.details?.issues ?? []} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onEdit={(edits) => void edit(proposal, edits)} onAsk={(question) => void send({ client_id: crypto.randomUUID(), message: question, match_id: matchId || null })} onWrite={(value) => { setText(value); composer.current?.focus(); }} />
-            : <ProposalCard key={proposal.id} proposal={proposal} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onUndo={() => void decide(proposal, "undo")} onEdit={(edits) => void edit(proposal, edits)} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />)}
-          {assistant && (extras > 0 || hasProof) && <details className="assistant-more"><summary>Notes and proof{extras ? ` · ${extras}` : ""}</summary>
-            {!!message.details?.read_evidence_ids?.length && <div className="assistant-proof-links">{proofButtons(message.details.read_evidence_ids)}</div>}
-            {!!message.details?.duplicate_uploads?.length && <p className="assistant-context-note">Repeated uploads linked to the same saved proof: {message.details.duplicate_uploads.join(", ")}. They count once.</p>}
-            {message.details?.ruling && <section className="assistant-ruling"><h3>Suggested ruling</h3><p>{message.details.ruling}</p></section>}
-            {!!message.details?.findings?.length && <ul className="assistant-findings-list">{[...message.details.findings].sort((a, b) => Number(b.kind === "unresolved") - Number(a.kind === "unresolved")).map((finding, index) => <li key={index}><span className={`assistant-finding-kind is-${finding.kind}`}>{finding.kind === "observed" ? "Seen" : finding.kind === "inferred" ? "Inferred" : "Needs a decision"}</span><p>{finding.text}</p><div className="assistant-proof-links">{proofButtons(finding.evidence_ids)}</div></li>)}</ul>}
-            {!!message.details?.warnings?.length && <ul className="assistant-findings-list">{message.details.warnings.map((warning, index) => <li key={index}><p>{warning}</p></li>)}</ul>}
-          </details>}
-          {message.role === "user" && message.status !== "completed" && !thread.processing && <button type="button" disabled={blocked} onClick={() => retryMessage(message)}>Retry this saved message</button>}
-        </article>;
-      })}
-      {(busy || thread?.processing) && <Working />}
-    </div>}
-    <div ref={endMarker} aria-hidden="true" className="assistant-end" />
-    {!atEnd && !opening && !!thread?.messages.length && <button type="button" className="assistant-jump" onClick={() => scrollToLatest()} aria-label="Jump to the latest message">↓<span>Latest</span></button>}
-    {notice && <p className="assistant-notice" role="status">{notice}</p>}
-    {error && <p className="assistant-warning" role="alert">{error}</p>}
-    <form className="assistant-composer" onSubmit={submit} aria-label="Message the organizer assistant">
-      {!!pendingProposals.length && <button type="button" className="assistant-pending-bar" onClick={() => document.getElementById(`assistant-proposal-${pendingProposals.at(-1)!.id}`)?.scrollIntoView({ block: "start", behavior: reduceMotion() ? "instant" : "smooth" })}><strong>{pendingProposals.length}</strong> {pendingProposals.length === 1 ? "review is" : "reviews are"} waiting for your decision <span>Review ↑</span></button>}
+      {!atEnd && !opening && hasMessages && <button type="button" className="assistant-jump" onClick={() => scrollToLatest()} aria-label="Jump to the latest message">↓</button>}
+    </div>
+    {(notice || error) && <p className={`chat-banner${error ? " is-error" : ""}`} role={error ? "alert" : "status"}>{error || notice}<button type="button" aria-label="Dismiss" onClick={() => { setError(""); setNotice(""); }}>×</button></p>}
+    <form className="assistant-composer chat-composer" onSubmit={submit} aria-label="Message the organizer assistant">
+      {!working && <div className="chat-quick" role="group" aria-label="Suggestions">{quick.map(([label, message]) => <button type="button" key={label} disabled={blocked} onClick={() => quickSend(message)}>{label}</button>)}</div>}
       {!!files.length && <ul className="assistant-attachments">{files.map((file, index) => <Attachment key={`${file.name}:${index}`} file={file} disabled={blocked} onRemove={() => setFiles((old) => old.filter((_, i) => i !== index))} />)}</ul>}
       <div className="assistant-composer-row">
         <label className="assistant-attach" aria-label="Add CSV or screenshots" title="Add CSV or screenshots"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg><input type="file" multiple accept=".csv,text/csv,image/jpeg,image/png,image/webp" disabled={blocked} onChange={(e) => { attach(e.target.files); e.target.value = ""; }} /></label>
         <label htmlFor="assistant-message" className="assistant-sr">Your message</label>
-        <textarea id="assistant-message" ref={composer} value={text} maxLength={12000} disabled={blocked} onChange={(e) => { setText(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${Math.min(e.target.scrollHeight, 168)}px`; }} onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="Message the assistant…" rows={1} />
+        <textarea id="assistant-message" ref={composer} value={text} maxLength={12000} disabled={blocked} onChange={(e) => { setText(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`; }} onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="Message the assistant…" rows={1} />
         <button className="assistant-primary assistant-send" aria-label={blocked ? "Working" : "Send"} disabled={blocked || !validMatch || (!text.trim() && !files.length)}>{blocked ? "…" : <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}</button>
       </div>
-      <small className="assistant-composer-hint">{files.length ? `${files.length}/8 files attached` : "CSV or screenshots · Ctrl+Enter to send"}</small>
     </form>
+    {sheet === "context" && <Sheet title="Game for this review" onClose={() => setSheet(null)}>
+      <label className="chat-field">Game<select value={validMatch ? matchId : ""} disabled={blocked} onChange={(e) => { setMatchId(e.target.value); updateUrl(threadId, e.target.value); }}><option value="">Compare this competition</option>{matches.map((match) => <option key={match.id} value={match.id}>{formatDate(match.date)} · G{match.match_index} · {match.map_label}</option>)}</select></label>
+      <p className="assistant-context-note">Results go to {(event.days ?? []).map((day) => formatDate(day.date)).join(" / ")}. If you name another game in your message, I use that one.</p>
+      <div className="chat-sheet-actions"><a href={`${matchLink}${matchId ? `?match=${encodeURIComponent(matchId)}` : ""}`} target="_blank" rel="noreferrer">Open Match desk ↗</a><button type="button" className="assistant-primary" onClick={() => setSheet(null)}>Done</button></div>
+    </Sheet>}
+    {sheet === "history" && <Sheet title="Reviews" onClose={() => setSheet(null)}>
+      <button type="button" className="chat-history-item is-new" disabled={blocked} onClick={() => { chooseThread(""); setSheet(null); }}>＋ New review</button>
+      <ul className="chat-history">{threadId && !threads.some((item) => item.id === threadId) && <li><button type="button" className="chat-history-item is-current" onClick={() => setSheet(null)}>{thread?.title || "Linked review"}</button></li>}{threads.map((item) => <li key={item.id}><button type="button" className={`chat-history-item${item.id === threadId ? " is-current" : ""}`} disabled={blocked} onClick={() => { chooseThread(item.id); setSheet(null); }}><strong>{item.title}</strong><small>{new Date(item.updated_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</small></button></li>)}</ul>
+    </Sheet>}
     {proof && thread && <ProofDialog key={proof.id} token={token} threadId={thread.id} evidence={proof} number={evidenceNumber(proof.id)} onClose={() => setProof(null)} disabled={blocked} onRecheck={() => { const { id, csv } = proof; setProof(null); void send({ client_id: crypto.randomUUID(), message: csv ? "Review this CSV against the latest saved results again. Verify game and slot linkage, repeated rows, missing values, and player versus team totals. Explain any changes from your previous review." : "Re-read this image carefully. Check the exact digits, match linkage and slot, and compare against the latest saved results. Explain any changes from your previous reading.", match_id: matchId || null, recheck_evidence_ids: [id] }); }} />}
   </div>;
 }
