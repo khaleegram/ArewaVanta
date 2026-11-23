@@ -26,6 +26,11 @@ class Player extends Model
         return $this->hasMany(SquadMembership::class);
     }
 
+    public function warnings(): HasMany
+    {
+        return $this->hasMany(PlayerWarning::class);
+    }
+
     public function clan(): BelongsTo
     {
         return $this->belongsTo(Clan::class);

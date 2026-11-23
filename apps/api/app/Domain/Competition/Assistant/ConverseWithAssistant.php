@@ -4,12 +4,15 @@ namespace App\Domain\Competition\Assistant;
 
 use App\Domain\Competition\ResultPermissions;
 use App\Domain\Competition\ScreenshotImport\ScreenshotImportFailed;
+use App\Domain\Competition\ScreenshotImport\ScreenshotImportUnavailable;
+use App\Models\AssistantEvidence;
 use App\Models\AssistantMessage;
 use App\Models\AssistantThread;
 use App\Models\CompetitionEvent;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -26,6 +29,8 @@ final class ConverseWithAssistant
         private readonly ReadAssistantCsv $csv,
         private readonly AssistantCsvImports $imports,
         private readonly AssistantPlayerResolver $directory,
+        private readonly AssistantScoreboards $scoreboards,
+        private readonly AssistantAdminActions $admin,
     ) {}
 
     /** @param array<string, mixed> $input */
@@ -60,6 +65,15 @@ final class ConverseWithAssistant
             }
             $context['requested_evidence_ids'] = $readIds;
             $images = $evidence->whereIn('id', $readIds)->filter(fn ($item): bool => $item->mime !== 'text/csv')->values()->all();
+            $scoreboard = $this->readScoreboards($actor, $thread, $destination, $message, $images, $context);
+            if ($scoreboard !== null) {
+                $context['scoreboard_import'] = collect($scoreboard)->except(['corrections', 'observations'])->all();
+                $context['scoreboard_import']['corrections_prepared_by_server'] = count($scoreboard['corrections']);
+                foreach ($images as $image) {
+                    $image->update(['observations' => $scoreboard['observations']]);
+                }
+                $images = [];
+            }
             $imageReadIds = array_map(fn ($image): string => $image->id, $images);
             $history = $thread->messages()->where('id', '<', $message->id)->where('status', 'completed')
                 ->reorder()->orderByDesc('id')->limit(16)->get()->reverse()->map(fn ($m): array => [
@@ -79,7 +93,11 @@ final class ConverseWithAssistant
                 $answer['evidence_reads'] = $firstPass['evidence_reads'] ?? [];
             }
 
-            DB::transaction(function () use ($actor, $thread, $token, $message, $answer, $context, $imageReadIds): void {
+            if ($scoreboard !== null && $scoreboard['status'] === 'prepared' && empty($answer['csv_imports'])) {
+                $answer['corrections'] = $scoreboard['corrections'];
+                $answer['evidence_reads'] = [];
+            }
+            DB::transaction(function () use ($actor, $thread, $token, $message, $answer, $context, $imageReadIds, $scoreboard): void {
                 $locked = AssistantThread::query()->lockForUpdate()->findOrFail($thread->id);
                 abort_unless($locked->processing_token === $token, 409, 'A newer review replaced this request. Reload the chat.');
                 abort_unless($this->permissions->canManage($actor, $locked->event), 403);
@@ -89,7 +107,7 @@ final class ConverseWithAssistant
                     $locked->event_id = $target->id;
                     $locked->setRelation('event', $target);
                 }
-                $warnings = $this->saveReads($locked, $answer['evidence_reads'] ?? [], $imageReadIds);
+                $warnings = [...($scoreboard['warnings'] ?? []), ...$this->saveReads($locked, $answer['evidence_reads'] ?? [], $imageReadIds)];
                 if (is_array($answer['lookups'] ?? null) && $answer['lookups'] !== []) {
                     $warnings[] = 'Further information is still needed. Select the specific game or supply the missing player name in a follow-up.';
                 }
@@ -107,6 +125,9 @@ final class ConverseWithAssistant
                     $warnings = [...$warnings, ...$this->imports->prepare($actor, $locked, $response, $answer['csv_imports'], $context)];
                 } else {
                     $warnings = [...$warnings, ...$this->proposals->prepare($locked, $response, $answer['corrections'] ?? [], $context)];
+                }
+                if (! empty($answer['admin_actions'])) {
+                    $warnings = [...$warnings, ...$this->admin->prepare($actor, $locked, $response, $answer['admin_actions'], $context)];
                 }
                 if ($locked->proposals()->where('message_id', $response->id)->exists() || $context['event']['id'] !== $thread->event_id) {
                     $locked->proposals()->whereIn('id', $previousProposals)->update(['status' => 'superseded', 'updated_at' => now()]);
@@ -143,6 +164,30 @@ final class ConverseWithAssistant
                 }
             });
             throw $exception;
+        }
+    }
+
+    /**
+     * Server-side scoreboard reading for screenshots in this message. Falls back to the model's own
+     * image reading when the reader is unavailable, so a reader outage never blocks the chat.
+     *
+     * @param  list<AssistantEvidence>  $images
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>|null
+     */
+    private function readScoreboards(User $actor, AssistantThread $thread, CompetitionEvent $destination, AssistantMessage $message, array $images, array $context): ?array
+    {
+        if ($images === [] || $destination->id !== $thread->event_id) {
+            return null;
+        }
+        $focus = $message->details['match_id'] ?? $thread->messages()->where('role', 'user')->whereNotNull('details->match_id')
+            ->where('id', '<', $message->id)->reorder()->orderByDesc('id')->first()?->details['match_id'] ?? null;
+        try {
+            return $this->scoreboards->read($actor, $images, $context, $focus);
+        } catch (ScreenshotImportFailed|ScreenshotImportUnavailable $exception) {
+            Log::warning('Assistant scoreboard reader unavailable; falling back to model image reading.', ['message' => $exception->getMessage()]);
+
+            return null;
         }
     }
 

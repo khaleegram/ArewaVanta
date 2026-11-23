@@ -21,9 +21,11 @@ export type AssistantProposal = {
   match_id: string;
   title: string;
   reason: string;
-  status: "pending" | "accepted" | "rejected" | "superseded";
+  status: "pending" | "accepted" | "rejected" | "superseded" | "undone";
   preview: {
-    kind?: "csv_import";
+    kind?: "csv_import" | "admin_action";
+    items?: { label: string; before: string; after: string; note?: string }[];
+    standings?: { scope: string; teams: number; rows: { squad_id: string; clan: string; slot: number | null; before_rank: number | null; after_rank: number; before_points: string; after_points: string; total_kills: number }[] } | null;
     evidence_ids: string[];
     games?: { match_id: string; title: string; rows: AssistantProposal["preview"]["rows"] }[];
     slot_changes?: { slot: number; before: string; after: string }[];
@@ -113,4 +115,11 @@ export type AssistantMessageInput = {
   images?: File[];
   csv_files?: File[];
   recheck_evidence_ids?: string[];
+};
+
+export type AssistantProposalEdit = {
+  squad_id: string;
+  placement?: number | null;
+  team_kills?: number | null;
+  players?: { player_id?: string | null; ign?: string | null; kills?: number | null; remove?: boolean }[];
 };

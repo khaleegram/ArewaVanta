@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\Manage\MatchScreenshotImportController;
 use App\Http\Controllers\Api\V1\Manage\OrganizationController;
 use App\Http\Controllers\Api\V1\Manage\OrganizerAssistantController;
 use App\Http\Controllers\Api\V1\Manage\PeopleController;
+use App\Http\Controllers\Api\V1\Manage\PlayerWarningController;
 use App\Http\Controllers\Api\V1\Manage\ScoringPresetController as ManageScoringPresetController;
 use App\Http\Controllers\Api\V1\Manage\SeasonController;
 use App\Http\Controllers\Api\V1\Manage\StoreCompetitionTemplateController;
@@ -102,6 +103,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/assistant-threads/{thread}/messages', [OrganizerAssistantController::class, 'message'])->middleware('throttle:6,1')->name('assistant.messages.store');
         Route::get('/assistant-threads/{thread}/evidence/{evidence}', [OrganizerAssistantController::class, 'evidence'])->name('assistant.evidence.show');
         Route::patch('/assistant-threads/{thread}/proposals/{proposal}', [AssistantProposalController::class, 'update'])->middleware('throttle:30,1')->name('assistant.proposals.update');
+        Route::get('/players/{player}/warnings', PlayerWarningController::class)->name('players.warnings.index');
+        Route::patch('/assistant-threads/{thread}/proposals/{proposal}/edit', [AssistantProposalController::class, 'edit'])->middleware('throttle:60,1')->name('assistant.proposals.edit');
         Route::get('/activity', [AdminActivityController::class, 'index']);
         Route::post('/activity/read', [AdminActivityController::class, 'read']);
         Route::post('/push-subscriptions', [AdminActivityController::class, 'subscribe']);

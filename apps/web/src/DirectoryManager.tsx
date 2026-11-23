@@ -811,7 +811,26 @@ function Editor({
           </button>
         </div>
       </form>
+      {view.kind === "player" && global && view.player && <PlayerWarnings token={token} playerId={view.player.id} />}
     </>
+  );
+}
+function PlayerWarnings({ token, playerId }: { token: string; playerId: string }) {
+  const [records, setRecords] = useState<Awaited<ReturnType<typeof api.managePlayerWarnings>>["data"] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let current = true;
+    api.managePlayerWarnings(token, playerId).then(({ data }) => { if (current) setRecords(data); }).catch(() => { if (current) setFailed(true); });
+    return () => { current = false; };
+  }, [token, playerId]);
+  return (
+    <section className="manage-panel" aria-label="Warning record">
+      <h2>Warning record</h2>
+      <p className="manage-hint">Private to organizers. Ask the assistant to add or revoke a record.</p>
+      {failed ? <p className="manage-error">The warning record could not be loaded.</p> : records === null ? <p>Loading…</p> : records.length === 0 ? <p>No records. Missing history is unknown, not a clean record.</p> : (
+        <ul>{records.map((record) => <li key={record.id}><strong>{record.severity.replace("_", " ")}</strong> · {new Date(record.issued_at).toLocaleDateString()}{record.revoked_at ? " · revoked" : ""}<br />{record.reason}{record.revoked_reason ? ` (revoked: ${record.revoked_reason})` : ""}</li>)}</ul>
+      )}
+    </section>
   );
 }
 async function allPeople(token: string, signal: AbortSignal, clanId: string, search = "") {

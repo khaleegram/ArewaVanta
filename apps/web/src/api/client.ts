@@ -1,4 +1,4 @@
-import type { AssistantThread, AssistantThreadSummary, AssistantMessageInput } from "../assistantTypes";
+import type { AssistantThread, AssistantThreadSummary, AssistantMessageInput, AssistantProposalEdit } from "../assistantTypes";
 import type {
   ApiData,
   ApiPage,
@@ -723,7 +723,11 @@ export const api = {
     for (const id of input.recheck_evidence_ids ?? []) form.append("recheck_evidence_ids[]", id);
     return upload<ApiData<AssistantThread>>(`/manage/assistant-threads/${key(threadId)}/messages`, token, form);
   },
-  decideAssistantProposal: (token: string, threadId: Id, proposalId: Id, decision: "accept" | "reject") =>
+  managePlayerWarnings: (token: string, playerId: Id) =>
+    request<ApiData<{ id: string; severity: string; reason: string; issued_at: string; revoked_at: string | null; revoked_reason: string | null }[]>>(`/manage/players/${key(playerId)}/warnings`, { token }),
+  editAssistantProposal: (token: string, threadId: Id, proposalId: Id, edits: AssistantProposalEdit[]) =>
+    request<ApiData<AssistantThread>>(`/manage/assistant-threads/${key(threadId)}/proposals/${key(proposalId)}/edit`, { token, method: "PATCH", body: { edits } }),
+  decideAssistantProposal: (token: string, threadId: Id, proposalId: Id, decision: "accept" | "reject" | "undo") =>
     request<ApiData<AssistantThread>>(`/manage/assistant-threads/${key(threadId)}/proposals/${key(proposalId)}`, { token, method: "PATCH", body: { decision } }),
   assistantEvidence: async (token: string, threadId: Id, evidenceId: Id, signal?: AbortSignal): Promise<Blob> => {
     const response = await fetch(`${base}/manage/assistant-threads/${key(threadId)}/evidence/${key(evidenceId)}`, {

@@ -128,3 +128,12 @@
 .assistant-import-games summary { line-height: 1.5; }
 .assistant-import-games summary small { display: block; color: #58685a; font-weight: 400; margin-top: 3px; }
 .assistant-import-issues { color: #724221; }
+
+.assistant-standings table,.assistant-edit-panel table{width:100%;border-collapse:collapse;font-size:.9rem}
+.assistant-standings th,.assistant-standings td{padding:.3rem .4rem;text-align:left;border-bottom:1px solid rgba(128,128,128,.25)}
+.assistant-edit-toggle{margin:.4rem 0}
+.assistant-edit-panel fieldset{margin:.5rem 0;padding:.5rem;border:1px solid rgba(128,128,128,.35);border-radius:.5rem}
+.assistant-edit-panel label{display:inline-flex;gap:.4rem;align-items:center;margin-right:.8rem}
+.assistant-edit-panel input[type=number]{width:4.5rem}
+.assistant-edit-player{display:flex;gap:.6rem;align-items:center;margin:.25rem 0}
+.assistant-edit-player span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}

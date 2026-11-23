@@ -2,6 +2,7 @@
 
 namespace App\Domain\Competition\Assistant;
 
+use App\Domain\Competition\BuildEventStandings;
 use App\Domain\Competition\ClanTag;
 use App\Domain\Competition\PlayerNameSearch;
 use App\Domain\Competition\ResultPermissions;
@@ -17,11 +18,13 @@ use App\Models\CompetitionEvent;
 use App\Models\CompetitionMatch;
 use App\Models\Player;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use Throwable;
 
 final class AssistantProposals
 {
@@ -31,6 +34,7 @@ final class AssistantProposals
         private readonly SaveMatchResults $save,
         private readonly ResultPermissions $permissions,
         private readonly AssistantPlayerResolver $directory,
+        private readonly BuildEventStandings $standings,
     ) {}
 
     /** @param array<string, mixed> $context
@@ -139,7 +143,8 @@ final class AssistantProposals
                         'identities' => collect($identities)->unique('id')->sortBy('id')->values()->all(),
                         'new_players' => collect($rows)->flatMap(fn ($row): array => $row['players'])->filter(fn ($p): bool => empty($p['player_id']))->values()->all(),
                     ],
-                    'preview' => ['rows' => $previews, 'evidence_ids' => array_values(array_unique($sources))],
+                    'preview' => ['rows' => $previews, 'evidence_ids' => array_values(array_unique($sources)),
+                        'standings' => $this->standingsImpact($thread, $matchId, ['rows' => array_values($rows), 'expected_lock_version' => $match['lock_version']], $entries)],
                 ];
             } catch (ValidationException $exception) {
                 $warnings[] = 'No correction prepared for this game: '.collect($exception->errors())->flatten()->first();
@@ -305,6 +310,163 @@ final class AssistantProposals
             }
             $proposal->forceFill(['status' => $status, 'decided_at' => now()])->save();
             $thread->touch();
+        });
+    }
+
+    /**
+     * Rank and point changes if this proposal were accepted. The real save runs inside a transaction
+     * that is always rolled back, so the projection uses the exact scoring and tie-break rules.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  Collection<string, array<string, mixed>>  $entries
+     * @return array<string, mixed>|null
+     */
+    private function standingsImpact(AssistantThread $thread, string $matchId, array $payload, $entries): ?array
+    {
+        try {
+            $actor = User::query()->findOrFail($thread->user_id);
+            $match = CompetitionMatch::query()->with('day.event')->findOrFail($matchId);
+            $before = $this->standingsMap($match);
+            DB::beginTransaction();
+            try {
+                $rows = $payload['rows'];
+                $created = [];
+                foreach ($rows as $rowIndex => $row) {
+                    foreach ($row['players'] as $playerIndex => $participant) {
+                        if (! empty($participant['player_id'])) {
+                            continue;
+                        }
+                        $key = $this->newPlayerKey($participant);
+                        $created[$key] ??= Player::query()->create(['clan_id' => $participant['clan_id'], 'current_ign' => $participant['ign'], 'status' => 'active'])->id;
+                        $rows[$rowIndex]['players'][$playerIndex] = ['player_id' => $created[$key], 'kills' => $participant['kills'] ?? null];
+                    }
+                }
+                $this->save->handle($actor, $match, $rows, checkVersion: true, expectedLockVersion: $payload['expected_lock_version'], patchMode: true, notify: false);
+                $after = $this->standingsMap($match->fresh());
+            } finally {
+                DB::rollBack();
+            }
+        } catch (Throwable) {
+            return null;
+        }
+        $changes = [];
+        foreach ($after as $squadId => $now) {
+            $was = $before[$squadId] ?? null;
+            if ($was === null || $was['rank'] !== $now['rank'] || $was['points'] !== $now['points']) {
+                $changes[] = ['squad_id' => $squadId, 'clan' => $now['clan'], 'slot' => $now['slot'], 'before_rank' => $was['rank'] ?? null, 'after_rank' => $now['rank'],
+                    'before_points' => $was['points'] ?? '0', 'after_points' => $now['points'], 'total_kills' => $now['kills']];
+            }
+        }
+        usort($changes, fn (array $a, array $b): int => $a['after_rank'] <=> $b['after_rank']);
+
+        return ['scope' => 'this competition', 'rows' => $changes, 'teams' => count($after)];
+    }
+
+    /** @return array<string, array{rank: int, points: string, kills: int, clan: string, slot: ?int}> */
+    private function standingsMap(CompetitionMatch $match): array
+    {
+        $event = $match->day->event()->first();
+        $result = [];
+        foreach ($this->standings->handle($event)['standings'] as $row) {
+            $result[$row['squad']['id']] = ['rank' => (int) $row['rank'], 'points' => (string) $row['total_points'], 'kills' => (int) $row['total_kills'],
+                'clan' => $row['squad']['clan']['name'] ?? $row['squad']['name'], 'slot' => $row['slot_number'] ?? null];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Organizer edits to a pending proposal: placement, team kills and player kills (or removal).
+     * The proposal is rebuilt from the edited rows, so previews, warnings and standings stay exact.
+     *
+     * @param  list<array<string, mixed>>  $edits
+     */
+    public function edit(User $actor, AssistantThread $thread, AssistantProposal $proposal, array $edits): void
+    {
+        DB::transaction(function () use ($actor, $thread, $proposal, $edits): void {
+            $thread = AssistantThread::query()->lockForUpdate()->findOrFail($thread->id);
+            abort_unless((string) $thread->user_id === (string) $actor->id, 404);
+            $event = CompetitionEvent::query()->lockForUpdate()->findOrFail($thread->event_id);
+            abort_unless($this->permissions->canManage($actor, $event), 403);
+            $proposal = AssistantProposal::query()->where('thread_id', $thread->id)->lockForUpdate()->findOrFail($proposal->id);
+            abort_unless($proposal->status === 'pending' && ! isset($proposal->payload['kind']) && ! isset($proposal->payload['parent_id']), 409, 'Only a pending result correction can be edited.');
+            Validator::make(['edits' => $edits], [
+                'edits' => ['required', 'array', 'list', 'max:60'],
+                'edits.*.squad_id' => ['required', 'ulid'],
+                'edits.*.placement' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+                'edits.*.team_kills' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999'],
+                'edits.*.players' => ['sometimes', 'array', 'list', 'max:100'],
+                'edits.*.players.*.player_id' => ['sometimes', 'nullable', 'ulid'],
+                'edits.*.players.*.ign' => ['sometimes', 'nullable', 'string', 'max:100'],
+                'edits.*.players.*.kills' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999'],
+                'edits.*.players.*.remove' => ['sometimes', 'boolean'],
+            ])->validate();
+            $byRow = collect($edits)->keyBy('squad_id');
+            $corrections = [];
+            foreach ($proposal->preview['rows'] as $index => $preview) {
+                $row = $proposal->payload['rows'][$index];
+                $edit = $byRow->get($row['squad_id'], []);
+                $players = collect($row['players']);
+                foreach ($edit['players'] ?? [] as $change) {
+                    $key = fn (array $p): string => ($p['player_id'] ?? null) ?: 'new:'.PlayerNameSearch::key($p['ign'] ?? '');
+                    $target = $key($change);
+                    $players = $players->map(fn (array $p): array => $key($p) === $target && array_key_exists('kills', $change) ? [...$p, 'kills' => $change['kills']] : $p)
+                        ->reject(fn (array $p): bool => $key($p) === $target && ($change['remove'] ?? false))->values();
+                }
+                $updates = $players->map(fn (array $p): array => ! empty($p['player_id'])
+                    ? ['player_id' => $p['player_id'], 'kills' => $p['kills'] ?? null]
+                    : ['create_player' => true, 'ign' => $p['ign'], 'clan_id' => $p['clan_id'], 'kills' => $p['kills'] ?? null])->all();
+                $kept = collect($updates)->pluck('player_id')->filter()->all();
+                foreach ($preview['before']['players'] as $old) {
+                    if (! in_array($old['player_id'], $kept, true)) {
+                        $updates[] = ['player_id' => $old['player_id'], 'remove' => true];
+                    }
+                }
+                $corrections[] = [
+                    'match_id' => $proposal->match_id, 'squad_id' => $row['squad_id'], 'reason' => $proposal->reason ?: 'Organizer edited the proposal.',
+                    'evidence_ids' => $proposal->preview['evidence_ids'],
+                    'changes' => ['status' => $row['status'], 'placement' => array_key_exists('placement', $edit) ? $edit['placement'] : $row['placement'],
+                        'team_kills' => array_key_exists('team_kills', $edit) ? $edit['team_kills'] : $row['team_kills'], 'player_updates' => $updates],
+                ];
+            }
+            $context = $this->context->forEvent($event, $proposal->match_id);
+            $message = AssistantMessage::query()->findOrFail($proposal->message_id);
+            $built = $this->build($thread, $message, $corrections, $context);
+            if ($built['proposals'] === []) {
+                throw ValidationException::withMessages(['edits' => $built['warnings'][0] ?? 'These edits would not change anything or are not valid.']);
+            }
+            $new = $built['proposals'][0];
+            $proposal->forceFill(['payload' => $new['payload'], 'preview' => $new['preview'], 'reason' => $proposal->reason])->save();
+        });
+    }
+
+    /** Restore the saved state captured in the preview, unless anyone edited the game since acceptance. */
+    public function undo(User $actor, AssistantThread $thread, AssistantProposal $proposal): void
+    {
+        DB::transaction(function () use ($actor, $thread, $proposal): void {
+            $thread = AssistantThread::query()->lockForUpdate()->findOrFail($thread->id);
+            abort_unless((string) $thread->user_id === (string) $actor->id, 404);
+            $event = CompetitionEvent::query()->lockForUpdate()->findOrFail($thread->event_id);
+            abort_unless($this->permissions->canManage($actor, $event), 403);
+            $proposal = AssistantProposal::query()->where('thread_id', $thread->id)->lockForUpdate()->findOrFail($proposal->id);
+            abort_unless($proposal->status === 'accepted' && ! isset($proposal->payload['kind']), 409, 'Only an accepted result correction can be undone.');
+            $match = CompetitionMatch::query()->lockForUpdate()->findOrFail($proposal->match_id);
+            $audit = AuditLog::query()->where('action', 'assistant.result_correction.accepted')->where('entity_id', $match->id)
+                ->where('after_data->proposal_id', $proposal->id)->latest('id')->first();
+            $current = $this->context->forMatch($match)['lock_version'];
+            abort_unless($audit !== null && ($audit->after_data['lock_version'] ?? null) === $current, 409, 'This game was edited after the correction, so undoing it would overwrite newer changes. Review the game first.');
+            $rows = collect($proposal->preview['rows'])->map(fn (array $row): array => [
+                'squad_id' => $row['squad_id'], 'status' => $row['before']['status'], 'placement' => $row['before']['placement'],
+                'team_kills' => $row['before']['team_kills_override'],
+                'players' => collect($row['before']['players'])->map(fn (array $p): array => ['player_id' => $p['player_id'], 'kills' => $p['kills']])->all(),
+            ])->all();
+            $result = $this->save->handle($actor, $match, $rows, checkVersion: true, expectedLockVersion: $current, patchMode: true, notify: false);
+            AuditLog::query()->create([
+                'actor_user_id' => $actor->id, 'action' => 'assistant.result_correction.undone', 'entity_type' => 'match', 'entity_id' => $match->id,
+                'before_data' => ['proposal_id' => $proposal->id], 'after_data' => ['proposal_id' => $proposal->id, 'revision_id' => $result->id, 'rows' => $rows],
+                'reason' => 'Organizer undid an accepted assistant correction.', 'occurred_at' => now(),
+            ]);
+            $proposal->forceFill(['status' => 'undone', 'decided_at' => now()])->save();
         });
     }
 

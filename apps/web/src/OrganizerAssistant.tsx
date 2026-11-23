@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "./api/client";
 import type { ManageEvent } from "./api/types";
-import type { AssistantCsv, AssistantEvidence, AssistantMessage, AssistantMessageInput, AssistantProposal, AssistantScore, AssistantThread, AssistantThreadSummary } from "./assistantTypes";
+import type { AssistantCsv, AssistantEvidence, AssistantMessage, AssistantMessageInput, AssistantProposal, AssistantProposalEdit, AssistantScore, AssistantThread, AssistantThreadSummary } from "./assistantTypes";
 import { Shell, SignIn, type Session } from "./CompetitionManager";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
@@ -162,13 +162,23 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
     if (!text.trim() && !files.length) return;
     void send({ client_id: crypto.randomUUID(), message: text.trim(), match_id: matchId || null, images: files.filter((file) => !isCsvUpload(file)), csv_files: files.filter(isCsvUpload) });
   }
-  async function decide(proposal: AssistantProposal, decision: "accept" | "reject") {
+  async function edit(proposal: AssistantProposal, edits: AssistantProposalEdit[]) {
+    if (!thread || sending.current || blocked) return;
+    sending.current = true; setBusy(true); setError("");
+    try {
+      const { data } = await api.editAssistantProposal(token, thread.id, proposal.id, edits);
+      remember(data);
+      setNotice("Edits applied. Check the updated preview and standings, then accept.");
+    } catch (e) { setError(explain(e)); }
+    finally { sending.current = false; setBusy(false); }
+  }
+  async function decide(proposal: AssistantProposal, decision: "accept" | "reject" | "undo") {
     if (!thread || sending.current || blocked) return;
     sending.current = true; setBusy(true); setError("");
     try {
       const { data } = await api.decideAssistantProposal(token, thread.id, proposal.id, decision);
       remember(data);
-      setNotice(decision === "accept" ? "Correction accepted and saved. Open the latest results to view current scores." : "Proposal rejected. Results were not changed.");
+      setNotice(decision === "accept" ? "Accepted and saved. Open the latest results to view current scores." : decision === "undo" ? "Change undone. Everything it touched is back as it was." : "Proposal rejected. Nothing was changed.");
     } catch (e) { setError(explain(e)); }
     finally { sending.current = false; setBusy(false); }
   }
@@ -220,7 +230,7 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
         {message.details?.ruling && <section className="assistant-ruling"><h3>Suggested ruling</h3><p>{message.details.ruling}</p></section>}
         {!!message.details?.findings?.length && <details className="assistant-findings"><summary>Evidence and uncertainties ({message.details.findings.length})</summary><ul>{[...message.details.findings].sort((a, b) => Number(b.kind === "unresolved") - Number(a.kind === "unresolved")).map((finding, index) => <li key={index}><span className={`assistant-finding-kind is-${finding.kind}`}>{finding.kind === "observed" ? "Visible in proof / saved data" : finding.kind === "inferred" ? "Inferred" : "Needs a decision"}</span><p>{finding.text}</p><div className="assistant-proof-links">{proofButtons(finding.evidence_ids)}</div></li>)}</ul></details>}
         {message.details?.warnings?.map((warning, index) => <p className="assistant-warning" key={index}>{warning}</p>)}
-        {thread.proposals.filter((p) => p.message_id === message.id).map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />)}
+        {thread.proposals.filter((p) => p.message_id === message.id).map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onUndo={() => void decide(proposal, "undo")} onEdit={(edits) => void edit(proposal, edits)} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />)}
         {message.role === "user" && message.status !== "completed" && !thread.processing && <button type="button" disabled={blocked} onClick={() => retryMessage(message)}>Retry this saved message</button>}
       </article>)}
       {(busy || thread?.processing) && <p className="assistant-working" role="status">Reviewing saved data and proof… You can return to this review on either device.</p>}
@@ -237,16 +247,28 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
   </div>;
 }
 
-function ProposalCard({ proposal, disabled, proofButtons, onAccept, onReject, resultUrl }: { proposal: AssistantProposal; disabled: boolean; proofButtons: (ids: string[]) => React.ReactNode; onAccept: () => void; onReject: () => void; resultUrl: string }) {
+function ProposalCard({ proposal, disabled, proofButtons, onAccept, onReject, onUndo, onEdit, resultUrl }: { proposal: AssistantProposal; disabled: boolean; proofButtons: (ids: string[]) => React.ReactNode; onAccept: () => void; onReject: () => void; onUndo: () => void; onEdit: (edits: AssistantProposalEdit[]) => void; resultUrl: string }) {
   const pending = proposal.status === "pending";
   return <section className={`assistant-proposal is-${proposal.status}`} aria-label="Proposed result correction">
-    <div className="assistant-proposal-heading"><h3>{proposal.title}</h3><span>{pending ? "Awaiting your acceptance" : proposal.status === "accepted" ? "Accepted & saved" : proposal.status === "superseded" ? "Replaced by a newer review" : "Rejected"}</span></div>
+    <div className="assistant-proposal-heading"><h3>{proposal.title}</h3><span>{pending ? "Awaiting your acceptance" : proposal.status === "accepted" ? "Accepted & saved" : proposal.status === "undone" ? "Undone" : proposal.status === "superseded" ? "Replaced by a newer review" : "Rejected"}</span></div>
     <p className="assistant-message-text">{proposal.reason}</p>
-    {proposal.preview.kind === "csv_import" ? <CsvImportChanges proposal={proposal} /> : pending ? <ScoreChanges proposal={proposal} /> : <details><summary>View proposed changes</summary><ScoreChanges proposal={proposal} /></details>}
+    {proposal.preview.kind === "admin_action" ? <AdminActionChanges proposal={proposal} /> : proposal.preview.kind === "csv_import" ? <CsvImportChanges proposal={proposal} /> : pending ? <ScoreChanges proposal={proposal} /> : <details><summary>View proposed changes</summary><ScoreChanges proposal={proposal} /></details>}
+    {!!proposal.preview.standings?.rows.length && <StandingsImpact standings={proposal.preview.standings} />}
+    {pending && !proposal.preview.kind && <EditProposal proposal={proposal} disabled={disabled} onEdit={onEdit} />}
     <div className="assistant-proof-links">{proofButtons(proposal.preview.evidence_ids)}</div>
-    {pending && <div className="assistant-proposal-actions"><button type="button" className="assistant-primary" disabled={disabled} onClick={onAccept}>{proposal.preview.kind === "csv_import" ? `Accept & save ${proposal.preview.games?.length ?? 0} games` : "Accept & update results"}</button><button type="button" disabled={disabled} onClick={onReject}>Reject</button></div>}
-    {proposal.status === "accepted" && <a href={resultUrl} target="_blank" rel="noreferrer">View updated results ↗</a>}
+    {pending && <div className="assistant-proposal-actions"><button type="button" className="assistant-primary" disabled={disabled} onClick={onAccept}>{proposal.preview.kind === "admin_action" ? `Accept & apply ${proposal.preview.items?.length ?? 0} changes` : proposal.preview.kind === "csv_import" ? `Accept & save ${proposal.preview.games?.length ?? 0} games` : "Accept & update results"}</button><button type="button" disabled={disabled} onClick={onReject}>Reject</button></div>}
+    {proposal.status === "accepted" && proposal.preview.kind !== "csv_import" && <div className="assistant-proposal-actions"><button type="button" disabled={disabled} onClick={onUndo}>Undo this change</button></div>}
+    {proposal.status === "accepted" && proposal.preview.kind !== "admin_action" && <a href={resultUrl} target="_blank" rel="noreferrer">View updated results ↗</a>}
   </section>;
+}
+
+function AdminActionChanges({ proposal }: { proposal: AssistantProposal }) {
+  const { items = [], warnings = [] } = proposal.preview;
+  return <div className="assistant-import-review">
+    <ul className="assistant-admin-items">{items.map((item, index) => <li key={index}><strong>{item.label}</strong><br /><span>{item.before}</span> → <strong>{item.after}</strong>{item.note && <small><br />{item.note}</small>}</li>)}</ul>
+    {!!warnings.length && <details className="assistant-import-issues" open><summary>{warnings.length} to review</summary>{warnings.map((warning, index) => <p key={index}>{warning}</p>)}</details>}
+    <p className="assistant-context-note">Nothing changes until you accept. If someone else edits these records first, the acceptance is refused and you can ask for a fresh review.</p>
+  </div>;
 }
 
 function CsvImportChanges({ proposal }: { proposal: AssistantProposal }) {
@@ -260,6 +282,46 @@ function CsvImportChanges({ proposal }: { proposal: AssistantProposal }) {
     <div className="assistant-import-games">{preview.games?.map((game) => <details key={game.match_id}><summary>{game.title}<small>{game.rows.length} team changes · {game.rows.reduce((sum, row) => sum + (row.after.team_kills ?? 0), 0)} team kills</small></summary><ScoreChanges proposal={{ ...proposal, preview: { evidence_ids: preview.evidence_ids, rows: game.rows } }} /></details>)}</div>
     <p className="assistant-context-note">Acceptance saves all changes shown here together. If another organizer has edited these games or slots since this review, refresh the proposal first.</p>
   </div>;
+}
+
+function StandingsImpact({ standings }: { standings: NonNullable<AssistantProposal["preview"]["standings"]> }) {
+  const arrow = (before: number | null, after: number) => before === null ? "new" : after < before ? `▲ ${before - after}` : after > before ? `▼ ${after - before}` : "–";
+  return <details className="assistant-standings" open><summary>Standings impact · {standings.scope} · {standings.rows.length} of {standings.teams} teams move or score</summary>
+    <table><thead><tr><th>Team</th><th>Rank</th><th>Points</th></tr></thead><tbody>{standings.rows.map((row) => <tr key={row.squad_id}>
+      <th>{row.clan}{row.slot !== null ? ` · slot ${row.slot}` : ""}</th>
+      <td>{row.before_rank ?? "–"} → <strong>{row.after_rank}</strong> <small>{arrow(row.before_rank, row.after_rank)}</small></td>
+      <td>{Number(row.before_points)} → <strong>{Number(row.after_points)}</strong></td></tr>)}</tbody></table>
+    <p className="assistant-context-note">Calculated with this competition&apos;s real scoring and tie-break rules. Nothing is saved until you accept.</p></details>;
+}
+
+function EditProposal({ proposal, disabled, onEdit }: { proposal: AssistantProposal; disabled: boolean; onEdit: (edits: AssistantProposalEdit[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Record<string, AssistantProposalEdit>>({});
+  const num = (value: string) => value.trim() === "" ? null : Math.max(0, Math.floor(Number(value)));
+  const set = (squadId: string, patch: Partial<AssistantProposalEdit>) => setDraft((current) => ({ ...current, [squadId]: { ...current[squadId], squad_id: squadId, ...patch } }));
+  const setPlayer = (squadId: string, player: AssistantScore["players"][number], patch: { kills?: number | null; remove?: boolean }) => setDraft((current) => {
+    const existing = current[squadId]?.players ?? [];
+    const key = player.player_id || null;
+    const same = (p: { player_id?: string | null; ign?: string | null }) => (p.player_id ?? null) === key && (p.ign ?? null) === (key ? null : player.ign);
+    const previous = existing.find(same);
+    return { ...current, [squadId]: { ...current[squadId], squad_id: squadId, players: [...existing.filter((p) => !same(p)), { player_id: key, ign: key ? null : player.ign, ...previous, ...patch }] } };
+  });
+  if (!open) return <button type="button" className="assistant-edit-toggle" disabled={disabled} onClick={() => setOpen(true)}>Edit before accepting</button>;
+  const edits = Object.values(draft);
+  return <section className="assistant-edit-panel" aria-label="Edit proposal">
+    <h4>Edit before accepting</h4>
+    {proposal.preview.rows.map((row) => <fieldset key={row.squad_id}><legend>Slot {row.slot ?? "?"} · {row.clan}</legend>
+      <label>Placement <input type="number" min={1} max={100} defaultValue={row.after.placement ?? ""} disabled={disabled} onChange={(e) => set(row.squad_id, { placement: num(e.target.value) })} /></label>
+      <label>Team kills <input type="number" min={0} max={999} defaultValue={row.after.team_kills ?? ""} disabled={disabled} onChange={(e) => set(row.squad_id, { team_kills: num(e.target.value) })} /></label>
+      {row.after.players.map((player) => <div key={player.player_id || `new:${player.ign}`} className="assistant-edit-player">
+        <span>{player.ign}</span>
+        <input aria-label={`${player.ign} kills`} type="number" min={0} max={999} defaultValue={player.kills ?? ""} disabled={disabled} onChange={(e) => setPlayer(row.squad_id, player, { kills: num(e.target.value) })} />
+        <label><input type="checkbox" disabled={disabled} onChange={(e) => setPlayer(row.squad_id, player, { remove: e.target.checked })} /> remove</label>
+      </div>)}
+    </fieldset>)}
+    <div className="assistant-proposal-actions"><button type="button" className="assistant-primary" disabled={disabled || !edits.length} onClick={() => { onEdit(edits); setOpen(false); setDraft({}); }}>Apply edits</button><button type="button" disabled={disabled} onClick={() => { setOpen(false); setDraft({}); }}>Cancel</button></div>
+    <p className="assistant-context-note">Changing a total below the player kills keeps the player sum. Leave a box empty to mark it unknown.</p>
+  </section>;
 }
 
 function ScoreChanges({ proposal }: { proposal: AssistantProposal }) {

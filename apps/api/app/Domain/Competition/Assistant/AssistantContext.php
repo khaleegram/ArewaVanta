@@ -10,6 +10,8 @@ use App\Models\CompetitionEvent;
 use App\Models\CompetitionMatch;
 use App\Models\MatchResult;
 use App\Models\Player;
+use App\Models\PlayerWarning;
+use App\Models\ScoringPreset;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 
@@ -101,6 +103,10 @@ final class AssistantContext
             'schedule' => $schedule->all(),
             'matches' => $matches->values()->all(),
             'players' => $players->take(800)->map($this->player(...))->all(),
+            'scoring_presets' => ScoringPreset::query()->with('versions')->orderBy('name')->get()
+                ->map(fn ($preset): array => ['preset' => $preset->name, 'slug' => $preset->slug, 'latest_version_id' => $preset->versions->last()?->id, 'version_number' => $preset->versions->last()?->version_number])->all(),
+            'active_player_warnings' => PlayerWarning::query()->with('player:id,current_ign')->whereNull('revoked_at')->orderByDesc('issued_at')->limit(100)->get()
+                ->map(fn ($w): array => ['id' => $w->id, 'player_id' => $w->player_id, 'player' => $w->player?->current_ign, 'severity' => $w->severity, 'reason' => $w->reason, 'issued_at' => $w->issued_at->toDateString()])->all(),
             'coverage' => [
                 'loaded_match_ids' => $selected->values()->all(),
                 'other_match_results_not_loaded' => $schedule->count() > $matches->count(),

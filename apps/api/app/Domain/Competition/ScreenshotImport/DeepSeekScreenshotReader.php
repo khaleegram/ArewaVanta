@@ -17,6 +17,26 @@ final class DeepSeekScreenshotReader
      */
     public function extract(array $images): array
     {
+        $files = [];
+        foreach ($images as $image) {
+            $path = $image->getRealPath();
+            if ($path === false) {
+                throw new ScreenshotImportFailed('One of the uploaded images could not be read.');
+            }
+            $files[] = ['bytes' => (string) file_get_contents($path), 'mime' => $image->getMimeType() ?: 'image/jpeg'];
+        }
+
+        return $this->extractBytes($files);
+    }
+
+    /**
+     * Same extraction for images already held as bytes, such as saved assistant evidence.
+     *
+     * @param  list<array{bytes: string, mime: string}>  $images
+     * @return array{teams: list<array<string, mixed>>, warnings: list<string>, model: string}
+     */
+    public function extractBytes(array $images): array
+    {
         $key = trim((string) config('services.deepseek.key'));
         if ($key === '') {
             throw new ScreenshotImportUnavailable('Screenshot import is not configured. Add DEEPSEEK_API_KEY to the API environment.');
@@ -24,15 +44,10 @@ final class DeepSeekScreenshotReader
 
         $content = [['type' => 'text', 'text' => $this->prompt()]];
         foreach ($images as $image) {
-            $path = $image->getRealPath();
-            if ($path === false) {
-                throw new ScreenshotImportFailed('One of the uploaded images could not be read.');
-            }
-            $mime = $image->getMimeType() ?: 'image/jpeg';
             $content[] = [
                 'type' => 'image_url',
                 'image_url' => [
-                    'url' => 'data:'.$mime.';base64,'.base64_encode((string) file_get_contents($path)),
+                    'url' => 'data:'.$image['mime'].';base64,'.base64_encode($image['bytes']),
                     'detail' => 'original',
                 ],
             ];

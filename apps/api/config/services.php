@@ -41,7 +41,9 @@ return [
         'base_url' => env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
         // DeepSeek's API model name for the latest DeepSeek-V4.1-Flash-1017.
         'model' => env('DEEPSEEK_MODEL', 'deepseek-flash'),
-        'timeout' => (int) env('DEEPSEEK_TIMEOUT', 90),
+        'timeout' => (int) env('DEEPSEEK_TIMEOUT', 110),
+        // Organizer assistant thinking budget: max, high, low, or none.
+        'reasoning_effort' => env('DEEPSEEK_REASONING_EFFORT', 'max'),
     ],
 
 ];
