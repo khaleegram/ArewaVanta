@@ -70,7 +70,17 @@ final class ConverseWithAssistant
             }
             $context['requested_evidence_ids'] = $readIds;
             $images = $evidence->whereIn('id', $readIds)->filter(fn ($item): bool => $item->mime !== 'text/csv')->values()->all();
-            $scoreboard = $this->readScoreboards($actor, $thread, $destination, $message, $images, $context);
+            $quick = $this->linksFromButtons($message->content);
+            $pendingMatch = null;
+            if ($quick !== []) {
+                $this->rememberLinks($quick);
+                $pending = $thread->proposals()->where('status', 'pending')->reorder()->orderByDesc('id')->first();
+                if ($images === [] && $pending !== null && empty($pending->payload['kind'])) {
+                    $images = $evidence->whereIn('id', $pending->preview['evidence_ids'] ?? [])->filter(fn ($item): bool => $item->mime !== 'text/csv')->values()->all();
+                    $pendingMatch = $pending->match_id;
+                }
+            }
+            $scoreboard = $this->readScoreboards($actor, $thread, $destination, $message, $images, $context, $pendingMatch, $quick);
             if ($scoreboard !== null) {
                 $context['scoreboard_import'] = collect($scoreboard)->except(['corrections', 'observations', '_rebuild'])->all();
                 $context['scoreboard_import']['corrections_prepared_by_server'] = count($scoreboard['corrections']);
@@ -84,9 +94,16 @@ final class ConverseWithAssistant
                 ->reorder()->orderByDesc('id')->limit(16)->get()->reverse()->map(fn ($m): array => [
                     'role' => $m->role, 'content' => $m->content, 'details' => $m->details,
                 ])->values()->all();
-            $answer = $this->ai->respond($context, $history, $evidence->map(fn ($e): array => [
-                'id' => $e->id, 'name' => $e->name, 'mime' => $e->mime, 'observations' => $e->observations,
-            ])->all(), $images, $message->content, $this->remainingTime($deadline));
+            if ($quick !== [] && $scoreboard !== null && $scoreboard['status'] === 'prepared') {
+                $names = collect($quick)->map(fn (array $link): string => '“'.$link['name'].'” is '.(Player::query()->find($link['player_id'])?->current_ign ?? 'that profile'))->implode('; ');
+                $answer = ['reply' => 'Got it: '.$names.'. I saved that, so I will recognise it in every review from now on. The review below is updated.',
+                    'ruling' => '', 'lookups' => [], 'findings' => [], 'evidence_reads' => [], 'csv_imports' => [], 'admin_actions' => [],
+                    'corrections' => $scoreboard['corrections'], 'player_links' => $quick, 'model' => 'server'];
+            } else {
+                $answer = $this->ai->respond($context, $history, $evidence->map(fn ($e): array => [
+                    'id' => $e->id, 'name' => $e->name, 'mime' => $e->mime, 'observations' => $e->observations,
+                ])->all(), $images, $message->content, $this->remainingTime($deadline));
+            }
             if (is_array($answer['lookups'] ?? null) && $answer['lookups'] !== []) {
                 abort_unless($this->permissions->canManage($actor, $thread->event), 403);
                 $firstPass = $answer;
@@ -186,7 +203,7 @@ final class ConverseWithAssistant
      * @param  array<string, mixed>  $context
      * @return array<string, mixed>|null
      */
-    private function readScoreboards(User $actor, AssistantThread $thread, CompetitionEvent $destination, AssistantMessage $message, array $images, array $context): ?array
+    private function readScoreboards(User $actor, AssistantThread $thread, CompetitionEvent $destination, AssistantMessage $message, array $images, array $context, ?string $matchOverride = null, array $extraLinks = []): ?array
     {
         if ($images === [] || $destination->id !== $thread->event_id) {
             return null;
@@ -224,6 +241,19 @@ final class ConverseWithAssistant
         }
 
         return array_values($links);
+    }
+
+    /**
+     * The one-tap "It's X" buttons send a fixed sentence naming the printed name and the profile ID.
+     * Reading it here makes the choice permanent without waiting on the language model.
+     *
+     * @return list<array{name: string, player_id: string}>
+     */
+    private function linksFromButtons(string $text): array
+    {
+        preg_match_all('/"([^"]{1,100})"\s+is\s+[^\n(]{1,100}\(profile\s+([0-9A-Za-z]{26})\)/u', $text, $found, PREG_SET_ORDER);
+
+        return array_map(fn (array $m): array => ['name' => $m[1], 'player_id' => $m[2]], array_slice($found, 0, 10));
     }
 
     /**

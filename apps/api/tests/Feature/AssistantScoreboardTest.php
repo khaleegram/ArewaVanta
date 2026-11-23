@@ -54,6 +54,31 @@ final class AssistantScoreboardTest extends TestCase
         $this->assertSame(0, MatchSquadResult::query()->count(), 'Projecting standings must not save anything.');
     }
 
+    public function test_one_tap_identity_choice_is_saved_as_an_alias_and_rebuilds_the_review_without_the_model(): void
+    {
+        [$organizer, $eventId, $matchId] = $this->competition();
+        $this->fakeProviders(modelReply: ['reply' => 'Ready.', 'corrections' => []], secondRead: true);
+        $thread = $this->actingAs($organizer, 'sanctum')->postJson("/api/v1/manage/events/{$eventId}/assistant-threads")->json('data');
+        $this->actingAs($organizer, 'sanctum')->post("/api/v1/manage/assistant-threads/{$thread['id']}/messages", [
+            'client_id' => (string) Str::uuid(), 'message' => 'enter it', 'match_id' => $matchId,
+            'images' => [UploadedFile::fake()->image('board.png', 1200, 800)],
+        ], ['Accept' => 'application/json'])->assertOk();
+        $first = AssistantProposal::query()->where('thread_id', $thread['id'])->sole();
+        $silky = Player::query()->where('current_ign', 'SILKY')->sole();
+
+        $response = $this->actingAs($organizer, 'sanctum')->postJson("/api/v1/manage/assistant-threads/{$thread['id']}/messages", [
+            'client_id' => (string) Str::uuid(), 'match_id' => $matchId,
+            'message' => "TEAM12: \"Mystery Guy\" is SILKY (profile {$silky->id}). Use that profile.",
+        ])->assertOk();
+
+        $this->assertDatabaseHas('player_aliases', ['player_id' => $silky->id, 'alias' => 'Mystery Guy', 'source' => 'organizer']);
+        $this->assertSame('superseded', $first->fresh()->status);
+        $this->assertSame(1, AssistantProposal::query()->where('thread_id', $thread['id'])->where('status', 'pending')->count());
+        $reply = collect($response->json('data.messages'))->last();
+        $this->assertStringStartsWith('Got it', $reply['content']);
+        Http::assertSentCount(3);
+    }
+
     public function test_unknown_slot_team_is_reported_not_entered_and_not_blocking_the_rest(): void
     {
         [$organizer, $eventId, $matchId] = $this->competition();
@@ -119,7 +144,7 @@ final class AssistantScoreboardTest extends TestCase
     /** @param array<string, mixed> $modelReply
      * @param  list<array<string, mixed>>  $extra
      */
-    private function fakeProviders(array $modelReply, array $extra = []): void
+    private function fakeProviders(array $modelReply, array $extra = [], bool $secondRead = false): void
     {
         Storage::fake('local');
         config(['services.deepseek.key' => 'test-key']);
@@ -128,9 +153,13 @@ final class AssistantScoreboardTest extends TestCase
             ['team_label' => 'TEAM6', 'team_number' => 6, 'placement' => 2, 'players' => [['name' => 'SILKY', 'kills' => 7]]],
             ...$extra,
         ], 'warnings' => []];
-        Http::fake(['https://api.deepseek.com/chat/completions' => Http::sequence()
+        $sequence = Http::sequence()
             ->push(['choices' => [['message' => ['content' => json_encode($reader)], 'finish_reason' => 'stop']]])
-            ->push(['choices' => [['message' => ['content' => json_encode($modelReply)], 'finish_reason' => 'stop']]])]);
+            ->push(['choices' => [['message' => ['content' => json_encode($modelReply)], 'finish_reason' => 'stop']]]);
+        if ($secondRead) {
+            $sequence->push(['choices' => [['message' => ['content' => json_encode($reader)], 'finish_reason' => 'stop']]]);
+        }
+        Http::fake(['https://api.deepseek.com/chat/completions' => $sequence]);
     }
 
     /** @return array{User, string, string, Squad} */
