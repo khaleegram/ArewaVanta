@@ -347,3 +347,15 @@
   .arena-hero, .arena-share-strip, .arena-filter-note, .arena-player-context { display: none; }
   .arena-lastweek { width: 100%; }
 }
+
+@media (max-width: 760px) {
+  .arena-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .arena-select { min-height: 42px; padding: 0 12px; gap: 6px; border-radius: 10px; width: auto; }
+  .arena-select > .icon:first-child, .arena-select small { display: none; }
+  .arena-select select { font-size: 12px; line-height: 40px; padding: 0 4px 0 0; text-overflow: ellipsis; }
+  .arena-week { min-width: 0; }
+  .arena-lastweek { grid-column: 1 / -1; min-height: 40px; padding: 0 14px; gap: 8px; border-radius: 10px; font-size: 12px; justify-content: center; }
+  .arena-lastweek .icon { width: 15px; height: 15px; }
+  .arena-lastweek span { flex-direction: row; align-items: baseline; gap: 8px; }
+  .arena-lastweek small { font-size: 10px; }
+}
