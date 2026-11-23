@@ -18,6 +18,28 @@ function openReviewDestination(data: AssistantThread) {
 }
 const assistantPath = (eventId: string, threadId?: string | null) => `/manage/competitions/${encodeURIComponent(eventId)}/assistant${threadId ? `/${encodeURIComponent(threadId)}` : ""}`;
 const threadFromLocation = () => decodeURIComponent(location.pathname.replace(/\/+$/, "").match(/\/assistant\/([^/]+)$/)?.[1] ?? "") || new URLSearchParams(location.search).get("thread");
+function RichText({ text }: { text: string }) {
+  const blocks: React.ReactNode[] = [];
+  let list: string[] = [];
+  const inline = (value: string) => value.split(/(\*\*[^*]+\*\*)/g).map((part, i) => part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part);
+  const flush = () => { if (list.length) { const items = list; blocks.push(<ul key={`l${blocks.length}`}>{items.map((item, i) => <li key={i}>{inline(item)}</li>)}</ul>); list = []; } };
+  for (const line of text.split("\n")) {
+    const item = line.match(/^\s*(?:[-•*]|\d+[.)])\s+(.*)$/);
+    if (item) list.push(item[1]);
+    else { flush(); if (line.trim()) blocks.push(<p key={`p${blocks.length}`}>{inline(line)}</p>); }
+  }
+  flush();
+  return <div className="assistant-message-text">{blocks}</div>;
+}
+function Notes({ items }: { items: string[] }) {
+  if (items.length <= 2) return <>{items.map((item, index) => <p className="assistant-warning" key={index}>{item}</p>)}</>;
+  return <details className="assistant-notes"><summary>{items.length} notes to check</summary>{items.map((item, index) => <p key={index}>{item}</p>)}</details>;
+}
+function Working() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => { const timer = setInterval(() => setSeconds((n) => n + 1), 1000); return () => clearInterval(timer); }, []);
+  return <p className="assistant-working" role="status"><span className="assistant-dots" aria-hidden="true"><i /><i /><i /></span>Reading proof and checking slots, players and saved results… {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}<small>Usually under a minute. It is safe to leave and come back.</small></p>;
+}
 const gameKey = (eventId: string) => `assistant-game:${eventId}`;
 
 export default function OrganizerAssistant({ eventId }: { eventId: string }) {
@@ -70,6 +92,8 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
   const openedScroll = useRef<string | null>(null);
   const blocked = busy || !!thread?.processing || opening;
   const matches = (event?.days ?? []).flatMap((day) => day.matches.map((match) => ({ ...match, date: day.date, dayLabel: day.label })));
+  const pendingProposals = (thread?.proposals ?? []).filter((p) => p.status === "pending");
+  const currentGame = (() => { const m = matches.find((item) => item.id === matchId); return m ? `${formatDate(m.date)} · G${m.match_index}` : "All games"; })();
   const validMatch = matchId === "" || matches.some((m) => m.id === matchId);
   const matchLink = `/manage/competitions/${encodeURIComponent(eventId)}/results`;
 
@@ -121,6 +145,8 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
 
   const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const scrollToLatest = (behavior: ScrollBehavior = "smooth") => endMarker.current?.scrollIntoView({ block: "end", behavior: reduceMotion() ? "instant" : behavior });
+
+  useEffect(() => { if (!text && composer.current) composer.current.style.height = "auto"; }, [text]);
 
   useEffect(() => {
     if (opening || !thread || openedScroll.current === thread.id) return;
@@ -230,41 +256,44 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
   if (!event) return <p className="manage-error" role="alert">{error || "Could not load this competition."} <button onClick={() => setRetry((n) => n + 1)}>Retry</button></p>;
   return <div className="assistant-page">
     <a className="score-back" href={`/manage/competitions/${encodeURIComponent(eventId)}`}>← {event.title}</a>
-    <header className="assistant-heading">
-      <div><p className="assistant-eyebrow">ORGANIZER ASSISTANT</p><h1>Review it together<span>.</span></h1><p>Describe the issue. Add proof. Review a ruling and accept exact corrections.</p></div>
-      <a href={`${matchLink}${matchId ? `?match=${encodeURIComponent(matchId)}` : ""}`} target="_blank" rel="noreferrer">Open Match desk ↗</a>
-    </header>
-    <p className="assistant-destination"><span>Score destination</span><strong>{(event.days ?? []).map((day) => formatDate(day.date)).join(" / ")}</strong><small>Tell the assistant if this review belongs to another weekend. Your files stay with the review.</small></p>
-    <div className="assistant-controls">
-      <label>Review<select value={threadId ?? ""} disabled={blocked} onChange={(e) => chooseThread(e.target.value)}><option value="">New review</option>{threadId && !threads.some((item) => item.id === threadId) && <option value={threadId}>{thread?.title || "Linked review"}</option>}{threads.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
-      <label>Game context<select value={validMatch ? matchId : ""} disabled={blocked} onChange={(e) => { setMatchId(e.target.value); updateUrl(threadId, e.target.value); }}><option value="">Compare this competition</option>{matches.map((match) => <option key={match.id} value={match.id}>{formatDate(match.date)} · G{match.match_index} · {match.map_label}</option>)}</select></label>
-    </div>
-    <p className="assistant-context-note">Reads saved results, assigned slots, scoring rules and player profiles. Reviews and proof stay saved to your account across devices. Unsaved Match desk drafts stay on that device.</p>
+    <details className="assistant-context" open={!thread?.messages.length}>
+      <summary><span className="assistant-context-title">Assistant</span><span className="assistant-chip">{currentGame}</span><span className="assistant-chip">{thread?.title || "New review"}</span></summary>
+      <div className="assistant-controls">
+        <label>Review<select value={threadId ?? ""} disabled={blocked} onChange={(e) => chooseThread(e.target.value)}><option value="">New review</option>{threadId && !threads.some((item) => item.id === threadId) && <option value={threadId}>{thread?.title || "Linked review"}</option>}{threads.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+        <label>Game<select value={validMatch ? matchId : ""} disabled={blocked} onChange={(e) => { setMatchId(e.target.value); updateUrl(threadId, e.target.value); }}><option value="">Compare this competition</option>{matches.map((match) => <option key={match.id} value={match.id}>{formatDate(match.date)} · G{match.match_index} · {match.map_label}</option>)}</select></label>
+      </div>
+      <p className="assistant-context-note">Scores go to {(event.days ?? []).map((day) => formatDate(day.date)).join(" / ")}. Name another game in your message and I will use that instead. Reviews and proof stay saved to your account. <a href={`${matchLink}${matchId ? `?match=${encodeURIComponent(matchId)}` : ""}`} target="_blank" rel="noreferrer">Open Match desk ↗</a></p>
+    </details>
     {!validMatch && <p className="manage-error" role="alert">The linked game is not in this competition. Choose the correct game context.</p>}
     {opening ? <p className="manage-notice">Opening saved review…</p> : <div className="assistant-conversation" aria-label="Review conversation">
       {!thread?.messages.length && <section className="assistant-welcome"><h2>What needs checking?</h2><p>Upload a weekly CSV or screenshots to check scores, players and slots against saved results.</p><div className="assistant-welcome-actions"><button type="button" disabled={blocked} onClick={() => { setText("These players dispute their individual and team kills. Compare the attached proof with saved results, explain any differences and propose the supported corrections. Ask me about any uncertain game or slot."); composer.current?.focus(); }}>Review a score dispute</button><button type="button" disabled={blocked} onClick={() => { setText(`Prepare an import of the attached CSV into the games on ${(event.days ?? []).map((day) => day.date).join(" and ")}. Check game/slot mappings, duplicates and player/team kills. Search the full directory, reuse existing players and propose profiles for genuinely missing players. Preserve known team totals and leave uncertain details unknown. Show one review of all supported games for my acceptance.`); composer.current?.focus(); }}>Enter weekly CSV</button></div></section>}
       {thread?.messages.map((message) => <article className={`assistant-message assistant-message-${message.role}`} id={`assistant-turn-${message.id}`} key={message.id}>
         <p className="assistant-message-author">{message.role === "user" ? "You" : "Assistant"}</p>
-        <div className="assistant-message-text">{message.content}</div>
+        {message.role === "assistant" ? <RichText text={message.content} /> : <div className="assistant-message-text">{message.content}</div>}
         {!!message.details?.read_evidence_ids?.length && <div className="assistant-proof-links">{proofButtons(message.details.read_evidence_ids)}</div>}
         {!!message.details?.duplicate_uploads?.length && <p className="assistant-context-note">Repeated uploads linked to the same saved proof: {message.details.duplicate_uploads.join(", ")}. They count once.</p>}
         {message.details?.ruling && <section className="assistant-ruling"><h3>Suggested ruling</h3><p>{message.details.ruling}</p></section>}
         {!!message.details?.findings?.length && <details className="assistant-findings"><summary>Evidence and uncertainties ({message.details.findings.length})</summary><ul>{[...message.details.findings].sort((a, b) => Number(b.kind === "unresolved") - Number(a.kind === "unresolved")).map((finding, index) => <li key={index}><span className={`assistant-finding-kind is-${finding.kind}`}>{finding.kind === "observed" ? "Visible in proof / saved data" : finding.kind === "inferred" ? "Inferred" : "Needs a decision"}</span><p>{finding.text}</p><div className="assistant-proof-links">{proofButtons(finding.evidence_ids)}</div></li>)}</ul></details>}
-        {message.details?.warnings?.map((warning, index) => <p className="assistant-warning" key={index}>{warning}</p>)}
+        {!!message.details?.warnings?.length && <Notes items={message.details.warnings} />}
         {thread.proposals.filter((p) => p.message_id === message.id).map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onUndo={() => void decide(proposal, "undo")} onEdit={(edits) => void edit(proposal, edits)} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />)}
         {message.role === "user" && message.status !== "completed" && !thread.processing && <button type="button" disabled={blocked} onClick={() => retryMessage(message)}>Retry this saved message</button>}
       </article>)}
-      {(busy || thread?.processing) && <p className="assistant-working" role="status">Reviewing saved data and proof… You can return to this review on either device.</p>}
+      {(busy || thread?.processing) && <Working />}
     </div>}
     <div ref={endMarker} aria-hidden="true" className="assistant-end" />
     {!atEnd && !opening && !!thread?.messages.length && <button type="button" className="assistant-jump" onClick={() => scrollToLatest()} aria-label="Jump to the latest message">↓<span>Latest</span></button>}
     {notice && <p className="assistant-notice" role="status">{notice}</p>}
     {error && <p className="assistant-warning" role="alert">{error}</p>}
     <form className="assistant-composer" onSubmit={submit} aria-label="Message the organizer assistant">
-      <label htmlFor="assistant-message">Your message</label>
-      <textarea id="assistant-message" ref={composer} value={text} maxLength={12000} disabled={blocked} onChange={(e) => setText(e.target.value)} placeholder="Tell me what looks wrong, or ask about these results…" rows={2} />
+      {!!pendingProposals.length && <button type="button" className="assistant-pending-bar" onClick={() => document.getElementById(`assistant-proposal-${pendingProposals.at(-1)!.id}`)?.scrollIntoView({ block: "start", behavior: reduceMotion() ? "instant" : "smooth" })}><strong>{pendingProposals.length}</strong> {pendingProposals.length === 1 ? "review is" : "reviews are"} waiting for your decision <span>Review ↑</span></button>}
       {!!files.length && <ul className="assistant-attachments">{files.map((file, index) => <Attachment key={`${file.name}:${index}`} file={file} disabled={blocked} onRemove={() => setFiles((old) => old.filter((_, i) => i !== index))} />)}</ul>}
-      <div className="assistant-composer-actions"><label className="assistant-attach">＋ Add files<input type="file" multiple accept=".csv,text/csv,image/jpeg,image/png,image/webp" disabled={blocked} onChange={(e) => { attach(e.target.files); e.target.value = ""; }} /></label><span>{files.length ? `${files.length}/8 files` : "CSV or screenshots"}</span><button className="assistant-primary" disabled={blocked || !validMatch || (!text.trim() && !files.length)}>{blocked ? "Working…" : "Send"}</button></div>
+      <div className="assistant-composer-row">
+        <label className="assistant-attach" aria-label="Add CSV or screenshots" title="Add CSV or screenshots"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg><input type="file" multiple accept=".csv,text/csv,image/jpeg,image/png,image/webp" disabled={blocked} onChange={(e) => { attach(e.target.files); e.target.value = ""; }} /></label>
+        <label htmlFor="assistant-message" className="assistant-sr">Your message</label>
+        <textarea id="assistant-message" ref={composer} value={text} maxLength={12000} disabled={blocked} onChange={(e) => { setText(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${Math.min(e.target.scrollHeight, 168)}px`; }} onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="Message the assistant…" rows={1} />
+        <button className="assistant-primary assistant-send" aria-label={blocked ? "Working" : "Send"} disabled={blocked || !validMatch || (!text.trim() && !files.length)}>{blocked ? "…" : <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}</button>
+      </div>
+      <small className="assistant-composer-hint">{files.length ? `${files.length}/8 files attached` : "CSV or screenshots · Ctrl+Enter to send"}</small>
     </form>
     {proof && thread && <ProofDialog key={proof.id} token={token} threadId={thread.id} evidence={proof} number={evidenceNumber(proof.id)} onClose={() => setProof(null)} disabled={blocked} onRecheck={() => { const { id, csv } = proof; setProof(null); void send({ client_id: crypto.randomUUID(), message: csv ? "Review this CSV against the latest saved results again. Verify game and slot linkage, repeated rows, missing values, and player versus team totals. Explain any changes from your previous review." : "Re-read this image carefully. Check the exact digits, match linkage and slot, and compare against the latest saved results. Explain any changes from your previous reading.", match_id: matchId || null, recheck_evidence_ids: [id] }); }} />}
   </div>;
@@ -272,14 +301,17 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
 
 function ProposalCard({ proposal, disabled, proofButtons, onAccept, onReject, onUndo, onEdit, resultUrl }: { proposal: AssistantProposal; disabled: boolean; proofButtons: (ids: string[]) => React.ReactNode; onAccept: () => void; onReject: () => void; onUndo: () => void; onEdit: (edits: AssistantProposalEdit[]) => void; resultUrl: string }) {
   const pending = proposal.status === "pending";
-  return <section className={`assistant-proposal is-${proposal.status}`} aria-label="Proposed result correction">
+  const rows = proposal.preview.rows ?? [];
+  const newProfiles = rows.reduce((sum, row) => sum + row.after.players.filter((p) => p.creates_profile).length, 0);
+  return <section id={`assistant-proposal-${proposal.id}`} className={`assistant-proposal is-${proposal.status}`} aria-label="Proposed result correction">
     <div className="assistant-proposal-heading"><h3>{proposal.title}</h3><span>{pending ? "Awaiting your acceptance" : proposal.status === "accepted" ? "Accepted & saved" : proposal.status === "undone" ? "Undone" : proposal.status === "superseded" ? "Replaced by a newer review" : "Rejected"}</span></div>
-    <p className="assistant-message-text">{proposal.reason}</p>
-    {proposal.preview.kind === "admin_action" ? <AdminActionChanges proposal={proposal} /> : proposal.preview.kind === "csv_import" ? <CsvImportChanges proposal={proposal} /> : pending ? <ScoreChanges proposal={proposal} /> : <details><summary>View proposed changes</summary><ScoreChanges proposal={proposal} /></details>}
+    {pending && !proposal.preview.kind && <div className="assistant-chips"><span className="assistant-chip is-strong">{rows.length} {rows.length === 1 ? "team" : "teams"}</span>{newProfiles > 0 && <span className="assistant-chip is-warn">{newProfiles} new {newProfiles === 1 ? "profile" : "profiles"}</span>}{!!proposal.preview.standings?.rows.length && <span className="assistant-chip">{proposal.preview.standings.rows.length} standings move</span>}</div>}
+    <details className="assistant-reason" open={!pending}><summary>Why these changes</summary><RichText text={proposal.reason} /></details>
+    {proposal.preview.kind === "admin_action" ? <AdminActionChanges proposal={proposal} /> : proposal.preview.kind === "csv_import" ? <CsvImportChanges proposal={proposal} /> : pending ? <details open><summary>Before and after for each team</summary><ScoreChanges proposal={proposal} /></details> : <details><summary>View proposed changes</summary><ScoreChanges proposal={proposal} /></details>}
     {!!proposal.preview.standings?.rows.length && <StandingsImpact standings={proposal.preview.standings} />}
     {pending && !proposal.preview.kind && <EditProposal proposal={proposal} disabled={disabled} onEdit={onEdit} />}
     <div className="assistant-proof-links">{proofButtons(proposal.preview.evidence_ids)}</div>
-    {pending && <div className="assistant-proposal-actions"><button type="button" className="assistant-primary" disabled={disabled} onClick={onAccept}>{proposal.preview.kind === "admin_action" ? `Accept & apply ${proposal.preview.items?.length ?? 0} changes` : proposal.preview.kind === "csv_import" ? `Accept & save ${proposal.preview.games?.length ?? 0} games` : "Accept & update results"}</button><button type="button" disabled={disabled} onClick={onReject}>Reject</button></div>}
+    {pending && <div className="assistant-proposal-actions is-sticky"><button type="button" className="assistant-primary" disabled={disabled} onClick={onAccept}>{proposal.preview.kind === "admin_action" ? `Accept & apply ${proposal.preview.items?.length ?? 0} changes` : proposal.preview.kind === "csv_import" ? `Accept & save ${proposal.preview.games?.length ?? 0} games` : "Accept & update results"}</button><button type="button" disabled={disabled} onClick={onReject}>Reject</button></div>}
     {proposal.status === "accepted" && proposal.preview.kind !== "csv_import" && <div className="assistant-proposal-actions"><button type="button" disabled={disabled} onClick={onUndo}>Undo this change</button></div>}
     {proposal.status === "accepted" && proposal.preview.kind !== "admin_action" && <a href={resultUrl} target="_blank" rel="noreferrer">View updated results ↗</a>}
   </section>;
@@ -308,12 +340,15 @@ function CsvImportChanges({ proposal }: { proposal: AssistantProposal }) {
 }
 
 function StandingsImpact({ standings }: { standings: NonNullable<AssistantProposal["preview"]["standings"]> }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? standings.rows : standings.rows.slice(0, 8);
   const arrow = (before: number | null, after: number) => before === null ? "new" : after < before ? `▲ ${before - after}` : after > before ? `▼ ${after - before}` : "–";
-  return <details className="assistant-standings" open><summary>Standings impact · {standings.scope} · {standings.rows.length} of {standings.teams} teams move or score</summary>
-    <table><thead><tr><th>Team</th><th>Rank</th><th>Points</th></tr></thead><tbody>{standings.rows.map((row) => <tr key={row.squad_id}>
+  return <details className="assistant-standings"><summary>Standings impact · {standings.scope} · {standings.rows.length} of {standings.teams} teams move or score</summary>
+    <table><thead><tr><th>Team</th><th>Rank</th><th>Points</th></tr></thead><tbody>{shown.map((row) => <tr key={row.squad_id}>
       <th>{row.clan}{row.slot !== null ? ` · slot ${row.slot}` : ""}</th>
       <td>{row.before_rank ?? "–"} → <strong>{row.after_rank}</strong> <small>{arrow(row.before_rank, row.after_rank)}</small></td>
       <td>{Number(row.before_points)} → <strong>{Number(row.after_points)}</strong></td></tr>)}</tbody></table>
+    {standings.rows.length > 8 && <button type="button" className="assistant-link-button" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${standings.rows.length}`}</button>}
     <p className="assistant-context-note">Calculated with this competition&apos;s real scoring and tie-break rules. Nothing is saved until you accept.</p></details>;
 }
 
