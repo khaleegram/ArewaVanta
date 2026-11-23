@@ -100,18 +100,14 @@ final class ConverseWithAssistant
                     'ruling' => '', 'lookups' => [], 'findings' => [], 'evidence_reads' => [], 'csv_imports' => [], 'admin_actions' => [],
                     'corrections' => $scoreboard['corrections'], 'player_links' => $quick, 'model' => 'server'];
             } else {
-                $answer = $this->ai->respond($context, $history, $evidence->map(fn ($e): array => [
-                    'id' => $e->id, 'name' => $e->name, 'mime' => $e->mime, 'observations' => $e->observations,
-                ])->all(), $images, $message->content, $this->remainingTime($deadline));
+                $answer = $this->ai->respond($context, $history, $this->evidenceForModel($evidence), $images, $message->content, $this->remainingTime($deadline));
             }
             if (is_array($answer['lookups'] ?? null) && $answer['lookups'] !== []) {
                 abort_unless($this->permissions->canManage($actor, $thread->event), 403);
                 $firstPass = $answer;
                 $context = $this->context->lookUp($thread->event, $context, $answer['lookups'], $actor, $csvTables);
                 $context['first_pass_evidence_reads'] = $firstPass['evidence_reads'] ?? [];
-                $answer = $this->ai->respond($context, $history, $evidence->map(fn ($e): array => [
-                    'id' => $e->id, 'name' => $e->name, 'mime' => $e->mime, 'observations' => $e->observations,
-                ])->all(), [], $message->content, $this->remainingTime($deadline));
+                $answer = $this->ai->respond($context, $history, $this->evidenceForModel($evidence), [], $message->content, $this->remainingTime($deadline));
                 $answer['evidence_reads'] = $firstPass['evidence_reads'] ?? [];
             }
 
@@ -244,6 +240,29 @@ final class ConverseWithAssistant
     }
 
     /**
+     * Many frames of one scoreboard video share one merged reading; send it once, not per frame.
+     *
+     * @param  iterable<AssistantEvidence>  $evidence
+     * @return list<array<string, mixed>>
+     */
+    private function evidenceForModel(iterable $evidence): array
+    {
+        $seen = [];
+        $out = [];
+        foreach ($evidence as $item) {
+            $fingerprint = $item->observations === null ? null : md5(json_encode($item->observations));
+            $first = $fingerprint !== null && ! isset($seen[$fingerprint]);
+            if ($first) {
+                $seen[$fingerprint] = $item->id;
+            }
+            $out[] = ['id' => $item->id, 'name' => $item->name, 'mime' => $item->mime,
+                'observations' => $fingerprint === null || $first ? $item->observations : ['same_reading_as' => $seen[$fingerprint]]];
+        }
+
+        return $out;
+    }
+
+    /**
      * The one-tap "It's X" buttons send a fixed sentence naming the printed name and the profile ID.
      * Reading it here makes the choice permanent without waiting on the language model.
      *
@@ -322,7 +341,7 @@ final class ConverseWithAssistant
                 if ($message === null) {
                     abort_if($thread->messages()->count() >= 200, 422, 'Start a new chat to continue. This review and its evidence remain saved.');
                     $files = [...($input['images'] ?? []), ...($input['csv_files'] ?? [])];
-                    abort_if(count($files) > 8, 422, 'Attach up to eight files per message, including up to two CSVs.');
+                    abort_if(count($files) > 40, 422, 'Attach up to 40 files per message (video frames count as files), including up to two CSVs.');
                     abort_if(array_sum(array_map(fn (UploadedFile $file): int => (int) $file->getSize(), $files)) > 20 * 1024 * 1024, 422, 'Attach up to 20 MB of files per message.');
                     $references = $input['recheck_evidence_ids'] ?? [];
                     abort_unless($thread->evidence()->whereIn('id', $references)->count() === count($references), 422, 'One of the selected files does not belong to this chat.');
@@ -331,7 +350,7 @@ final class ConverseWithAssistant
                         $hash = hash_file('sha256', $file->getRealPath());
                         $evidence = $thread->evidence()->where('sha256', $hash)->first();
                         if ($evidence === null) {
-                            abort_if($thread->evidence()->count() >= 24, 422, 'This chat has 24 saved files. Start a new review for additional evidence.');
+                            abort_if($thread->evidence()->count() >= 120, 422, 'This chat has 120 saved files. Start a new review for additional evidence.');
                             $isCsv = mb_strtolower($file->getClientOriginalExtension()) === 'csv';
                             $parsed = $isCsv ? $this->csv->read($file) : null;
                             $path = $file->store('assistant-evidence/'.$thread->id, 'local');
@@ -349,7 +368,7 @@ final class ConverseWithAssistant
                         $references[] = $evidence->id;
                     }
                     $references = array_values(array_unique($references));
-                    abort_if(count($references) > 8, 422, 'Read or recheck up to eight files in one message.');
+                    abort_if(count($references) > 40, 422, 'Read or recheck up to 40 files in one message.');
                     $message = $thread->messages()->create([
                         'client_id' => $input['client_id'], 'role' => 'user', 'status' => 'pending', 'content' => $content,
                         'details' => ['match_id' => $input['match_id'] ?? null, 'read_evidence_ids' => $references, 'duplicate_uploads' => $duplicates],

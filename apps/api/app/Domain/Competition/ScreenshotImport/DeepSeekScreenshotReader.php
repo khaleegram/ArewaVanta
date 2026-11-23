@@ -91,7 +91,7 @@ final class DeepSeekScreenshotReader
         }
 
         try {
-            $decoded = json_decode($this->stripCodeFence($text), true, flags: JSON_THROW_ON_ERROR);
+            $decoded = $this->decode($text);
         } catch (Throwable) {
             Log::warning('DeepSeek screenshot import returned invalid JSON.', ['content' => mb_substr($text, 0, 2000)]);
 
@@ -118,7 +118,7 @@ For every visible team return:
 - placement: the team's rank/placement shown by the rank badge or rank number (1 = first place). This is NOT the kill count.
 - team_kills: only if the board separately shows a team kill total; otherwise null
 - players: every visible player observation, in the order shown. Teams normally have four players; retain extra names if overlapping images disagree so an organizer can resolve them. Each player:
-  - name: the player name exactly as printed, including clan tag, punctuation and stylised characters
+  - name: the player name exactly as printed, including clan tag, punctuation and stylised characters (escape any double quote inside a name as \\\")
   - kills: the kill number shown beside that player, or null if unreadable
 
 Rules:
@@ -294,6 +294,29 @@ PROMPT;
         }
 
         return null;
+    }
+
+    /**
+     * Player names can contain a literal double quote (a clan tag such as "4X). The model sometimes
+     * leaves it unescaped, which would discard an otherwise correct reading. Only name values are
+     * repaired, and only after a normal decode fails.
+     *
+     * @return array<string, mixed>
+     */
+    private function decode(string $text): array
+    {
+        $clean = $this->stripCodeFence($text);
+        try {
+            $decoded = json_decode($clean, true, flags: JSON_THROW_ON_ERROR);
+        } catch (Throwable $exception) {
+            $repaired = preg_replace_callback('/"name"\s*:\s*"(.*?)"\s*(?=,\s*"kills")/su', static fn (array $m): string => '"name":'.json_encode(str_replace('\\"', '"', $m[1]), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), $clean);
+            if ($repaired === null) {
+                throw $exception;
+            }
+            $decoded = json_decode($repaired, true, flags: JSON_THROW_ON_ERROR);
+        }
+
+        return is_array($decoded) ? $decoded : throw new ScreenshotImportFailed('The screenshot reader returned an unreadable result. Try again.');
     }
 
     private function stripCodeFence(string $text): string

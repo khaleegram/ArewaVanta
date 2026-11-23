@@ -6,6 +6,7 @@ import { Shell, SignIn, type Session } from "./CompetitionManager";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
 import { formatDate } from "./presentation";
+import { extractFrames, isVideoFile } from "./videoFrames";
 import "./organizer-assistant.css";
 
 const explain = (error: unknown) => error instanceof ApiError
@@ -135,6 +136,8 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
   const [matchId, setMatchId] = useState(() => new URLSearchParams(location.search).get("match") || localStorage.getItem(gameKey(eventId)) || "");
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [extracting, setExtracting] = useState<{ name: string; pct: number } | null>(null);
+  const clipOf = useRef(new WeakMap<File, string>());
   const [loading, setLoading] = useState(true);
   const [opening, setOpening] = useState(!!threadId);
   const [busy, setBusy] = useState(false);
@@ -149,7 +152,7 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
   const endMarker = useRef<HTMLDivElement>(null);
   const [atEnd, setAtEnd] = useState(true);
   const openedScroll = useRef<string | null>(null);
-  const blocked = busy || !!thread?.processing || opening;
+  const blocked = busy || !!thread?.processing || opening || !!extracting;
   const matches = (event?.days ?? []).flatMap((day) => day.matches.map((match) => ({ ...match, date: day.date, dayLabel: day.label })));
   const pendingProposals = (thread?.proposals ?? []).filter((p) => p.status === "pending");
   const currentGame = (() => { const m = matches.find((item) => item.id === matchId); return m ? `${formatDate(m.date)} · G${m.match_index}` : "All games"; })();
@@ -288,16 +291,29 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
     } catch (e) { setError(explain(e)); }
     finally { sending.current = false; setBusy(false); }
   }
-  function attach(selected: FileList | null) {
+  async function attach(selected: FileList | null) {
     if (!selected) return;
-    const next = [...files, ...Array.from(selected)];
-    if (next.length > 8) { setError("Attach up to eight files per message. You can send more in a follow-up."); return; }
-    if (next.filter(isCsvUpload).length > 2) { setError("Attach up to two CSV files per message."); return; }
-    if (next.some((file) => isCsvUpload(file) ? file.size > 1024 * 1024 : !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)) {
-      setError("Use CSV files up to 1 MB or JPEG, PNG and WebP images up to 5 MB each."); return;
+    const picked = Array.from(selected);
+    const videos = picked.filter(isVideoFile);
+    const others = picked.filter((file) => !isVideoFile(file));
+    let next = [...files, ...others];
+    if (others.some((file) => isCsvUpload(file) ? file.size > 1024 * 1024 : !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)) {
+      setError("Use CSV files up to 1 MB, JPEG, PNG or WebP images up to 5 MB each, or a screen recording."); return;
     }
-    if (next.reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024) { setError("Keep this message's files under 20 MB."); return; }
+    for (const video of videos) {
+      setError(""); setExtracting({ name: video.name, pct: 0 });
+      try {
+        const frames = await extractFrames(video, (pct) => setExtracting({ name: video.name, pct }));
+        frames.forEach((frame) => clipOf.current.set(frame, video.name));
+        next = [...next, ...frames];
+      } catch (e) { setExtracting(null); setError(e instanceof Error ? e.message : "Could not read that video."); return; }
+    }
+    setExtracting(null);
+    if (next.length > 40) { setError("That is more than 40 files. Remove some, or record a shorter video."); return; }
+    if (next.filter(isCsvUpload).length > 2) { setError("Attach up to two CSV files per message."); return; }
+    if (next.reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024) { setError("Keep this message's files under 20 MB. Record a shorter video."); return; }
     setFiles(next); setError("");
+    if (videos.length) setNotice(`Video ready: ${next.filter((f) => clipOf.current.has(f)).length} clear frames cut out. Tap Enter these results.`);
   }
   const evidenceNumber = (id: string) => (thread?.evidence.findIndex((e) => e.id === id) ?? -1) + 1;
   function proofButtons(ids: string[]) {
@@ -341,7 +357,7 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
             return <div className={`chat-row is-${message.role}`} id={`assistant-turn-${message.id}`} key={message.id}>
               <div className="chat-bubble">
                 {assistant ? <Summary text={message.content} clamp={proposals.length > 0} /> : <div className="assistant-message-text">{message.content}</div>}
-                {!assistant && !!proofIds.length && <div className="chat-attached">{proofButtons(proofIds)}</div>}
+                {!assistant && !!proofIds.length && <div className="chat-attached">{proofIds.length > 4 ? <button type="button" className="assistant-proof-link" onClick={() => setProof(thread.evidence.find((e) => e.id === proofIds[0]) ?? null)}>🎞 {proofIds.length} frames</button> : proofButtons(proofIds)}</div>}
                 {message.role === "user" && message.status !== "completed" && !thread.processing && <button type="button" className="chat-retry" disabled={blocked} onClick={() => retryMessage(message)}>Retry this message</button>}
               </div>
               {proposals.map((proposal) => proposal.preview.kind ? <ProposalCard key={proposal.id} proposal={proposal} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onUndo={() => void decide(proposal, "undo")} onEdit={(edits) => void edit(proposal, edits)} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />
@@ -349,7 +365,7 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
                   ? <ReviewSheet key={proposal.id} proposal={proposal} issues={message.details?.issues ?? []} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onEdit={(edits) => void edit(proposal, edits)} onAsk={(question) => void send({ client_id: crypto.randomUUID(), message: question, match_id: matchId || null })} onWrite={(value) => { setText(value); composer.current?.focus(); }} />
                   : <DoneCard key={proposal.id} proposal={proposal} disabled={blocked} onUndo={() => void decide(proposal, "undo")} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />)}
               {assistant && (extras > 0 || !!proofIds.length) && <details className="chat-more"><summary>Details{extras ? ` · ${extras}` : ""}</summary>
-                {!!proofIds.length && <div className="assistant-proof-links">{proofButtons(proofIds)}</div>}
+                {!!proofIds.length && proofIds.length <= 8 && <div className="assistant-proof-links">{proofButtons(proofIds)}</div>}
                 {!!message.details?.duplicate_uploads?.length && <p className="assistant-context-note">Repeated uploads count once: {message.details.duplicate_uploads.join(", ")}.</p>}
                 {message.details?.ruling && <section className="assistant-ruling"><h3>Suggested ruling</h3><p>{message.details.ruling}</p></section>}
                 {!!message.details?.findings?.length && <ul className="assistant-findings-list">{[...message.details.findings].sort((a, b) => Number(b.kind === "unresolved") - Number(a.kind === "unresolved")).map((finding, index) => <li key={index}><span className={`assistant-finding-kind is-${finding.kind}`}>{finding.kind === "observed" ? "Seen" : finding.kind === "inferred" ? "Inferred" : "Needs a decision"}</span><p>{finding.text}</p><div className="assistant-proof-links">{proofButtons(finding.evidence_ids)}</div></li>)}</ul>}
@@ -366,9 +382,13 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
     {(notice || error) && <p className={`chat-banner${error ? " is-error" : ""}`} role={error ? "alert" : "status"}>{error || notice}<button type="button" aria-label="Dismiss" onClick={() => { setError(""); setNotice(""); }}>×</button></p>}
     <form className="assistant-composer chat-composer" onSubmit={submit} aria-label="Message the organizer assistant">
       {!working && <div className="chat-quick" role="group" aria-label="Suggestions">{quick.map(([label, message]) => <button type="button" key={label} disabled={blocked} onClick={() => quickSend(message)}>{label}</button>)}</div>}
-      {!!files.length && <ul className="assistant-attachments">{files.map((file, index) => <Attachment key={`${file.name}:${index}`} file={file} disabled={blocked} onRemove={() => setFiles((old) => old.filter((_, i) => i !== index))} />)}</ul>}
+      {extracting && <p className="chat-extracting" role="status"><span className="assistant-dots" aria-hidden="true"><i /><i /><i /></span>Reading video “{extracting.name}” on your phone… {Math.round(extracting.pct * 100)}%</p>}
+      {!!files.length && <ul className="assistant-attachments">
+        {[...new Set(files.filter((f) => clipOf.current.has(f)).map((f) => clipOf.current.get(f)!))].map((clip) => <li key={`clip:${clip}`} className="assistant-clip"><span>🎞 {clip} · {files.filter((f) => clipOf.current.get(f) === clip).length} frames</span><button type="button" disabled={blocked} aria-label={`Remove video ${clip}`} onClick={() => setFiles((old) => old.filter((f) => clipOf.current.get(f) !== clip))}>×</button></li>)}
+        {files.filter((f) => !clipOf.current.has(f)).map((file, index) => <Attachment key={`${file.name}:${index}`} file={file} disabled={blocked} onRemove={() => setFiles((old) => old.filter((f) => f !== file))} />)}
+      </ul>}
       <div className="assistant-composer-row">
-        <label className="assistant-attach" aria-label="Add CSV or screenshots" title="Add CSV or screenshots"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg><input type="file" multiple accept=".csv,text/csv,image/jpeg,image/png,image/webp" disabled={blocked} onChange={(e) => { attach(e.target.files); e.target.value = ""; }} /></label>
+        <label className="assistant-attach" aria-label="Add screenshots, a screen recording or a CSV" title="Add screenshots, a screen recording or a CSV"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.3-8.3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg><input type="file" multiple accept=".csv,text/csv,image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,.mp4,.mov" disabled={blocked} onChange={(e) => { void attach(e.target.files); e.target.value = ""; }} /></label>
         <label htmlFor="assistant-message" className="assistant-sr">Your message</label>
         <textarea id="assistant-message" ref={composer} value={text} maxLength={12000} disabled={blocked} onChange={(e) => { setText(e.target.value); e.target.style.height = "auto"; e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`; }} onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="Message the assistant…" rows={1} />
         <button className="assistant-primary assistant-send" aria-label={blocked ? "Working" : "Send"} disabled={blocked || !validMatch || (!text.trim() && !files.length)}>{blocked ? "…" : <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>}</button>

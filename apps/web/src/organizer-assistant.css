@@ -348,3 +348,7 @@
   .chat-feed { padding: 12px 8px 16px; }
   .review-sheet { margin-left: 0; margin-right: 0; }
 }
+
+.chat-extracting { margin: 0 0 8px; padding: 8px 12px; border-radius: 12px; background: #eef3e8; font-size: .82rem; display: flex; align-items: center; gap: 4px; }
+.assistant-attachments .assistant-clip { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border: 1px solid #87a282; border-radius: 999px; background: #eaf0e5; font-size: .8rem; max-width: 100%; }
+.assistant-attachments .assistant-clip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
