@@ -58,7 +58,7 @@ final class AssistantScoreboards
             if ($match === null) {
                 continue;
             }
-            $mapped = $this->mapper->map($extraction, $this->sheet($actor, $match));
+            $mapped = $this->mapper->map($extraction, $this->withHistory($this->sheet($actor, $match), $matchId, $context));
             $sheets[$matchId] = $mapped;
             $entry = collect($context['schedule'])->firstWhere('id', $matchId) ?? [];
             $candidates[] = [
@@ -140,6 +140,44 @@ final class AssistantScoreboards
         }
 
         return $clean;
+    }
+
+    /**
+     * Players who already played for a squad in this competition's other loaded games are known
+     * to that squad, so a misspelling of them resolves to the same profile again.
+     *
+     * @param  array<string, mixed>  $sheet
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    private function withHistory(array $sheet, string $matchId, array $context): array
+    {
+        $history = [];
+        foreach ($context['matches'] as $other) {
+            if (($other['id'] ?? null) === $matchId) {
+                continue;
+            }
+            foreach ($other['results'] ?? [] as $row) {
+                foreach ($row['players'] ?? [] as $player) {
+                    if (! empty($player['player_id'])) {
+                        $history[$row['squad_id']][$player['player_id']] = ['id' => $player['player_id'], 'ign' => $player['ign']];
+                    }
+                }
+            }
+        }
+        $sheet['squads'] = array_map(function (array $squad) use ($history): array {
+            $known = collect($squad['eligible_players'] ?? [])->keyBy('id');
+            foreach ($history[$squad['id']] ?? [] as $id => $player) {
+                if (! $known->has($id)) {
+                    $known->put($id, $player);
+                }
+            }
+            $squad['eligible_players'] = $known->values()->all();
+
+            return $squad;
+        }, (array) ($sheet['squads'] ?? []));
+
+        return $sheet;
     }
 
     /** @return array<string, mixed> */

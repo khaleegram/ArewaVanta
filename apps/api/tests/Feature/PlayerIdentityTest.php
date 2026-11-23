@@ -57,4 +57,16 @@ class PlayerIdentityTest extends TestCase
         $this->assertSame($primeDeath->id, $identity->resolve('P1・DEATH', $prime->id, [$primeDeath->id])['player_id']);
         $this->assertSame($mhd->id, $identity->resolve('◇MHD◇', $bagatatas->id, [$mhd->id])['player_id']);
     }
+
+    public function test_a_unique_prefix_of_a_distinctive_name_is_recognized_without_slot_context(): void
+    {
+        $velocity = Clan::factory()->create(['name' => 'Velocity', 'tag' => 'VX']);
+        $elites = Clan::factory()->create(['name' => 'Northern Elites', 'tag' => 'NE']);
+        $yusha = Player::factory()->create(['clan_id' => $velocity->id, 'current_ign' => 'ª乇・YUSHƛSKI']);
+        Player::factory()->create(['clan_id' => $elites->id, 'current_ign' => 'MOTION']);
+
+        $found = (new PlayerIdentity)->resolve('ᵃモ • YUSHA؟', $elites->id);
+
+        $this->assertSame($yusha->id, $found['player_id']);
+    }
 }

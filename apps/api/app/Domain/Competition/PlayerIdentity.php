@@ -110,6 +110,9 @@ final class PlayerIdentity
         if ($top['base'] >= .97 && $gap >= .04) {
             return $this->outcome(self::MATCHED, $top['profile'], $top['score'], $reason, $candidates);
         }
+        if (! $short && $top['base'] >= .9 && $gap >= .2) {
+            return $this->outcome(self::PROBABLE, $top['profile'], $top['score'], $reason.', and no other profile is close', $candidates);
+        }
         $contextual = in_array('on this slot\'s squad', $top['notes'], true) || in_array('in the slot\'s clan', $top['notes'], true);
         if (! $short && $top['score'] >= ($contextual ? .74 : .93) && $gap >= .08) {
             return $this->outcome(self::PROBABLE, $top['profile'], $top['score'], $reason, $candidates);
@@ -190,7 +193,7 @@ final class PlayerIdentity
 
     private function fold(string $value): string
     {
-        return strtr($value, ['α' => 'A', 'Α' => 'A', '€' => 'E', 'Λ' => 'A', 'ム' => 'A', 'さ' => 'A', '¥' => 'Y', 'Ɓ' => 'B', 'ƈ' => 'c']);
+        return strtr($value, ['α' => 'A', 'Α' => 'A', '€' => 'E', 'Λ' => 'A', 'ム' => 'A', 'さ' => 'A', '¥' => 'Y', 'Ɓ' => 'B', 'Ƛ' => 'A', 'ƛ' => 'a', 'ƈ' => 'c']);
     }
 
     private function prefixKey(string $value): string

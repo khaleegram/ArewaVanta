@@ -2,13 +2,18 @@
 
 namespace App\Domain\Competition\Assistant;
 
+use App\Domain\Competition\ClanTag;
+use App\Domain\Competition\PlayerNameSearch;
 use App\Domain\Competition\ResultPermissions;
 use App\Domain\Competition\ScreenshotImport\ScreenshotImportFailed;
 use App\Domain\Competition\ScreenshotImport\ScreenshotImportUnavailable;
 use App\Models\AssistantEvidence;
 use App\Models\AssistantMessage;
 use App\Models\AssistantThread;
+use App\Models\Clan;
 use App\Models\CompetitionEvent;
+use App\Models\Player;
+use App\Models\PlayerAlias;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -110,6 +115,7 @@ final class ConverseWithAssistant
                     $locked->event_id = $target->id;
                     $locked->setRelation('event', $target);
                 }
+                $this->rememberLinks($this->cleanLinks($answer['player_links'] ?? []));
                 $warnings = [...($scoreboard['warnings'] ?? []), ...$this->saveReads($locked, $answer['evidence_reads'] ?? [], $imageReadIds)];
                 if (is_array($answer['lookups'] ?? null) && $answer['lookups'] !== []) {
                     $warnings[] = 'Further information is still needed. Select the specific game or supply the missing player name in a follow-up.';
@@ -218,6 +224,24 @@ final class ConverseWithAssistant
         }
 
         return array_values($links);
+    }
+
+    /**
+     * An identity the organizer states is remembered as a profile alias at once, so it is never
+     * asked again in any later review. Only differing spellings are stored.
+     *
+     * @param  list<array{name: string, player_id: string}>  $links
+     */
+    private function rememberLinks(array $links): void
+    {
+        $tags = Clan::query()->get(['id', 'tag', 'tags'])->flatMap(fn ($clan): array => $clan->tagList())->all();
+        foreach ($links as $link) {
+            $player = Player::query()->find($link['player_id']);
+            $key = PlayerNameSearch::key(ClanTag::strip($link['name'], $tags));
+            if ($player !== null && $key !== '' && $key !== PlayerNameSearch::key($player->current_ign)) {
+                PlayerAlias::query()->firstOrCreate(['player_id' => $player->id, 'alias_key' => $key], ['alias' => $link['name'], 'source' => 'organizer']);
+            }
+        }
     }
 
     /** @return list<array{name: string, player_id: string}> */
