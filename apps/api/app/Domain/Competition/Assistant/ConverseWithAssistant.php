@@ -182,8 +182,15 @@ final class ConverseWithAssistant
         }
         $focus = $message->details['match_id'] ?? $thread->messages()->where('role', 'user')->whereNotNull('details->match_id')
             ->where('id', '<', $message->id)->reorder()->orderByDesc('id')->first()?->details['match_id'] ?? null;
+        $named = AssistantGameMention::find($message->content, $context['schedule']);
+        $overridden = $named !== null && $named !== $focus;
         try {
-            return $this->scoreboards->read($actor, $images, $context, $focus);
+            $read = $this->scoreboards->read($actor, $images, $context, $named ?? $focus);
+            if ($overridden && $read['game_source'] === 'organizer_selected') {
+                $read['game_source'] = 'named_in_message';
+            }
+
+            return $read;
         } catch (ScreenshotImportFailed|ScreenshotImportUnavailable $exception) {
             Log::warning('Assistant scoreboard reader unavailable; falling back to model image reading.', ['message' => $exception->getMessage()]);
 

@@ -2,11 +2,14 @@
 
 namespace App\Domain\Competition\ScreenshotImport;
 
+use App\Domain\Competition\PlayerIdentity;
 use App\Domain\Competition\PlayerNameSearch;
 use App\Models\Player;
 
 final class ScreenshotResultMapper
 {
+    private ?PlayerIdentity $identity = null;
+
     /**
      * @param  array{teams: list<array<string, mixed>>, warnings: list<string>, model: string}  $extraction
      * @param  array<string, mixed>  $sheet
@@ -129,6 +132,12 @@ final class ScreenshotResultMapper
                 $key = PlayerNameSearch::key($name);
                 $kills = is_int($player['kills'] ?? null) ? $player['kills'] : null;
                 $resolved = $this->resolvePlayer($key, $name, $matchedSquad, $playerIndex, $allPlayers);
+                if ($resolved['status'] === 'new') {
+                    $resolved = $this->identify($name, $matchedSquad, $playerIndex, array_keys($usedPlayers), $resolved);
+                    if (($resolved['match_kind'] ?? null) === 'probable') {
+                        $warnings[] = $name.' ('.$label.') was read as '.$resolved['ign'].' ('.round($resolved['match_confidence'] * 100).'% sure: '.$resolved['match_reason'].'). Correct it if wrong.';
+                    }
+                }
                 if ($resolved['player_id'] !== null && isset($usedPlayers[$resolved['player_id']])) {
                     $resolved['status'] = 'duplicate';
                     $resolved['duplicate_of'] = $usedPlayers[$resolved['player_id']];
@@ -242,6 +251,43 @@ final class ScreenshotResultMapper
         }
 
         return ['status' => 'new', 'player_id' => null, 'ign' => $name, 'candidates' => []];
+    }
+
+    /**
+     * Scored fallback for names that are not an exact roster key, such as a misread letter or a
+     * clan tag glued to the name. Ambiguous names list candidates instead of becoming new profiles.
+     *
+     * @param  array<string, mixed>|null  $squad
+     * @param  array<string, array<string, list<array<string, mixed>>>>  $squadPlayers
+     * @param  list<string|int>  $usedIds
+     * @param  array<string, mixed>  $fallback
+     * @return array<string, mixed>
+     */
+    private function identify(string $name, ?array $squad, array $squadPlayers, array $usedIds, array $fallback): array
+    {
+        $this->identity ??= app(PlayerIdentity::class);
+        $context = [];
+        foreach ($squad === null ? [] : ($squadPlayers[$squad['id']] ?? []) as $candidates) {
+            foreach ($candidates as $candidate) {
+                $context[] = $candidate['player_id'];
+            }
+        }
+        $found = $this->identity->resolve($name, $squad['clan_id'] ?? null, $context, array_map('strval', $usedIds));
+        if (in_array($found['status'], [PlayerIdentity::MATCHED, PlayerIdentity::PROBABLE], true)) {
+            return [
+                'status' => in_array($found['player_id'], $context, true) ? 'matched' : 'other_squad',
+                'player_id' => $found['player_id'], 'ign' => $found['ign'], 'squad_id' => $squad['id'] ?? null,
+                'squad_name' => $squad['name'] ?? null, 'clan' => $squad['clan'] ?? null, 'clan_tag' => $squad['clan_tag'] ?? null,
+                'slot_number' => $squad['slot_number'] ?? null, 'candidates' => [],
+                'match_kind' => $found['status'], 'match_confidence' => $found['confidence'], 'match_reason' => $found['reason'],
+            ];
+        }
+        if ($found['status'] === PlayerIdentity::AMBIGUOUS) {
+            return ['status' => 'ambiguous', 'player_id' => null, 'ign' => null, 'match_reason' => $found['reason'],
+                'candidates' => array_map(fn (array $c): array => ['player_id' => $c['id'], 'ign' => $c['ign'], 'squad_id' => null, 'squad_name' => null, 'clan' => null, 'clan_tag' => null, 'slot_number' => null, 'confidence' => $c['confidence']], $found['candidates'])];
+        }
+
+        return $fallback;
     }
 
     /** @param list<array<string, mixed>> $candidates @return list<array<string, mixed>> */

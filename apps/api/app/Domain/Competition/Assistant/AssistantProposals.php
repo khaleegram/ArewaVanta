@@ -17,6 +17,7 @@ use App\Models\Clan;
 use App\Models\CompetitionEvent;
 use App\Models\CompetitionMatch;
 use App\Models\Player;
+use App\Models\PlayerAlias;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -75,11 +76,17 @@ final class AssistantProposals
                 $identities = [];
                 $reasons = [];
                 $sources = [];
+                $learn = [];
                 foreach ($items as $item) {
                     if (! is_array($item)) {
                         throw new InvalidArgumentException('The AI returned an invalid correction. Ask it to review that game again.');
                     }
                     $this->validate($item, $evidenceIds);
+                    foreach ($item['changes']['player_updates'] ?? [] as $update) {
+                        if (! empty($update['player_id']) && ! empty($update['seen_as']) && ! ($update['remove'] ?? false)) {
+                            $learn[$update['player_id'].'|'.$update['seen_as']] = ['player_id' => $update['player_id'], 'seen_as' => $update['seen_as']];
+                        }
+                    }
                     $entry = collect($match['entries'])->firstWhere('squad_id', $item['squad_id']);
                     if ($entry === null) {
                         throw new InvalidArgumentException('A suggested slot is not assigned to this game. Add or correct the slot in Match desk first.');
@@ -140,6 +147,7 @@ final class AssistantProposals
                         'rows' => array_values($rows), 'match_signature' => $match['signature'],
                         'expected_lock_version' => $match['lock_version'],
                         'expected_scoring_version_id' => $match['rules']['version_id'] ?? null,
+                        'learn_aliases' => array_values($learn),
                         'identities' => collect($identities)->unique('id')->sortBy('id')->values()->all(),
                         'new_players' => collect($rows)->flatMap(fn ($row): array => $row['players'])->filter(fn ($p): bool => empty($p['player_id']))->values()->all(),
                     ],
@@ -171,7 +179,8 @@ final class AssistantProposals
             'changes.placement' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
             'changes.team_kills' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999'],
             'changes.player_updates' => ['sometimes', 'array', 'list', 'max:100'],
-            'changes.player_updates.*' => ['required', 'array:player_id,kills,remove,create_player,ign,clan_id'],
+            'changes.player_updates.*' => ['required', 'array:player_id,kills,remove,create_player,ign,clan_id,seen_as'],
+            'changes.player_updates.*.seen_as' => ['sometimes', 'nullable', 'string', 'max:100'],
             'changes.player_updates.*.player_id' => ['sometimes', 'nullable', 'ulid', 'distinct:strict'],
             'changes.player_updates.*.kills' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999'],
             'changes.player_updates.*.remove' => ['sometimes', 'boolean'],
@@ -525,6 +534,7 @@ final class AssistantProposals
             $actor, $match, $rows, checkVersion: true, expectedLockVersion: $payload['expected_lock_version'],
             checkScoringVersion: true, expectedScoringVersionId: $payload['expected_scoring_version_id'], patchMode: true,
         );
+        $this->learnAliases($payload['learn_aliases'] ?? []);
         AuditLog::query()->create([
             'actor_user_id' => $actor->id, 'action' => 'assistant.result_correction.accepted',
             'entity_type' => 'match', 'entity_id' => $match->id,
@@ -539,5 +549,24 @@ final class AssistantProposals
     private function newPlayerKey(array $player): string
     {
         return ($player['clan_id'] ?? '').':'.PlayerNameSearch::key($player['ign']);
+    }
+
+    /**
+     * Remember how a screenshot spelled a player the organizer accepted, so the next read of that
+     * spelling is an exact match. Only differing spellings are stored.
+     *
+     * @param  list<array{player_id: string, seen_as: string}>  $learned
+     */
+    private function learnAliases(array $learned): void
+    {
+        $tags = Clan::query()->get(['id', 'tag', 'tags'])->flatMap(fn ($clan): array => $clan->tagList())->all();
+        foreach ($learned as $item) {
+            $player = Player::query()->find($item['player_id']);
+            $key = PlayerNameSearch::key(ClanTag::strip($item['seen_as'], $tags));
+            if ($player === null || $key === '' || $key === PlayerNameSearch::key($player->current_ign) || mb_strlen($item['seen_as']) > 100) {
+                continue;
+            }
+            PlayerAlias::query()->firstOrCreate(['player_id' => $player->id, 'alias_key' => $key], ['alias' => $item['seen_as'], 'source' => 'screenshot']);
+        }
     }
 }

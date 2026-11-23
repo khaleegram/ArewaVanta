@@ -164,7 +164,8 @@ final class AssistantScoreboards
                 }
                 $update = $this->playerUpdate($player, $kills);
                 if ($update === null) {
-                    $warnings[] = $player['name'].' ('.$label.') is not attributed to a profile'.($kills !== null ? '; their '.$kills.' kills stay in the team total' : '').'. Tell me which player this is.';
+                    $options = collect($player['candidates'] ?? [])->pluck('ign')->filter()->take(3)->implode(', ');
+                    $warnings[] = $player['name'].' ('.$label.') is not attributed to a profile'.($options !== '' ? ' (could be '.$options.')' : '').($kills !== null ? '; their '.$kills.' kills stay in the team total' : '').'. Tell me which player this is.';
 
                     continue;
                 }
@@ -198,7 +199,7 @@ final class AssistantScoreboards
     private function playerUpdate(array $player, ?int $kills): ?array
     {
         if (in_array($player['status'], ['matched', 'other_squad'], true) && ! empty($player['player_id'])) {
-            return ['player_id' => $player['player_id'], 'kills' => $kills];
+            return ['player_id' => $player['player_id'], 'kills' => $kills, 'seen_as' => mb_substr((string) $player['name'], 0, 100)];
         }
         if ($player['status'] !== 'new') {
             return null;
