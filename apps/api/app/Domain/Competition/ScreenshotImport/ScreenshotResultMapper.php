@@ -132,7 +132,7 @@ final class ScreenshotResultMapper
                 $key = PlayerNameSearch::key($name);
                 $kills = is_int($player['kills'] ?? null) ? $player['kills'] : null;
                 $resolved = $this->resolvePlayer($key, $name, $matchedSquad, $playerIndex, $allPlayers);
-                if ($resolved['status'] === 'new') {
+                if (in_array($resolved['status'], ['new', 'ambiguous'], true)) {
                     $resolved = $this->identify($name, $matchedSquad, $playerIndex, array_keys($usedPlayers), $resolved);
                     if (($resolved['match_kind'] ?? null) === 'probable') {
                         $warnings[] = $name.' ('.$label.') was read as '.$resolved['ign'].' ('.round($resolved['match_confidence'] * 100).'% sure: '.$resolved['match_reason'].'). Correct it if wrong.';

@@ -2,12 +2,14 @@
 
 namespace App\Domain\Competition\Assistant;
 
+use App\Domain\Competition\PlayerNameSearch;
 use App\Domain\Competition\ResultPermissions;
 use App\Domain\Competition\ScreenshotImport\DeepSeekScreenshotReader;
 use App\Domain\Competition\ScreenshotImport\ScreenshotResultMapper;
 use App\Http\Controllers\Api\V1\Manage\MatchResultSheetController;
 use App\Models\AssistantEvidence;
 use App\Models\CompetitionMatch;
+use App\Models\Player;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +21,9 @@ use Illuminate\Support\Facades\Storage;
  */
 final class AssistantScoreboards
 {
+    /** @var array<string, string> name key => player id the organizer has said this name is */
+    private array $links = [];
+
     public function __construct(
         private readonly DeepSeekScreenshotReader $reader,
         private readonly ScreenshotResultMapper $mapper,
@@ -31,8 +36,9 @@ final class AssistantScoreboards
      * @param  array<string, mixed>  $context
      * @return array{status: string, match_id: ?string, game_source: ?string, corrections: list<array<string, mixed>>, warnings: list<string>, teams: list<array<string, mixed>>, candidates: list<array<string, mixed>>, observations: list<array<string, mixed>>, model: ?string}
      */
-    public function read(User $actor, array $images, array $context, ?string $focusMatchId): array
+    public function read(User $actor, array $images, array $context, ?string $focusMatchId, array $links = []): array
     {
+        $this->links = $this->cleanLinks($links);
         $files = [];
         foreach ($images as $image) {
             $bytes = Storage::disk($image->disk)->get($image->path);
@@ -86,13 +92,54 @@ final class AssistantScoreboards
         $mapped = $sheets[$chosen];
         $built = $this->corrections($chosen, $mapped, $loaded->get($chosen), $context, array_map(fn (AssistantEvidence $image): string => $image->id, $images));
 
-        return [...$base, 'status' => 'prepared', 'corrections' => $built['corrections'],
+        return [...$base, '_rebuild' => ['match_id' => $chosen, 'mapped' => $mapped, 'loaded' => $loaded->get($chosen), 'evidence_ids' => array_map(fn (AssistantEvidence $image): string => $image->id, $images)],
+            'status' => 'prepared', 'corrections' => $built['corrections'],
             'warnings' => array_values(array_unique([...$mapped['warnings'], ...$built['warnings']])),
             'teams' => array_map(fn (array $team): array => [
                 'team' => $team['team_label'], 'placement' => $team['placement'], 'slot_status' => $team['status'],
                 'squad' => $team['squad']['name'] ?? null,
                 'players' => array_map(fn (array $p): array => ['name' => $p['name'], 'kills' => $p['kills'], 'status' => $p['status'], 'profile' => $p['ign'] ?? null], $team['players']),
             ], $mapped['teams'])];
+    }
+
+    /**
+     * Re-prepare corrections after the organizer states who a printed name really is.
+     *
+     * @param  array<string, mixed>  $scoreboard
+     * @param  list<array<string, mixed>>  $links
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    public function relink(array $scoreboard, array $links, array $context): array
+    {
+        $this->links = $this->cleanLinks([...$links]);
+        if ($this->links === [] || ! isset($scoreboard['_rebuild'])) {
+            return $scoreboard;
+        }
+        $rebuild = $scoreboard['_rebuild'];
+        $built = $this->corrections($rebuild['match_id'], $rebuild['mapped'], $rebuild['loaded'], $context, $rebuild['evidence_ids']);
+
+        return [...$scoreboard, 'corrections' => $built['corrections'], 'warnings' => array_values(array_unique([...$rebuild['mapped']['warnings'], ...$built['warnings']]))];
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $links
+     * @return array<string, string>
+     */
+    private function cleanLinks(array $links): array
+    {
+        $clean = [];
+        foreach ($links as $link) {
+            if (! is_array($link) || ! is_string($link['name'] ?? null) || ! is_string($link['player_id'] ?? null)) {
+                continue;
+            }
+            $key = PlayerNameSearch::key($link['name']);
+            if ($key !== '' && Player::query()->whereKey($link['player_id'])->exists()) {
+                $clean[$key] = $link['player_id'];
+            }
+        }
+
+        return $clean;
     }
 
     /** @return array<string, mixed> */
@@ -198,6 +245,10 @@ final class AssistantScoreboards
      */
     private function playerUpdate(array $player, ?int $kills): ?array
     {
+        $linked = $this->links[PlayerNameSearch::key((string) $player['name'])] ?? null;
+        if ($linked !== null) {
+            return ['player_id' => $linked, 'kills' => $kills, 'seen_as' => mb_substr((string) $player['name'], 0, 100)];
+        }
         if (in_array($player['status'], ['matched', 'other_squad'], true) && ! empty($player['player_id'])) {
             return ['player_id' => $player['player_id'], 'kills' => $kills, 'seen_as' => mb_substr((string) $player['name'], 0, 100)];
         }

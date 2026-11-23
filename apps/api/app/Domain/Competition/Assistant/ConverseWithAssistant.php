@@ -67,7 +67,7 @@ final class ConverseWithAssistant
             $images = $evidence->whereIn('id', $readIds)->filter(fn ($item): bool => $item->mime !== 'text/csv')->values()->all();
             $scoreboard = $this->readScoreboards($actor, $thread, $destination, $message, $images, $context);
             if ($scoreboard !== null) {
-                $context['scoreboard_import'] = collect($scoreboard)->except(['corrections', 'observations'])->all();
+                $context['scoreboard_import'] = collect($scoreboard)->except(['corrections', 'observations', '_rebuild'])->all();
                 $context['scoreboard_import']['corrections_prepared_by_server'] = count($scoreboard['corrections']);
                 foreach ($images as $image) {
                     $image->update(['observations' => $scoreboard['observations']]);
@@ -93,6 +93,9 @@ final class ConverseWithAssistant
                 $answer['evidence_reads'] = $firstPass['evidence_reads'] ?? [];
             }
 
+            if ($scoreboard !== null && $scoreboard['status'] === 'prepared' && ! empty($answer['player_links']) && is_array($answer['player_links'])) {
+                $scoreboard = $this->scoreboards->relink($scoreboard, $answer['player_links'], $context);
+            }
             if ($scoreboard !== null && $scoreboard['status'] === 'prepared' && empty($answer['csv_imports'])) {
                 $answer['corrections'] = $scoreboard['corrections'];
                 $answer['evidence_reads'] = [];
@@ -119,6 +122,7 @@ final class ConverseWithAssistant
                     'details' => [
                         'ruling' => is_string($answer['ruling'] ?? null) ? mb_substr($answer['ruling'], 0, 8000) : '',
                         'findings' => $findings, 'model' => $answer['model'], 'warnings' => $warnings,
+                        'player_links' => $this->cleanLinks($answer['player_links'] ?? []),
                     ],
                 ]);
                 if (! empty($answer['csv_imports'])) {
@@ -196,6 +200,36 @@ final class ConverseWithAssistant
 
             return null;
         }
+    }
+
+    /**
+     * Identities the organizer already stated in this review, so a later game never asks again.
+     *
+     * @return list<array{name: string, player_id: string}>
+     */
+    private function threadLinks(AssistantThread $thread): array
+    {
+        $links = [];
+        foreach ($thread->messages()->where('role', 'assistant')->reorder()->orderBy('id')->get() as $reply) {
+            foreach ((array) ($reply->details['player_links'] ?? []) as $link) {
+                $links[$link['name']] = $link;
+            }
+        }
+
+        return array_values($links);
+    }
+
+    /** @return list<array{name: string, player_id: string}> */
+    private function cleanLinks(mixed $links): array
+    {
+        $clean = [];
+        foreach (is_array($links) ? array_slice($links, 0, 40) : [] as $link) {
+            if (is_array($link) && is_string($link['name'] ?? null) && is_string($link['player_id'] ?? null) && mb_strlen($link['name']) <= 100) {
+                $clean[] = ['name' => $link['name'], 'player_id' => $link['player_id']];
+            }
+        }
+
+        return $clean;
     }
 
     private function remainingTime(float $deadline): int

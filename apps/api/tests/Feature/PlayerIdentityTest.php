@@ -41,4 +41,20 @@ class PlayerIdentityTest extends TestCase
 
         $this->assertNull($identity->resolve('ISMAEL', $akatsuki->id, [], [$ismael->id])['player_id']);
     }
+
+    public function test_same_name_in_two_clans_and_short_cores_are_settled_by_the_slot(): void
+    {
+        $a4 = Clan::factory()->create(['name' => 'ALPHA FOUR', 'tag' => 'A4']);
+        $prime = Clan::factory()->create(['name' => 'Prime', 'tag' => 'P1']);
+        $bagatatas = Clan::factory()->create(['name' => 'BAGATATAS', 'tag' => 'B1']);
+        $death = Player::factory()->create(['clan_id' => $a4->id, 'current_ign' => 'Death']);
+        $primeDeath = Player::factory()->create(['clan_id' => $prime->id, 'current_ign' => 'DEATH']);
+        $mhd = Player::factory()->create(['clan_id' => $bagatatas->id, 'current_ign' => 'MHD.rnx']);
+
+        $identity = new PlayerIdentity;
+
+        $this->assertSame($death->id, $identity->resolve('A4〆DËÂTH', $a4->id, [$death->id])['player_id']);
+        $this->assertSame($primeDeath->id, $identity->resolve('P1・DEATH', $prime->id, [$primeDeath->id])['player_id']);
+        $this->assertSame($mhd->id, $identity->resolve('◇MHD◇', $bagatatas->id, [$mhd->id])['player_id']);
+    }
 }

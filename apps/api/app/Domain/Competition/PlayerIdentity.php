@@ -67,6 +67,9 @@ final class PlayerIdentity
                     $kind = 'same name without the clan tag';
                 } else {
                     $similarity = PlayerNameSearch::similarity($this->fold($candidate), $name);
+                    if (strlen($candidateKey) >= 5 && str_contains($cleanKey, $candidateKey)) {
+                        $similarity = max($similarity, .92 + .12 * (strlen($candidateKey) / strlen($cleanKey)));
+                    }
                     if ($similarity > $base) {
                         $base = $similarity;
                         $kind = 'similar spelling';
@@ -79,23 +82,23 @@ final class PlayerIdentity
             $score = $base;
             $notes = [$kind];
             if (in_array($profile['id'], $contextPlayerIds, true)) {
-                $score += .14;
+                $score += .06;
                 $notes[] = 'on this slot\'s squad';
             }
             if ($slotClanId !== null && $profile['clan_id'] === $slotClanId) {
-                $score += .08;
+                $score += .04;
                 $notes[] = 'in the slot\'s clan';
             } elseif ($tagClan !== null && $profile['clan_id'] === $tagClan) {
-                $score += .06;
+                $score += .03;
                 $notes[] = 'matches the printed clan tag';
             }
             if ($profile['status'] !== 'active') {
-                $score -= .08;
+                $score -= .03;
             }
-            $scored[] = ['profile' => $profile, 'score' => min(1.0, $score), 'base' => $base, 'notes' => $notes];
+            $scored[] = ['profile' => $profile, 'score' => $score, 'base' => $base, 'notes' => $notes];
         }
         usort($scored, fn (array $a, array $b): int => $b['score'] <=> $a['score']);
-        $candidates = array_map(fn (array $s): array => ['id' => $s['profile']['id'], 'ign' => $s['profile']['ign'], 'clan_id' => $s['profile']['clan_id'], 'confidence' => round($s['score'], 2)], array_slice($scored, 0, 4));
+        $candidates = array_map(fn (array $s): array => ['id' => $s['profile']['id'], 'ign' => $s['profile']['ign'], 'clan_id' => $s['profile']['clan_id'], 'confidence' => round(min(1.0, $s['score']), 2)], array_slice($scored, 0, 4));
         if ($scored === []) {
             return $this->outcome(self::NEW, null, 0.0, 'No saved profile has a similar name.', [], $tagClan ?? $slotClanId);
         }
@@ -103,12 +106,12 @@ final class PlayerIdentity
         $top = $scored[0];
         $gap = $top['score'] - ($scored[1]['score'] ?? 0.0);
         $reason = ucfirst(implode(', ', $top['notes']));
-        $short = strlen($cleanKey) < 4;
+        $short = strlen($cleanKey) < 4 && ! (in_array('on this slot\'s squad', $top['notes'], true) && $top['base'] >= .85);
         if ($top['base'] >= .97 && $gap >= .04) {
             return $this->outcome(self::MATCHED, $top['profile'], $top['score'], $reason, $candidates);
         }
         $contextual = in_array('on this slot\'s squad', $top['notes'], true) || in_array('in the slot\'s clan', $top['notes'], true);
-        if (! $short && $top['score'] >= ($contextual ? .78 : .93) && $gap >= .08) {
+        if (! $short && $top['score'] >= ($contextual ? .74 : .93) && $gap >= .08) {
             return $this->outcome(self::PROBABLE, $top['profile'], $top['score'], $reason, $candidates);
         }
 
@@ -128,7 +131,7 @@ final class PlayerIdentity
     {
         return [
             'status' => $status, 'player_id' => $profile['id'] ?? null, 'ign' => $profile['ign'] ?? null,
-            'clan_id' => $profile['clan_id'] ?? $clanId, 'confidence' => round($confidence, 2), 'reason' => $reason, 'candidates' => $candidates,
+            'clan_id' => $profile['clan_id'] ?? $clanId, 'confidence' => round(min(1.0, $confidence), 2), 'reason' => $reason, 'candidates' => $candidates,
         ];
     }
 
