@@ -54,7 +54,18 @@ final class DeepSeekOrganizerAssistant
         $model = (string) config('services.deepseek.model', 'deepseek-flash');
         $limit = $timeout ?? (int) config('services.deepseek.timeout', 90);
         $started = microtime(true);
-        $response = $this->request($key, $model, $messages, $limit);
+        $thinking = $this->reasoning() !== [] && ($this->reasoning()['thinking']['type'] ?? '') === 'enabled';
+        try {
+            $response = $this->request($key, $model, $messages, $thinking ? min($limit, 70) : $limit);
+        } catch (ScreenshotImportFailed $exception) {
+            // Deep thinking over a large competition can outlast the proxy window: retry once without it.
+            $remaining = (int) floor($limit - (microtime(true) - $started));
+            if (! $thinking || $remaining < 15) {
+                throw $exception;
+            }
+            Log::warning('Organizer assistant thinking request failed or timed out; retrying without thinking.', ['model' => $model, 'remaining' => $remaining]);
+            $response = $this->request($key, $model, $messages, $remaining, 'none');
+        }
         $text = $response->json('choices.0.message.content');
         $recoveryUsed = false;
         if ($text === null || (is_string($text) && trim($text) === '')) {
@@ -90,14 +101,14 @@ final class DeepSeekOrganizerAssistant
     }
 
     /** @param list<array<string, mixed>> $messages */
-    private function request(string $key, string $model, array $messages, int $timeout): Response
+    private function request(string $key, string $model, array $messages, int $timeout, ?string $effort = null): Response
     {
         try {
             $response = Http::withToken($key)->acceptJson()->connectTimeout(min(10, $timeout))->timeout($timeout)
                 ->post(rtrim((string) config('services.deepseek.base_url', 'https://api.deepseek.com'), '/').'/chat/completions', [
                     'model' => $model, 'messages' => $messages,
                     'response_format' => ['type' => 'json_object'],
-                    ...$this->reasoning(),
+                    ...$this->reasoning($effort),
                 ]);
         } catch (ConnectionException) {
             throw new ScreenshotImportFailed('DeepSeek could not be reached. Your message and evidence are saved; retry this message.');
@@ -116,9 +127,9 @@ final class DeepSeekOrganizerAssistant
      *
      * @return array<string, mixed>
      */
-    private function reasoning(): array
+    private function reasoning(?string $override = null): array
     {
-        $effort = (string) config('services.deepseek.reasoning_effort', 'max');
+        $effort = $override ?? (string) config('services.deepseek.reasoning_effort', 'max');
         if (! in_array($effort, ['low', 'high', 'max'], true)) {
             return ['temperature' => 0, 'max_tokens' => 16000, 'thinking' => ['type' => 'disabled']];
         }

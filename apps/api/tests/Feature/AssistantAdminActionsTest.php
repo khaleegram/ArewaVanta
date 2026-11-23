@@ -190,6 +190,23 @@ final class AssistantAdminActionsTest extends TestCase
         $this->assertSame($games, CompetitionMatch::query()->count());
     }
 
+    public function test_a_timed_out_thinking_request_is_retried_without_thinking(): void
+    {
+        [$organizer, $eventId] = $this->competition();
+        Storage::fake('local');
+        config(['services.deepseek.key' => 'test-key', 'services.deepseek.reasoning_effort' => 'max']);
+        Http::fake(['https://api.deepseek.com/chat/completions' => Http::sequence()
+            ->pushFailedConnection('cURL error 28: Operation timed out')
+            ->push(['choices' => [['message' => ['content' => json_encode(['reply' => 'Answered without deep thinking.'])], 'finish_reason' => 'stop']]])]);
+        $thread = $this->actingAs($organizer, 'sanctum')->postJson("/api/v1/manage/events/{$eventId}/assistant-threads")->json('data');
+
+        $data = $this->actingAs($organizer, 'sanctum')->postJson("/api/v1/manage/assistant-threads/{$thread['id']}/messages", ['client_id' => (string) Str::uuid(), 'message' => 'hello'])->assertOk()->json('data');
+
+        $this->assertSame('Answered without deep thinking.', collect($data['messages'])->last()['content']);
+        Http::assertSentCount(2);
+        Http::assertSent(fn ($request): bool => ($request['thinking']['type'] ?? '') === 'disabled');
+    }
+
     /** @param list<array<string, mixed>> $actions
      * @return array{string, array<string, mixed>}
      */
