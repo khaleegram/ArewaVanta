@@ -15,10 +15,10 @@ return new class extends Migration
             $table->foreignUlid('match_id')->nullable()->constrained('matches')->nullOnDelete();
             $table->string('severity', 20)->default('warning');
             $table->text('reason');
-            $table->foreignUlid('issued_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('issued_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestampTz('issued_at');
             $table->timestampTz('revoked_at')->nullable();
-            $table->foreignUlid('revoked_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('revoked_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('revoked_reason')->nullable();
             $table->timestampsTz();
             $table->index(['player_id', 'revoked_at']);
