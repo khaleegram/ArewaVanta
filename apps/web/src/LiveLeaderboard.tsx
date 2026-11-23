@@ -546,6 +546,8 @@ export default function LiveLeaderboard() {
   const currentGroup = groups.find((group) =>
     group.weeks.some((week) => week.slug === event),
   );
+  const lastWeek = currentGroup?.weeks.find((week) => week.scored_match_count > 0 && !week.skipped_at);
+  const showingLastWeek = period === "weekend" && !!lastWeek && event === lastWeek.slug;
   const leaders: SpotlightEntry[] =
     kind === "squads"
       ? standings.status === "ready"
@@ -745,6 +747,26 @@ export default function LiveLeaderboard() {
                 </span>
                 <Icon name="chevron" />
               </label>
+            )}
+            {currentGroup && !seasonId && lastWeek && (
+              <button
+                type="button"
+                className={`arena-lastweek${showingLastWeek ? " is-active" : ""}`}
+                aria-pressed={showingLastWeek}
+                onClick={() => {
+                  if (showingLastWeek) setPeriod("overall");
+                  else { setPeriod("weekend"); setEvent(lastWeek.slug); }
+                  setStandings({ status: "loading" });
+                  setExpanded(null);
+                  setQuery("");
+                }}
+              >
+                <Icon name="calendar" />
+                <span>
+                  {showingLastWeek ? "Back to overall" : "Last week standings"}
+                  <small>{formatDateRange(lastWeek.start_date, lastWeek.end_date)}</small>
+                </span>
+              </button>
             )}
             {currentSeason && (
               <span className="arena-filter-note">

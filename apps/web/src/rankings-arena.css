@@ -336,3 +336,14 @@
   .arena-leaders-2 .arena-place-1 .arena-contender-bottom { margin-top: 12px; padding-top: 10px; border-top: 1px solid #d8dcac33; }
   .arena-leaders-2 .arena-place-1 .arena-contender-bottom > div { flex-direction: row; align-items: baseline; }
 }
+
+.arena-lastweek { display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 18px; border: 1px solid #c9d6c4; border-radius: 12px; background: #fffefa; color: #1c553c; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; text-align: left; }
+.arena-lastweek .icon { width: 18px; height: 18px; flex-shrink: 0; }
+.arena-lastweek span { display: flex; flex-direction: column; gap: 2px; }
+.arena-lastweek small { font-size: 10px; font-weight: 600; color: #607463; }
+.arena-lastweek.is-active { background: #1c553c; border-color: #1c553c; color: #fffdf7; }
+.arena-lastweek.is-active small { color: #cfe3d3; }
+@media (max-width: 760px) {
+  .arena-hero, .arena-share-strip, .arena-filter-note, .arena-player-context { display: none; }
+  .arena-lastweek { width: 100%; }
+}
