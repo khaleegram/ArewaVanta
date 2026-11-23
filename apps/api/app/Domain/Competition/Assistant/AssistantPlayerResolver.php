@@ -3,6 +3,7 @@
 namespace App\Domain\Competition\Assistant;
 
 use App\Domain\Competition\ClanTag;
+use App\Domain\Competition\PlayerIdentity;
 use App\Domain\Competition\PlayerNameSearch;
 use App\Models\Clan;
 use App\Models\Player;
@@ -19,9 +20,12 @@ final class AssistantPlayerResolver
 
     private array $resolved = [];
 
+    private ?PlayerIdentity $identity = null;
+
     public function load(): void
     {
         $this->profiles = $this->tags = $this->tagClans = $this->prefixClans = $this->resolved = [];
+        $this->identity = null;
         foreach (Clan::query()->get(['id', 'tag', 'tags']) as $clan) {
             foreach ($clan->tagList() as $tag) {
                 $this->tags[] = $tag;
@@ -86,6 +90,16 @@ final class AssistantPlayerResolver
             return $this->resolved[$cacheKey] = ['player_id' => $match['id'], 'ign' => $match['ign'], 'clan_id' => $match['clan_id'], 'source_clan_id' => $clan];
         }
         $base = ['ign' => $name, 'clan_id' => $clan, 'source_clan_id' => $clan];
+        $scored = ($this->identity ??= new PlayerIdentity)->resolve($literal, $clan);
+        if (in_array($scored['status'], [PlayerIdentity::MATCHED, PlayerIdentity::PROBABLE], true)) {
+            return $this->resolved[$cacheKey] = ['player_id' => $scored['player_id'], 'ign' => $scored['ign'], 'clan_id' => $scored['clan_id'], 'source_clan_id' => $clan];
+        }
+        if ($scored['status'] === PlayerIdentity::AMBIGUOUS) {
+            return $this->resolved[$cacheKey] = [...$base,
+                'unresolved' => 'Similar existing profiles: '.implode(', ', array_column(array_slice($scored['candidates'], 0, 3), 'ign')).'. Choose the actual player; their team total is retained.',
+                'candidates' => array_map(fn (array $c): array => ['id' => $c['id'], 'ign' => $c['ign'], 'clan_id' => $c['clan_id'], 'status' => 'active'], array_slice($scored['candidates'], 0, 5)),
+            ];
+        }
         if ($ranked === []) {
             $cores = $this->nameCores($name);
             foreach ($this->profiles as $profile) {
