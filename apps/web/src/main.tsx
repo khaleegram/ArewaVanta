@@ -53,7 +53,7 @@ function renderRoute() {
   const eventMatch = path.match(/^\/competitions\/([^/]+)(?:\/games\/([^/]+))?$/);
   const personMatch = path.match(/^\/(clans|squads|players)\/([^/]+)$/);
   const managerResultsMatch = path.match(/^\/manage\/competitions\/([^/]+)\/results$/);
-  const managerAssistantMatch = path.match(/^\/manage\/competitions\/([^/]+)\/assistant$/);
+  const managerAssistantMatch = path.match(/^\/manage\/competitions\/([^/]+)\/assistant(?:\/[^/]+)?$/);
   const managerEntriesMatch = path.match(/^\/manage\/competitions\/([^/]+)\/entries$/);
   const managerCompetitionMatch = path.match(/^\/manage\/competitions\/([^/]+)$/);
   const checkInMatch = path.match(/^\/manage\/competitions\/([^/]+)\/check-in$/);

@@ -137,3 +137,9 @@
 .assistant-edit-panel input[type=number]{width:4.5rem}
 .assistant-edit-player{display:flex;gap:.6rem;align-items:center;margin:.25rem 0}
 .assistant-edit-player span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+.assistant-end { height: 1px; scroll-margin-bottom: 150px; }
+.assistant-page button.assistant-jump { position: fixed; right: max(16px, calc(50% - 425px)); bottom: calc(max(8px, env(safe-area-inset-bottom)) + 176px); z-index: 6; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 14px; border-radius: 999px; background: #27563e; border-color: #27563e; color: #fff; box-shadow: 0 4px 16px #1c382340; }
+.assistant-page button.assistant-jump:hover:not(:disabled) { background: #183d2a; }
+.assistant-jump span { font-size: .8rem; }
+@media (max-width: 560px) { .assistant-jump span { display: none; } .assistant-page button.assistant-jump { padding: 8px 14px; } }

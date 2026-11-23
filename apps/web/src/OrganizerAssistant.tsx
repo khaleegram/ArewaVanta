@@ -14,8 +14,11 @@ const explain = (error: unknown) => error instanceof ApiError
 const unknown = (value: number | string | null | undefined) => value ?? "Unknown";
 const isCsvUpload = (file: File) => /\.csv$/i.test(file.name);
 function openReviewDestination(data: AssistantThread) {
-  location.replace(`/manage/competitions/${encodeURIComponent(data.event_id)}/assistant?thread=${encodeURIComponent(data.id)}`);
+  location.replace(assistantPath(data.event_id, data.id));
 }
+const assistantPath = (eventId: string, threadId?: string | null) => `/manage/competitions/${encodeURIComponent(eventId)}/assistant${threadId ? `/${encodeURIComponent(threadId)}` : ""}`;
+const threadFromLocation = () => decodeURIComponent(location.pathname.replace(/\/+$/, "").match(/\/assistant\/([^/]+)$/)?.[1] ?? "") || new URLSearchParams(location.search).get("thread");
+const gameKey = (eventId: string) => `assistant-game:${eventId}`;
 
 export default function OrganizerAssistant({ eventId }: { eventId: string }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -47,9 +50,9 @@ export default function OrganizerAssistant({ eventId }: { eventId: string }) {
 function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
   const [event, setEvent] = useState<ManageEvent | null>(null);
   const [threads, setThreads] = useState<AssistantThreadSummary[]>([]);
-  const [threadId, setThreadId] = useState<string | null>(() => new URLSearchParams(location.search).get("thread"));
+  const [threadId, setThreadId] = useState<string | null>(threadFromLocation);
   const [thread, setThread] = useState<AssistantThread | null>(null);
-  const [matchId, setMatchId] = useState(() => new URLSearchParams(location.search).get("match") || "");
+  const [matchId, setMatchId] = useState(() => new URLSearchParams(location.search).get("match") || localStorage.getItem(gameKey(eventId)) || "");
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +65,9 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
   const composer = useRef<HTMLTextAreaElement>(null);
   const sending = useRef(false);
   const dataVersion = useRef(0);
+  const endMarker = useRef<HTMLDivElement>(null);
+  const [atEnd, setAtEnd] = useState(true);
+  const openedScroll = useRef<string | null>(null);
   const blocked = busy || !!thread?.processing || opening;
   const matches = (event?.days ?? []).flatMap((day) => day.matches.map((match) => ({ ...match, date: day.date, dayLabel: day.label })));
   const validMatch = matchId === "" || matches.some((m) => m.id === matchId);
@@ -113,17 +119,32 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
     return () => { document.removeEventListener("visibilitychange", refresh); controller.abort(); };
   }, [token, threadId]);
 
+  const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const scrollToLatest = (behavior: ScrollBehavior = "smooth") => endMarker.current?.scrollIntoView({ block: "end", behavior: reduceMotion() ? "instant" : behavior });
+
+  useEffect(() => {
+    if (opening || !thread || openedScroll.current === thread.id) return;
+    openedScroll.current = thread.id;
+    requestAnimationFrame(() => scrollToLatest("instant"));
+  }, [opening, thread?.id]);
+
   useEffect(() => {
     const latest = thread?.messages.at(-1);
-    if (latest?.role !== "assistant") return;
-    document.getElementById(`assistant-turn-${latest.id}`)?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+    if (latest?.role !== "assistant" || opening || openedScroll.current !== thread?.id) return;
+    document.getElementById(`assistant-turn-${latest.id}`)?.scrollIntoView({ block: "start", behavior: reduceMotion() ? "instant" : "smooth" });
   }, [thread?.messages.at(-1)?.id]);
 
+  useEffect(() => {
+    const marker = endMarker.current;
+    if (!marker) return;
+    const observer = new IntersectionObserver(([entry]) => setAtEnd(entry.isIntersecting), { rootMargin: "0px 0px 160px 0px" });
+    observer.observe(marker);
+    return () => observer.disconnect();
+  }, [opening, loading, thread?.id]);
+
   function updateUrl(id: string | null, match = matchId) {
-    const url = new URL(location.href);
-    if (id) url.searchParams.set("thread", id); else url.searchParams.delete("thread");
-    if (match) url.searchParams.set("match", match); else url.searchParams.delete("match");
-    history.replaceState(null, "", url);
+    if (match) localStorage.setItem(gameKey(eventId), match); else localStorage.removeItem(gameKey(eventId));
+    history.replaceState(null, "", assistantPath(eventId, id));
   }
   function chooseThread(id: string) {
     setError(""); setNotice(""); setProof(null);
@@ -235,6 +256,8 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
       </article>)}
       {(busy || thread?.processing) && <p className="assistant-working" role="status">Reviewing saved data and proof… You can return to this review on either device.</p>}
     </div>}
+    <div ref={endMarker} aria-hidden="true" className="assistant-end" />
+    {!atEnd && !opening && !!thread?.messages.length && <button type="button" className="assistant-jump" onClick={() => scrollToLatest()} aria-label="Jump to the latest message">↓<span>Latest</span></button>}
     {notice && <p className="assistant-notice" role="status">{notice}</p>}
     {error && <p className="assistant-warning" role="alert">{error}</p>}
     <form className="assistant-composer" onSubmit={submit} aria-label="Message the organizer assistant">
