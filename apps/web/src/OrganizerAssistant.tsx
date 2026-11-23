@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "./api/client";
 import type { ManageEvent } from "./api/types";
-import type { AssistantCsv, AssistantEvidence, AssistantMessage, AssistantMessageInput, AssistantProposal, AssistantProposalEdit, AssistantScore, AssistantThread, AssistantThreadSummary } from "./assistantTypes";
+import type { AssistantCsv, AssistantEvidence, AssistantIssue, AssistantMessage, AssistantMessageInput, AssistantProposal, AssistantProposalEdit, AssistantScore, AssistantThread, AssistantThreadSummary } from "./assistantTypes";
 import { Shell, SignIn, type Session } from "./CompetitionManager";
 import { clearStoredToken, getStoredToken } from "./authStorage";
 import { disableAdminPush } from "./AdminAlerts";
@@ -30,6 +30,50 @@ function RichText({ text }: { text: string }) {
   }
   flush();
   return <div className="assistant-message-text">{blocks}</div>;
+}
+function Summary({ text, clamp }: { text: string; clamp: boolean }) {
+  const [open, setOpen] = useState(false);
+  const long = clamp && text.length > 220;
+  return <div className={`assistant-summary${long && !open ? " is-clamped" : ""}`}><RichText text={text} />{long && <button type="button" className="assistant-link-button" onClick={() => setOpen((v) => !v)}>{open ? "Show less" : "Read full reply"}</button>}</div>;
+}
+function ReviewSheet({ proposal, issues, disabled, proofButtons, onAccept, onReject, onEdit, onAsk, onWrite }: { proposal: AssistantProposal; issues: AssistantIssue[]; disabled: boolean; proofButtons: (ids: string[]) => React.ReactNode; onAccept: () => void; onReject: () => void; onEdit: (edits: AssistantProposalEdit[]) => void; onAsk: (question: string) => void; onWrite: (text: string) => void }) {
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const rows = [...proposal.preview.rows].sort((a, b) => (a.after.placement ?? 99) - (b.after.placement ?? 99));
+  const kills = rows.reduce((sum, row) => sum + (row.after.team_kills ?? 0), 0);
+  const fresh = rows.flatMap((row) => row.after.players.filter((p) => p.creates_profile).map((p) => ({ id: `new:${row.squad_id}:${p.ign}`, ign: p.ign, slot: row.slot, kills: p.kills })));
+  const open = (key: string) => !dismissed.includes(key);
+  const unmatched = issues.filter((i) => i.kind === "unmatched_player" && open(`u:${i.team}:${i.name}`));
+  const skipped = issues.filter((i) => i.kind === "not_entered");
+  const newProfiles = fresh.filter((f) => open(f.id));
+  const needs = unmatched.length + newProfiles.length + skipped.length;
+  const movers = proposal.preview.standings?.rows.slice(0, 5) ?? [];
+  const ordinal = (n: number | null) => n === null ? "?" : n + (["th", "st", "nd", "rd"][(n % 100 >> 3) ^ 1 && n % 10 < 4 ? n % 10 : 0]);
+  return <section id={`assistant-proposal-${proposal.id}`} className="review-sheet" aria-label="Review before saving">
+    <header className="review-head"><div><h3>{proposal.title.replace(/ · Isolated$/, "")}</h3><p><strong>{rows.length}</strong> teams · <strong>{kills}</strong> kills</p></div><span className="review-pill">Not saved yet</span></header>
+    {needs === 0 ? <p className="review-ok">✓ Nothing needs you. Check the teams, then save.</p> : <div className="review-needs"><h4>Needs you · {needs}</h4>
+      {unmatched.map((issue) => { const key = `u:${issue.team}:${issue.name}`; return <div className="review-card" key={key}>
+        <p><strong>Who is “{issue.name}”?</strong><span>{issue.team}{issue.kills != null ? ` · ${issue.kills} kills` : ""} · counted in the team total for now</span></p>
+        <div className="review-choices">{issue.candidates?.map((c) => <button key={c.player_id} type="button" disabled={disabled} onClick={() => onAsk(`${issue.team}: "${issue.name}" is ${c.ign} (profile ${c.player_id}). Use that profile.`)}>It’s {c.ign}</button>)}<button type="button" disabled={disabled} onClick={() => onWrite(`${issue.team}: "${issue.name}" is `)}>Someone else</button><button type="button" className="review-quiet" onClick={() => setDismissed((d) => [...d, key])}>Skip</button></div></div>; })}
+      {newProfiles.map((f) => <div className="review-card" key={f.id}>
+        <p><strong>New player: {f.ign}</strong><span>Slot {f.slot ?? "?"}{f.kills != null ? ` · ${f.kills} kills` : ""} · a profile is created when you save</span></p>
+        <div className="review-choices"><button type="button" onClick={() => setDismissed((d) => [...d, f.id])}>Create it</button><button type="button" disabled={disabled} onClick={() => onWrite(`"${f.ign}" already exists as `)}>Already exists</button></div></div>)}
+      {skipped.map((i, index) => <div className="review-card is-info" key={index}><p><strong>{i.team} left out</strong><span>{i.text}</span></p></div>)}
+    </div>}
+    <ul className="review-teams">{rows.map((row) => <li key={row.squad_id} className={openRow === row.squad_id ? "is-open" : ""}>
+      <button type="button" className="review-team" aria-expanded={openRow === row.squad_id} onClick={() => setOpenRow(openRow === row.squad_id ? null : row.squad_id)}>
+        <b>{ordinal(row.after.placement)}</b><span><strong>Slot {row.slot ?? "?"} · {row.clan}</strong></span><em>{row.after.team_kills ?? "?"} kills</em><i>{Number(row.after.total_points)} pts</i></button>
+      {openRow === row.squad_id && <ul className="review-players">{row.after.players.map((p) => <li key={p.player_id || p.ign}><span>{p.ign}{p.creates_profile ? " · new" : ""}</span><b>{p.kills ?? "?"}</b></li>)}</ul>}
+    </li>)}</ul>
+    {!!movers.length && <div className="review-standings"><h4>Standings after saving</h4><ol>{movers.map((m) => <li key={m.squad_id}><b>{m.after_rank}</b><span>{m.clan}{m.slot !== null ? ` · slot ${m.slot}` : ""}</span><i>{Number(m.after_points)} pts</i></li>)}</ol></div>}
+    <details className="review-more"><summary>Edit numbers or see every change</summary>
+      <EditProposal proposal={proposal} disabled={disabled} onEdit={onEdit} />
+      <ScoreChanges proposal={proposal} />
+      {!!proposal.preview.standings?.rows.length && <StandingsImpact standings={proposal.preview.standings} />}
+      <div className="assistant-proof-links">{proofButtons(proposal.preview.evidence_ids)}</div>
+    </details>
+    <div className="review-actions"><button type="button" className="assistant-primary" disabled={disabled} onClick={onAccept}>Save {rows.length} teams</button><button type="button" disabled={disabled} onClick={onReject}>Discard</button></div>
+  </section>;
 }
 function Notes({ items }: { items: string[] }) {
   if (items.length <= 2) return <>{items.map((item, index) => <p className="assistant-warning" key={index}>{item}</p>)}</>;
@@ -267,17 +311,28 @@ function AssistantDesk({ token, eventId }: { token: string; eventId: string }) {
     {!validMatch && <p className="manage-error" role="alert">The linked game is not in this competition. Choose the correct game context.</p>}
     {opening ? <p className="manage-notice">Opening saved review…</p> : <div className="assistant-conversation" aria-label="Review conversation">
       {!thread?.messages.length && <section className="assistant-welcome"><h2>What needs checking?</h2><p>Upload a weekly CSV or screenshots to check scores, players and slots against saved results.</p><div className="assistant-welcome-actions"><button type="button" disabled={blocked} onClick={() => { setText("These players dispute their individual and team kills. Compare the attached proof with saved results, explain any differences and propose the supported corrections. Ask me about any uncertain game or slot."); composer.current?.focus(); }}>Review a score dispute</button><button type="button" disabled={blocked} onClick={() => { setText(`Prepare an import of the attached CSV into the games on ${(event.days ?? []).map((day) => day.date).join(" and ")}. Check game/slot mappings, duplicates and player/team kills. Search the full directory, reuse existing players and propose profiles for genuinely missing players. Preserve known team totals and leave uncertain details unknown. Show one review of all supported games for my acceptance.`); composer.current?.focus(); }}>Enter weekly CSV</button></div></section>}
-      {thread?.messages.map((message) => <article className={`assistant-message assistant-message-${message.role}`} id={`assistant-turn-${message.id}`} key={message.id}>
-        <p className="assistant-message-author">{message.role === "user" ? "You" : "Assistant"}</p>
-        {message.role === "assistant" ? <RichText text={message.content} /> : <div className="assistant-message-text">{message.content}</div>}
-        {!!message.details?.read_evidence_ids?.length && <div className="assistant-proof-links">{proofButtons(message.details.read_evidence_ids)}</div>}
-        {!!message.details?.duplicate_uploads?.length && <p className="assistant-context-note">Repeated uploads linked to the same saved proof: {message.details.duplicate_uploads.join(", ")}. They count once.</p>}
-        {message.details?.ruling && <section className="assistant-ruling"><h3>Suggested ruling</h3><p>{message.details.ruling}</p></section>}
-        {!!message.details?.findings?.length && <details className="assistant-findings"><summary>Evidence and uncertainties ({message.details.findings.length})</summary><ul>{[...message.details.findings].sort((a, b) => Number(b.kind === "unresolved") - Number(a.kind === "unresolved")).map((finding, index) => <li key={index}><span className={`assistant-finding-kind is-${finding.kind}`}>{finding.kind === "observed" ? "Visible in proof / saved data" : finding.kind === "inferred" ? "Inferred" : "Needs a decision"}</span><p>{finding.text}</p><div className="assistant-proof-links">{proofButtons(finding.evidence_ids)}</div></li>)}</ul></details>}
-        {!!message.details?.warnings?.length && <Notes items={message.details.warnings} />}
-        {thread.proposals.filter((p) => p.message_id === message.id).map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onUndo={() => void decide(proposal, "undo")} onEdit={(edits) => void edit(proposal, edits)} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />)}
-        {message.role === "user" && message.status !== "completed" && !thread.processing && <button type="button" disabled={blocked} onClick={() => retryMessage(message)}>Retry this saved message</button>}
-      </article>)}
+      {thread?.messages.map((message) => {
+        const proposals = thread.proposals.filter((p) => p.message_id === message.id);
+        const assistant = message.role === "assistant";
+        const extras = (message.details?.findings?.length ?? 0) + (message.details?.warnings?.length ?? 0) + (message.details?.ruling ? 1 : 0);
+        const hasProof = !!message.details?.read_evidence_ids?.length || !!message.details?.duplicate_uploads?.length;
+        return <article className={`assistant-message assistant-message-${message.role}`} id={`assistant-turn-${message.id}`} key={message.id}>
+          <p className="assistant-message-author">{assistant ? "Assistant" : "You"}</p>
+          {assistant ? <Summary text={message.content} clamp={proposals.length > 0} /> : <div className="assistant-message-text">{message.content}</div>}
+          {!assistant && !!message.details?.read_evidence_ids?.length && <div className="assistant-proof-links">{proofButtons(message.details.read_evidence_ids)}</div>}
+          {proposals.map((proposal) => proposal.status === "pending" && !proposal.preview.kind
+            ? <ReviewSheet key={proposal.id} proposal={proposal} issues={message.details?.issues ?? []} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onEdit={(edits) => void edit(proposal, edits)} onAsk={(question) => void send({ client_id: crypto.randomUUID(), message: question, match_id: matchId || null })} onWrite={(value) => { setText(value); composer.current?.focus(); }} />
+            : <ProposalCard key={proposal.id} proposal={proposal} disabled={blocked} proofButtons={proofButtons} onAccept={() => void decide(proposal, "accept")} onReject={() => void decide(proposal, "reject")} onUndo={() => void decide(proposal, "undo")} onEdit={(edits) => void edit(proposal, edits)} resultUrl={`${matchLink}?match=${encodeURIComponent(proposal.match_id)}`} />)}
+          {assistant && (extras > 0 || hasProof) && <details className="assistant-more"><summary>Notes and proof{extras ? ` · ${extras}` : ""}</summary>
+            {!!message.details?.read_evidence_ids?.length && <div className="assistant-proof-links">{proofButtons(message.details.read_evidence_ids)}</div>}
+            {!!message.details?.duplicate_uploads?.length && <p className="assistant-context-note">Repeated uploads linked to the same saved proof: {message.details.duplicate_uploads.join(", ")}. They count once.</p>}
+            {message.details?.ruling && <section className="assistant-ruling"><h3>Suggested ruling</h3><p>{message.details.ruling}</p></section>}
+            {!!message.details?.findings?.length && <ul className="assistant-findings-list">{[...message.details.findings].sort((a, b) => Number(b.kind === "unresolved") - Number(a.kind === "unresolved")).map((finding, index) => <li key={index}><span className={`assistant-finding-kind is-${finding.kind}`}>{finding.kind === "observed" ? "Seen" : finding.kind === "inferred" ? "Inferred" : "Needs a decision"}</span><p>{finding.text}</p><div className="assistant-proof-links">{proofButtons(finding.evidence_ids)}</div></li>)}</ul>}
+            {!!message.details?.warnings?.length && <ul className="assistant-findings-list">{message.details.warnings.map((warning, index) => <li key={index}><p>{warning}</p></li>)}</ul>}
+          </details>}
+          {message.role === "user" && message.status !== "completed" && !thread.processing && <button type="button" disabled={blocked} onClick={() => retryMessage(message)}>Retry this saved message</button>}
+        </article>;
+      })}
       {(busy || thread?.processing) && <Working />}
     </div>}
     <div ref={endMarker} aria-hidden="true" className="assistant-end" />

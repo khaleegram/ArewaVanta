@@ -222,3 +222,56 @@
   .assistant-welcome-actions button { width: 100%; }
   .assistant-proposal-actions.is-sticky { bottom: 70px; }
 }
+
+/* ---- Phone-first review sheet ---- */
+.assistant-summary.is-clamped .assistant-message-text { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.assistant-more { margin-top: 12px; border-top: 1px solid #dbe4d6; }
+.assistant-more > summary { color: #4a5f4d; }
+.assistant-findings-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 12px; }
+.assistant-findings-list p { margin: 4px 0; font-size: .84rem; line-height: 1.5; overflow-wrap: anywhere; }
+
+.review-sheet { margin-top: 14px; border: 1px solid #87a282; border-radius: 14px; background: #fffefa; overflow: hidden; scroll-margin-top: 72px; }
+.review-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 14px 14px 10px; background: #eef3e8; }
+.review-head h3 { margin: 0; font-size: 1.02rem; line-height: 1.3; }
+.review-head p { margin: 3px 0 0; font-size: .85rem; color: #3d5a45; }
+.review-pill { flex-shrink: 0; padding: 4px 10px; border-radius: 999px; background: #fff0cf; color: #724221; font-size: .72rem; font-weight: 700; }
+.review-ok { margin: 0; padding: 12px 14px; background: #e4f1e4; color: #1f5a33; font-weight: 650; font-size: .9rem; }
+.review-needs { padding: 12px 14px; background: #fff7e6; border-top: 1px solid #ecd9aa; border-bottom: 1px solid #ecd9aa; display: grid; gap: 10px; }
+.review-needs h4 { margin: 0; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: #8a4a12; }
+.review-card { background: #fff; border: 1px solid #e3d3a8; border-radius: 12px; padding: 12px; }
+.review-card.is-info { background: #f6f6f1; border-color: #d9dccf; }
+.review-card p { margin: 0 0 10px; display: grid; gap: 3px; line-height: 1.4; }
+.review-card p strong { font-size: .95rem; overflow-wrap: anywhere; }
+.review-card p span { font-size: .78rem; color: #6a5a3b; }
+.review-card.is-info p { margin: 0; }
+.review-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.assistant-page .review-choices button { flex: 1 1 auto; min-width: 44%; }
+.assistant-page .review-choices button.review-quiet { flex: 0 0 auto; min-width: 0; background: transparent; border-color: transparent; color: #6a7a6c; text-decoration: underline; }
+.review-teams { list-style: none; margin: 0; padding: 4px 0; }
+.review-teams > li { border-bottom: 1px solid #e3e9de; }
+.assistant-page button.review-team { display: grid; grid-template-columns: 2.4rem 1fr auto auto; align-items: center; gap: 8px; width: 100%; min-height: 52px; padding: 8px 14px; border: 0; border-radius: 0; background: transparent; text-align: left; font-size: .88rem; }
+.review-team b { font-size: .95rem; color: #27563e; }
+.review-team span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-team em { font-style: normal; color: #58685a; font-size: .8rem; }
+.review-team i { font-style: normal; font-weight: 750; min-width: 3.2rem; text-align: right; }
+.review-players { list-style: none; margin: 0; padding: 0 14px 10px 3.4rem; display: grid; gap: 4px; }
+.review-players li { display: flex; justify-content: space-between; gap: 10px; font-size: .84rem; }
+.review-standings { padding: 12px 14px; }
+.review-standings h4 { margin: 0 0 8px; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: #536849; }
+.review-standings ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.review-standings li { display: grid; grid-template-columns: 1.6rem 1fr auto; gap: 8px; font-size: .86rem; }
+.review-standings i { font-style: normal; font-weight: 700; }
+.review-more { margin: 0 14px; border-top: 1px solid #e3e9de; }
+.review-more > summary { color: #4a5f4d; }
+.review-actions { position: sticky; bottom: 76px; z-index: 4; display: flex; gap: 10px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom) * 0); background: linear-gradient(to top, #fffefa 75%, #fffefa00); }
+.assistant-page .review-actions button { min-height: 50px; font-size: .95rem; }
+.assistant-page .review-actions .assistant-primary { flex: 1 1 65%; }
+.assistant-page .review-actions button:not(.assistant-primary) { flex: 0 0 auto; }
+
+@media (max-width: 600px) {
+  .assistant-page { font-size: 15px; }
+  .assistant-message-assistant { padding-left: 0; padding-right: 0; }
+  .review-sheet { margin-left: -4px; margin-right: -4px; border-radius: 12px; }
+  .assistant-page .review-choices button { min-width: 100%; }
+  .assistant-page .review-choices button.review-quiet { min-width: 0; }
+}

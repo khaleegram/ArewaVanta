@@ -93,7 +93,7 @@ final class AssistantScoreboards
         $built = $this->corrections($chosen, $mapped, $loaded->get($chosen), $context, array_map(fn (AssistantEvidence $image): string => $image->id, $images));
 
         return [...$base, '_rebuild' => ['match_id' => $chosen, 'mapped' => $mapped, 'loaded' => $loaded->get($chosen), 'evidence_ids' => array_map(fn (AssistantEvidence $image): string => $image->id, $images)],
-            'status' => 'prepared', 'corrections' => $built['corrections'],
+            'status' => 'prepared', 'corrections' => $built['corrections'], 'issues' => $built['issues'],
             'warnings' => array_values(array_unique([...$mapped['warnings'], ...$built['warnings']])),
             'teams' => array_map(fn (array $team): array => [
                 'team' => $team['team_label'], 'placement' => $team['placement'], 'slot_status' => $team['status'],
@@ -119,7 +119,7 @@ final class AssistantScoreboards
         $rebuild = $scoreboard['_rebuild'];
         $built = $this->corrections($rebuild['match_id'], $rebuild['mapped'], $rebuild['loaded'], $context, $rebuild['evidence_ids']);
 
-        return [...$scoreboard, 'corrections' => $built['corrections'], 'warnings' => array_values(array_unique([...$rebuild['mapped']['warnings'], ...$built['warnings']]))];
+        return [...$scoreboard, 'corrections' => $built['corrections'], 'issues' => $built['issues'], 'warnings' => array_values(array_unique([...$rebuild['mapped']['warnings'], ...$built['warnings']]))];
     }
 
     /**
@@ -187,9 +187,11 @@ final class AssistantScoreboards
         $squadSize = (int) ($context['event']['squad_size'] ?? 4);
         $corrections = [];
         $warnings = [];
+        $issues = [];
         foreach ($mapped['teams'] as $team) {
             $label = $team['team_label'];
             if ($team['status'] !== 'matched') {
+                $issues[] = ['kind' => 'not_entered', 'team' => $label, 'slot' => $team['team_number'], 'text' => $label.' was not entered: '.($team['status'] === 'roster_mismatch' ? 'players look like another squad.' : 'no saved slot in this game.')];
                 $warnings[] = $label.' was not entered: '.($team['status'] === 'roster_mismatch'
                     ? 'its players look like another squad than the one assigned to that slot. Slot is the identity, so confirm the slot first.'
                     : 'it has no saved slot in this game. Assign the slot, then resend.');
@@ -211,6 +213,8 @@ final class AssistantScoreboards
                 }
                 $update = $this->playerUpdate($player, $kills);
                 if ($update === null) {
+                    $issues[] = ['kind' => 'unmatched_player', 'name' => $player['name'], 'team' => $label, 'slot' => $team['team_number'], 'kills' => $kills,
+                        'candidates' => array_values(array_map(fn (array $c): array => ['player_id' => $c['player_id'], 'ign' => $c['ign']], array_slice((array) ($player['candidates'] ?? []), 0, 4)))];
                     $options = collect($player['candidates'] ?? [])->pluck('ign')->filter()->take(3)->implode(', ');
                     $warnings[] = $player['name'].' ('.$label.') is not attributed to a profile'.($options !== '' ? ' (could be '.$options.')' : '').($kills !== null ? '; their '.$kills.' kills stay in the team total' : '').'. Tell me which player this is.';
 
@@ -236,7 +240,7 @@ final class AssistantScoreboards
             ];
         }
 
-        return ['corrections' => $corrections, 'warnings' => $warnings];
+        return ['corrections' => $corrections, 'warnings' => $warnings, 'issues' => $issues];
     }
 
     /**

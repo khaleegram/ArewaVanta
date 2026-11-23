@@ -46,6 +46,16 @@ export type AssistantProposal = {
   };
 };
 
+export type AssistantIssue = {
+  kind: "unmatched_player" | "not_entered";
+  team: string;
+  slot: number | null;
+  text?: string;
+  name?: string;
+  kills?: number | null;
+  candidates?: { player_id: string; ign: string }[];
+};
+
 export type AssistantCsv = {
   kind: "csv";
   delimiter: string;
@@ -94,6 +104,7 @@ export type AssistantMessage = {
       evidence_ids: string[];
     }[];
     warnings?: string[];
+    issues?: AssistantIssue[];
   } | null;
 };
 

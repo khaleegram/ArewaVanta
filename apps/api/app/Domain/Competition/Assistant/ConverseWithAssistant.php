@@ -123,6 +123,7 @@ final class ConverseWithAssistant
                         'ruling' => is_string($answer['ruling'] ?? null) ? mb_substr($answer['ruling'], 0, 8000) : '',
                         'findings' => $findings, 'model' => $answer['model'], 'warnings' => $warnings,
                         'player_links' => $this->cleanLinks($answer['player_links'] ?? []),
+                        'issues' => array_slice($scoreboard['issues'] ?? [], 0, 40),
                     ],
                 ]);
                 if (! empty($answer['csv_imports'])) {
